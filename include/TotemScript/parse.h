@@ -211,54 +211,6 @@ extern "C" {
     }
     totemTokenDesc;
 
-    const totemTokenDesc s_symbolTokenValues[] =
-    {
-        { totemTokenType_Variable, "$" },
-        { totemTokenType_Plus, "+" },
-        { totemTokenType_Minus, "-" },
-        { totemTokenType_Multiply, "*" },
-        { totemTokenType_Divide, "/" },
-        { totemTokenType_Not, "!" },
-        { totemTokenType_And, "&" },
-        { totemTokenType_Or, "|" },
-        { totemTokenType_Assign, "=" },
-        { totemTokenType_LBracket, "(" },
-        { totemTokenType_RBracket, ")" },
-        { totemTokenType_LessThan, "<" },
-        { totemTokenType_MoreThan, ">" },
-        { totemTokenType_LCBracket, "{" },
-        { totemTokenType_RCBracket, "}" },
-        { totemTokenType_Dot, "." },
-        { totemTokenType_PowerTo, "^" },
-        { totemTokenType_Semicolon, ";" },
-        { totemTokenType_Whitespace, " " },
-        { totemTokenType_SingleQuote, "'" },
-        { totemTokenType_DoubleQuote, "\"" },
-        { totemTokenType_LSBracket, "[" },
-        { totemTokenType_RSBracket, "]" },
-        { totemTokenType_Comma, "," },
-        { totemTokenType_Colon, ":" },
-        { totemTokenType_Backslash, "\\" },
-        { totemTokenType_Slash, "/" },
-    };
-
-    const totemTokenDesc s_reservedWordValues[] =
-    {
-        { totemTokenType_If, "if" },
-        { totemTokenType_Do, "do" },
-        { totemTokenType_While, "while" },
-        { totemTokenType_For, "for" },
-        { totemTokenType_Return, "return" },
-        { totemTokenType_Switch, "switch" },
-        { totemTokenType_Case, "case" },
-        { totemTokenType_Break, "break" },
-        { totemTokenType_Function, "function" },
-        { totemTokenType_Default, "default" },
-        { totemTokenType_Else, "else" },
-        { totemTokenType_True, "true" },
-        { totemTokenType_False, "false" },
-    };
-
     typedef struct
     {
         size_t LineNumber;
@@ -435,9 +387,7 @@ extern "C" {
 
     typedef struct
     {
-        totemToken *Token;
-        size_t NumTokens;
-        size_t MaxTokens;
+        totemMemoryBuffer Tokens;
     }
     totemTokenList;
     
@@ -452,8 +402,10 @@ extern "C" {
     /**
      * Lex script into tokens
      */
+    void totemTokenList_Reset(totemTokenList *list);
     totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length);
     totemToken *totemTokenList_Alloc(totemTokenList *list);
+    void totemTokenList_Reset(totemTokenList *list);
     void totemTokenList_Cleanup(totemTokenList *list);
     
     totemBool totemToken_LexSymbolToken(totemToken *token, const char *buffer, size_t length);
@@ -467,6 +419,7 @@ extern "C" {
      */
     totemParseStatus totemParseTree_Parse(totemParseTree *tree, totemTokenList *token);
     void *totemParseTree_Alloc(totemParseTree *tree, size_t size);
+    void totemParseTree_Reset(totemParseTree *tree);
     void totemParseTree_Cleanup(totemParseTree *tree);
     
     totemParseStatus totemBlockPrototype_Parse(totemBlockPrototype *block, totemToken **token, totemParseTree *tree);

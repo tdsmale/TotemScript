@@ -1,5 +1,5 @@
 //
-//  eval.cpp
+//  eval.c
 //  TotemScript
 //
 //  Created by Timothy Smale on 02/11/2013.
@@ -7,34 +7,25 @@
 //
 
 #include <TotemScript/eval.h>
+#include <TotemScript/base.h>
 #include <string.h>
 
 totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand)
 {
-    size_t index = 0;
-
-    if(list->NumRegisters >= list->MaxRegisters)
+    size_t index = totemMemoryBuffer_GetNumObjects(&list->Registers);
+    
+    if(index + 1 >= TOTEM_MAX_REGISTERS)
     {
-        size_t newNum = list->MaxRegisters * 1.5;
-        size_t newMem = newNum * sizeof(totemRegisterPrototype);
-        totemRegisterPrototype *reg = totem_Malloc(newMem);
-        if(!reg)
-        {
-            return totemEvalStatus_OutOfMemory;
-        }
-        
-        memcpy(reg, list->Registers, list->NumRegisters * sizeof(totemRegisterPrototype));
-        totem_Free(list->Registers);
-        list->Registers = reg;
-        list->MaxRegisters = newNum;
+        return totemEvalStatus_TooManyRegisters;
     }
     
-    index = list->NumRegisters;
-    list->NumRegisters++;
-    totemRegisterPrototype *reg = &list->Registers[index];
+    if(!totemMemoryBuffer_Secure(&list->Registers, 1))
+    {
+        return totemEvalStatus_OutOfMemory;
+    }
+
+    totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, index);
     
-    reg->ScopeType = list->Scope;
-    reg->Index = index;
     reg->Value.Data = 0;
     reg->DataType = totemDataType_Number;
     
@@ -48,7 +39,7 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
 {
     totemHashMapEntry *searchResult = totemHashMap_Find(&list->Strings, str->Value, str->Length);
     
-    totemRegisterPrototype *reg = NULL;
+    totemRegister *reg = NULL;
     if(searchResult != NULL)
     {
         operand->RegisterIndex = searchResult->Value;
@@ -62,30 +53,22 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
             return status;
         }
         
-        reg = &list->Registers[operand->RegisterIndex];
+        reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
         reg->DataType = totemDataType_String;
-        reg->Value.String.Index = (uint32_t)list->StringDataLength;
+        reg->Value.String.Index = (uint32_t)list->StringData.Length;
         reg->Value.String.Length = str->Length;
         
-        totemHashMap_Insert(&list->Strings, str->Value, str->Length, reg->Index);
-        
-        if(list->StringDataLength + str->Length >= list->StringDataCapacity)
+        if(!totemHashMap_Insert(&list->Strings, str->Value, str->Length, operand->RegisterIndex))
         {
-            size_t newNum = list->StringDataCapacity * 1.5;
-            char *data = totem_Malloc(newNum);
-            if(!data)
-            {
-                return totemEvalStatus_OutOfMemory;
-            }
-            
-            memcpy(data, list->StringData, list->StringDataLength);
-            totem_Free(list->StringData);
-            list->StringData = data;
-            list->StringDataCapacity = newNum;
+            return totemEvalStatus_OutOfMemory;
         }
         
-        memcpy(list->StringData + list->StringDataLength, str->Value, str->Length);
-        list->StringDataLength += str->Length;
+        if(!totemMemoryBuffer_Secure(&list->StringData, str->Length))
+        {
+            return totemEvalStatus_OutOfMemory;
+        }
+        
+        memcpy(totemMemoryBuffer_Get(&list->StringData, reg->Value.String.Index), str->Value, str->Length);
     }
     
     return totemEvalStatus_Success;
@@ -114,8 +97,10 @@ totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototyp
             return status;
         }
         
-        totemRegisterPrototype *reg = &list->Registers[prototype->RegisterIndex];
-        totemHashMap_Insert(&list->Variables, name->Value, name->Length, reg->Index);
+        if(!totemHashMap_Insert(&list->Variables, name->Value, name->Length, prototype->RegisterIndex))
+        {
+            return totemEvalStatus_OutOfMemory;
+        }
     }
     
     return totemEvalStatus_Success;
@@ -137,13 +122,33 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
             return status;
         }
         
-        totemHashMap_Insert(&list->Numbers, (const char*)&number, sizeof(totemNumber), operand->RegisterIndex);
+        if(!totemHashMap_Insert(&list->Numbers, (const char*)&number, sizeof(totemNumber), operand->RegisterIndex))
+        {
+            return totemEvalStatus_OutOfMemory;
+        }
         
-        totemRegisterPrototype *reg = &list->Registers[operand->RegisterIndex];
+        totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
         reg->Value.Number = *number;
     }
     
     return totemEvalStatus_Success;
+}
+
+void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
+{
+    totemHashMap_Reset(&list->Numbers);
+    totemHashMap_Reset(&list->Strings);
+    totemHashMap_Reset(&list->Variables);
+    totemMemoryBuffer_Reset(&list->Registers, sizeof(totemRegister));
+    totemMemoryBuffer_Reset(&list->StringData, sizeof(char));
+}
+
+void totemBuildPrototype_Init(totemBuildPrototype *build, totemRuntime *runtime)
+{
+    build->Functions.ObjectSize = sizeof(totemFunction);
+    build->Instructions.ObjectSize = sizeof(totemInstruction);
+    totemRegisterListPrototype_Reset(&build->GlobalRegisters);
+    build->Runtime = runtime;
 }
 
 /*
@@ -165,7 +170,7 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
 
 totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseTree *prototype)
 {
-    totemFunctionPrototype *globalFunction;
+    totemFunction *globalFunction;
     totemString globalFunctionName;
     totemString_FromLiteral(&globalFunctionName, "__init");
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, &globalFunctionName, &globalFunction));
@@ -195,18 +200,31 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
         
     };
 
+    globalFunction->RegistersNeeded = build->GlobalRegisters.Registers.Length;
     totemBuildPrototype_EvalImplicitReturn(build);
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemString *name, totemFunctionPrototype **functionOut)
+totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemString *name, totemFunction **functionOut)
 {
+    if(totemMemoryBuffer_Secure(&build->Functions, 1) == totemBool_True)
+    {
+        *functionOut = ((totemFunction*)build->Functions.Data) + build->Functions.Length - 1;
+        return totemEvalStatus_Success;
+    }
     
+    return totemEvalStatus_OutOfMemory;
 }
 
 totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build, totemInstruction **instructionOut)
 {
+    if(totemMemoryBuffer_Secure(&build->Instructions, 1) == totemBool_True)
+    {
+        *instructionOut = ((totemInstruction*)build->Instructions.Data) + build->Instructions.Length - 1;
+        return totemEvalStatus_Success;
+    }
     
+    return totemEvalStatus_OutOfMemory;
 }
 
 totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationPrototype *function, totemBuildPrototype *build, totemRegisterListPrototype *globals)
@@ -215,11 +233,15 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
     localRegisters.Scope = totemRegisterScopeType_Local;
     
     // TODO: Ensure function name doesn't already exist in runtime
+    // TODO: Move function linking to runtime to make things conceptually simpler
     
-    size_t functionIndex = build->NumFunctions;
-    totemFunctionPrototype *functionPrototype;
+    size_t functionIndex = build->Functions.Length;
+    totemFunction *functionPrototype;
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, function->Identifier, &functionPrototype));
-    totemHashMap_Insert(&build->FunctionLookup, function->Identifier->Value, function->Identifier->Length, functionIndex);
+    if(!totemHashMap_Insert(&build->FunctionLookup, function->Identifier->Value, function->Identifier->Length, functionIndex))
+    {
+        return totemEvalStatus_OutOfMemory;
+    }
     
     for(totemVariablePrototype *parameter = function->ParametersStart; parameter != NULL; parameter = parameter->Next)
     {
@@ -233,6 +255,7 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
         TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(statement, build, &localRegisters, globals));
     }
     
+    functionPrototype->RegistersNeeded = localRegisters.Registers.Length;
     totemBuildPrototype_EvalImplicitReturn(build);
     return totemEvalStatus_Success;
 }
@@ -295,20 +318,20 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         case totemPreUnaryOperatorType_Dec:
             preUnaryNumber = 1;
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddNumberConstant(globals, &preUnaryNumber, &preUnaryRegister));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &preUnaryRegister, &lValue, totemOperation_Subtract));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &preUnaryRegister, &lValue, totemOperation_Subtract));
             break;
             
         case totemPreUnaryOperatorType_Inc:
             preUnaryNumber = 1;
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddNumberConstant(globals, &preUnaryNumber, &preUnaryRegister));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &preUnaryRegister, &lValue, totemOperation_Add));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &preUnaryRegister, &lValue, totemOperation_Add));
             break;
             
         case totemPreUnaryOperatorType_LogicalNegate:
             preUnaryNumber = 0;
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, &preUnaryLValue));
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddNumberConstant(globals, &preUnaryNumber, &preUnaryRegister));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &preUnaryRegister, &lValue, totemOperation_Equals));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &preUnaryRegister, &lValue, totemOperation_Equals));
             memcpy(&lValue, &preUnaryLValue, sizeof(totemOperandRegisterPrototype));
             // A = B == C(0)
             break;
@@ -317,7 +340,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
             preUnaryNumber = -1;
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, &preUnaryLValue));
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddNumberConstant(globals, &preUnaryNumber, &preUnaryRegister));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &preUnaryLValue, &preUnaryRegister, &lValue, totemOperation_Multiply));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &preUnaryLValue, &preUnaryRegister, &lValue, totemOperation_Multiply));
             memcpy(&lValue, &preUnaryLValue, sizeof(totemOperandRegisterPrototype));
             // A = B * -1
             break;
@@ -334,13 +357,13 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         case totemPostUnaryOperatorType_Dec:
             postUnaryNumber = 1;
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddNumberConstant(globals, &postUnaryNumber, &postUnaryRegister));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &postUnaryRegister, &lValue, totemOperation_Subtract));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &postUnaryRegister, &lValue, totemOperation_Subtract));
             break;
             
         case totemPostUnaryOperatorType_Inc:
             postUnaryNumber = 1;
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddNumberConstant(globals, &postUnaryNumber, &postUnaryRegister));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &postUnaryRegister, &lValue, totemOperation_Add));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &postUnaryRegister, &lValue, totemOperation_Add));
             break;
             
         case totemPostUnaryOperatorType_None:
@@ -356,92 +379,77 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         {
             case totemBinaryOperatorType_Plus:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_Add));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_Add));
                 break;
                 
             case totemBinaryOperatorType_PlusAssign:
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &lValue, &rValue, totemOperation_Add));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &lValue, &rValue, totemOperation_Add));
                 break;
                 
             case totemBinaryOperatorType_Minus:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_Subtract));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_Subtract));
                 break;
                 
             case totemBinaryOperatorType_MinusAssign:
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &lValue, &rValue, totemOperation_Subtract));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &lValue, &rValue, totemOperation_Subtract));
                 break;
                 
             case totemBinaryOperatorType_Multiply:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_Multiply));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_Multiply));
                 break;
                 
             case totemBinaryOperatorType_MultiplyAssign:
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &lValue, &rValue, totemOperation_Multiply));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &lValue, &rValue, totemOperation_Multiply));
                 break;
                 
             case totemBinaryOperatorType_Divide:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_Divide));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_Divide));
                 break;
                 
             case totemBinaryOperatorType_DivideAssign:
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &lValue, &rValue, totemOperation_Divide));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &lValue, &rValue, totemOperation_Divide));
                 break;
                                 
             case totemBinaryOperatorType_Assign:
-            {
-                totemRegisterPrototype *lValueReg = &scope->Registers[lValue.RegisterIndex];
-                totemRegisterPrototype *rValueReg = NULL;
-                switch(rValue.RegisterScopeType)
-                {
-                    case totemRegisterScopeType_Global:
-                        rValueReg = &globals->Registers[rValue.RegisterIndex];
-                        break;
-                        
-                    case totemRegisterScopeType_Local:
-                        lValueReg = &globals->Registers[rValue.RegisterIndex];
-                        break;
-                }
-                
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &lValue, &rValue, &rValue, totemOperation_Move));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &rValue, &rValue, totemOperation_Move));
                 break;
-            }
                 
             case totemBinaryOperatorType_Equals:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_Equals));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_Equals));
                 break;
                 
             case totemBinaryOperatorType_MoreThan:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_MoreThan));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_MoreThan));
                 break;
                 
             case totemBinaryOperatorType_LessThan:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_LessThan));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_LessThan));
                 break;
                 
             case totemBinaryOperatorType_MoreThanEquals:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_MoreThanEquals));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_MoreThanEquals));
                 break;
                 
             case totemBinaryOperatorType_LessThanEquals:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_LessThanEquals));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_LessThanEquals));
                 break;
                 
             case totemBinaryOperatorType_LogicalAnd:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_LogicalAnd));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_LogicalAnd));
                 break;
                 
             case totemBinaryOperatorType_LogicalOr:
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, value));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, value, &lValue, &rValue, totemOperation_LogicalOr));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &lValue, &rValue, totemOperation_LogicalOr));
                 break;
                 
             case totemBinaryOperatorType_None:
@@ -511,8 +519,8 @@ totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totem
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, scope, globals, &initialisation));
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, scope, globals, &condition));
     
-    size_t gotoInstructionIndex = build->NumFunctions;
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABxInstruction(build, &condition, 0, totemOperation_ConditionalGoto));
+    size_t gotoInstructionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions) - 1;
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &condition, 0, totemOperation_ConditionalGoto));
     
     for(totemStatementPrototype *statement = forLoop->StatementsStart; statement != NULL; statement = statement->Next)
     {
@@ -520,11 +528,11 @@ totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totem
     }
     
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->AfterThought, build, scope, globals, &afterThought));
-    totemInstruction *gotoInstruction = &build->Instructions[gotoInstructionIndex];
-    totemOperandX offset = (totemOperandX)(build->NumInstructions - gotoInstructionIndex);
+    totemInstruction *gotoInstruction = (totemInstruction*)totemMemoryBuffer_Get(&build->Instructions, gotoInstructionIndex);
+    totemOperandX offset = (totemOperandX)((totemMemoryBuffer_GetNumObjects(&build->Instructions)) - gotoInstructionIndex);
     gotoInstruction->Abx.OperandBx = offset;
     
-    totemOperandX resetLoopOffset = (totemOperandX)(gotoInstructionIndex - build->NumInstructions - 1);
+    totemOperandX resetLoopOffset = (totemOperandX)(gotoInstructionIndex - totemMemoryBuffer_GetNumObjects(&build->Instructions));
     totemBuildPrototype_EvalAxxInstruction(build, resetLoopOffset, totemOperation_Goto);
     return totemEvalStatus_Success;
 }
@@ -535,16 +543,16 @@ totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totem
     
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(ifBlock->Expression, build, scope, globals, &condition));
     
-    size_t gotoInstructionIndex = build->NumFunctions;
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABxInstruction(build, &condition, 0, totemOperation_ConditionalGoto));
+    size_t gotoInstructionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions) - 1;
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &condition, 0, totemOperation_ConditionalGoto));
     
     for(totemStatementPrototype *statement = ifBlock->StatementsStart; statement != NULL; statement = statement->Next)
     {
         TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(statement, build, scope, globals));
     }
     
-    totemInstruction *gotoInstruction = &build->Instructions[gotoInstructionIndex];
-    totemOperandX offset = (totemOperandX)(build->NumInstructions - gotoInstructionIndex);
+    totemInstruction *gotoInstruction = (totemInstruction*)totemMemoryBuffer_Get(&build->Instructions, gotoInstructionIndex);
+    totemOperandX offset = (totemOperandX)((totemMemoryBuffer_GetNumObjects(&build->Instructions)) - gotoInstructionIndex);
     gotoInstruction->Abx.OperandBx = offset;
     
     if(ifBlock->ElseType == totemIfElseBlockType_None)
@@ -554,7 +562,7 @@ totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totem
     
     // skip over next block
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxxInstruction(build, 0, totemOperation_Goto));
-    gotoInstructionIndex = build->NumInstructions - 1;
+    gotoInstructionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
     
     switch(ifBlock->ElseType)
     {
@@ -573,9 +581,9 @@ totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totem
             break;
     }
     
-    gotoInstruction = &build->Instructions[gotoInstructionIndex];
-    offset = (totemOperandX)(build->NumInstructions - gotoInstructionIndex);
-    gotoInstruction->Axx.OperandAxx = offset;
+    gotoInstruction = (totemInstruction*)totemMemoryBuffer_Get(&build->Instructions, gotoInstructionIndex);
+    offset = (totemOperandX)((totemMemoryBuffer_GetNumObjects(&build->Instructions)) - gotoInstructionIndex);
+    gotoInstruction->Abx.OperandBx = offset;
     
     return totemEvalStatus_Success;
 }
@@ -595,8 +603,8 @@ totemEvalStatus totemSwitchBlockPrototype_Eval(totemSwitchBlockPrototype *switch
             case totemSwitchCaseType_Expression:
                 TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(switchCase->Expression, build, scope, globals, &caseCondition));
                 TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, &caseEquals));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABCInstruction(build, &caseEquals, &caseCondition, &expression, totemOperation_Equals));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABxInstruction(build, &caseEquals, 0, totemOperation_ConditionalGoto));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &caseEquals, &caseCondition, &expression, totemOperation_Equals));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &caseEquals, 0, totemOperation_ConditionalGoto));
                 break;
                 
             case totemSwitchCaseType_Default:
@@ -610,7 +618,7 @@ totemEvalStatus totemSwitchBlockPrototype_Eval(totemSwitchBlockPrototype *switch
         
         if(switchCase->HasBreak)
         {
-            size_t thisBreak = build->NumInstructions - 1;
+            size_t thisBreak = totemMemoryBuffer_GetNumObjects(&build->Instructions) - 1;
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxxInstruction(build, 0, totemOperation_Goto));
             if(firstBreak == 0)
             {
@@ -619,7 +627,7 @@ totemEvalStatus totemSwitchBlockPrototype_Eval(totemSwitchBlockPrototype *switch
             
             if(prevBreak != 0)
             {
-                totemInstruction *instruction = &build->Instructions[prevBreak];
+                totemInstruction *instruction = totemMemoryBuffer_Get(&build->Instructions, prevBreak);
                 instruction->Axx.OperandAxx = (totemOperandX)thisBreak;
             }
             
@@ -629,9 +637,9 @@ totemEvalStatus totemSwitchBlockPrototype_Eval(totemSwitchBlockPrototype *switch
     
     for(size_t br = firstBreak; firstBreak != 0; )
     {
-        totemInstruction *instruction = &build->Instructions[br];
+        totemInstruction *instruction = totemMemoryBuffer_Get(&build->Instructions, br);
         size_t next = instruction->Axx.OperandAxx;
-        instruction->Axx.OperandAxx = (totemOperandX)(build->NumInstructions - 1 - br);
+        instruction->Axx.OperandAxx = (totemOperandX)(totemMemoryBuffer_GetNumObjects(&build->Instructions) - br);
         br = next;
     }
     
@@ -640,7 +648,7 @@ totemEvalStatus totemSwitchBlockPrototype_Eval(totemSwitchBlockPrototype *switch
 
 totemEvalStatus totemDoWhileLoopPrototype_Eval(totemDoWhileLoopPrototype *doWhileLoop, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals)
 {
-    size_t gotoInstructionIndex = build->NumInstructions - 1;
+    size_t gotoInstructionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions) - 1;
     
     for(totemStatementPrototype *statement = doWhileLoop->StatementsStart; statement != NULL; statement = statement->Next)
     {
@@ -650,8 +658,8 @@ totemEvalStatus totemDoWhileLoopPrototype_Eval(totemDoWhileLoopPrototype *doWhil
     totemOperandRegisterPrototype condition;
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(doWhileLoop->Expression, build, scope, globals, &condition));
     
-    totemOperandX offset = (totemOperandX)(gotoInstructionIndex - build->NumInstructions);
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABxInstruction(build, &condition, 2, totemOperation_ConditionalGoto));
+    totemOperandX offset = (totemOperandX)(gotoInstructionIndex - totemMemoryBuffer_GetNumObjects(&build->Instructions));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &condition, 2, totemOperation_ConditionalGoto));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxxInstruction(build, offset, totemOperation_Goto));
     
     return totemEvalStatus_Success;
@@ -661,19 +669,19 @@ totemEvalStatus totemWhileLoopPrototype_Eval(totemWhileLoopPrototype *whileLoop,
 {
     totemOperandRegisterPrototype condition;
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(whileLoop->Expression, build, scope, globals, &condition));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABxInstruction(build, &condition, 0, totemOperation_ConditionalGoto));
-    size_t gotoInstructionIndex = build->NumInstructions - 1;
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &condition, 0, totemOperation_ConditionalGoto));
+    size_t gotoInstructionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions) - 1;
     
     for(totemStatementPrototype *statement = whileLoop->StatementsStart; statement != NULL; statement = statement->Next)
     {
         TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(statement, build, scope, globals));
     }
     
-    totemInstruction *gotoInstruction = &build->Instructions[gotoInstructionIndex];
-    totemOperandX offset = (totemOperandX)(build->NumInstructions - gotoInstructionIndex);
+    totemInstruction *gotoInstruction = totemMemoryBuffer_Get(&build->Instructions, gotoInstructionIndex);
+    totemOperandX offset = (totemOperandX)(totemMemoryBuffer_GetNumObjects(&build->Instructions) - gotoInstructionIndex);
     gotoInstruction->Abx.OperandBx = offset;
     
-    totemOperandX resetLoopOffset = (totemOperandX)(gotoInstructionIndex - build->NumInstructions);
+    totemOperandX resetLoopOffset = (totemOperandX)(gotoInstructionIndex - totemMemoryBuffer_GetNumObjects(&build->Instructions));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxxInstruction(build, resetLoopOffset, totemOperation_Goto));
     
     return totemEvalStatus_Success;
@@ -725,7 +733,7 @@ totemEvalStatus totemBuildPrototype_EvalImplicitReturn(totemBuildPrototype *buil
     memset(operands, 0, sizeof(totemOperandRegisterPrototype) * 3);
     
     operands[0].RegisterScopeType = totemRegisterScopeType_Local;
-    operands[9].RegisterIndex = 0;
+    operands[0].RegisterIndex = 0;
     
     return totemBuildPrototype_EvalAbcInstruction(build, &operands[0], &operands[1], &operands[2], totemOperation_Return);
 }
@@ -734,24 +742,24 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
 {
     size_t address;
     totemOperation opType;
-    
+
     // check for native function
-    if(col::script::getNativeFunctionAddress(functionCall->Identifier, address))
+    if(totemRuntime_GetNativeFunctionAddress(build->Runtime, &functionCall->Identifier, &address))
     {
         opType = totemOperation_NativeFunction;
     }
-    // check for script function
     else
     {
-        size_t *searchResult = build.m_functionNames.find(functionCall->Identifier);
-        if(searchResult != NULL)
+        totemHashMapEntry *searchResult = totemHashMap_Find(&build->FunctionLookup, functionCall->Identifier.Value, functionCall->Identifier.Length);
+        if(searchResult)
         {
-            address = *searchResult;
+            address = searchResult->Value;
             opType = totemOperation_ScriptFunction;
         }
         else
         {
-            return false;
+            build->ErrorContext = functionCall;
+            return totemEvalStatus_FunctionNotDefined;
         }
     }
     
@@ -779,7 +787,7 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
     }
     
     TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, &result));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABxInstruction(build, &result, (totemOperandX)address, opType));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &result, (totemOperandX)address, opType));
     
     currentArg = 0;
     for(totemExpressionPrototype *parameter = functionCall->ParametersStart; parameter != NULL; parameter = parameter->Next)
@@ -787,7 +795,7 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
         totemOperandRegisterPrototype paramRegister;
         paramRegister.RegisterIndex = firstIndex + currentArg;
         paramRegister.RegisterScopeType = scope->Scope;
-        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalABxInstruction(build, &paramRegister, (totemOperandX)(currentArg == numArgs - 1), totemOperation_FunctionArg));
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &paramRegister, (totemOperandX)(currentArg == numArgs - 1), totemOperation_FunctionArg));
         currentArg++;
     }
     

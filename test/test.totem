@@ -1,0 +1,40 @@
+
+
+$a = 123;
+for($b = 0; $b < 10; $b++)
+{
+    $a += $b;
+}
+
+$c = $a;
+
+function doIt($arg)
+{
+    return --$arg;
+}
+
+function test($argA, $argB, $argC)
+{
+    while($a)
+    {
+        $argA += $a--;
+    }
+
+    do
+    {
+        $argB -= --$b;
+    }
+    while($b);
+
+    for($i = 0; $i < $c; $i++)
+    {
+        $argC = $argA * $argB * $c;
+    }
+
+    while(doIt($argA))
+    {
+        $d  = $a;
+    }
+
+    return $argA / $argB - $argC;
+}

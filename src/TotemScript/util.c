@@ -1,5 +1,5 @@
 //
-//  util.cpp
+//  util.c
 //  TotemScript
 //
 //  Created by Timothy Smale on 22/12/2013.
@@ -61,6 +61,187 @@ void totemString_FromLiteral(totemString *strOut, const char *str)
 {
     strOut->Value = str;
     strOut->Length = (uint32_t)strlen(str);
+}
+
+void *totemMemoryBlock_Alloc(totemMemoryBlock **blockHead, size_t objectSize)
+{
+    size_t allocSize = objectSize;
+    size_t extra = allocSize % sizeof(uintptr_t);
+    if(extra != 0)
+    {
+        allocSize += sizeof(uintptr_t) - extra;
+    }
+    
+    totemMemoryBlock *chosenBlock = NULL;
+    
+    for(totemMemoryBlock *block = *blockHead; block != NULL; block = block->Prev)
+    {
+        if(block->Remaining > allocSize)
+        {
+            chosenBlock = block;
+            break;
+        }
+    }
+    
+    if(chosenBlock == NULL)
+    {
+        // alloc new
+        chosenBlock = (totemMemoryBlock*)totem_Malloc(sizeof(totemMemoryBlock));
+        if(chosenBlock == NULL)
+        {
+            return NULL;
+        }
+        chosenBlock->Remaining = TOTEM_MEMORYBLOCK_DATASIZE;
+        chosenBlock->Prev = *blockHead;
+        *blockHead = chosenBlock;
+    }
+    
+    void *ptr = chosenBlock->Data + (TOTEM_MEMORYBLOCK_DATASIZE - chosenBlock->Remaining);
+    memset(ptr, 0, objectSize);
+    chosenBlock->Remaining -= allocSize;
+    return ptr;
+}
+
+void totemMemoryBuffer_Reset(totemMemoryBuffer *buffer, size_t objectSize)
+{
+    buffer->Length = 0;
+    buffer->ObjectSize = objectSize;
+}
+
+void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer)
+{
+    if(buffer->Data)
+    {
+        totem_Free(buffer->Data);
+        buffer->Data = NULL;
+        buffer->Length = 0;
+        buffer->MaxLength = 0;
+        buffer->ObjectSize = 0;
+    }
+}
+
+totemBool totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
+{
+    char *memEnd = buffer->Data + buffer->MaxLength;
+    char *memCurrent = buffer->Data + buffer->Length;
+    
+    amount *= buffer->ObjectSize;
+    
+    if(memCurrent + amount > memEnd)
+    {
+        size_t toAlloc = buffer->MaxLength * 1.5;
+        if(amount > toAlloc)
+        {
+            toAlloc += amount;
+        }
+        char *newMem = totem_Malloc(toAlloc);
+        if(newMem == NULL)
+        {
+            return totemBool_False;
+        }
+        
+        memcpy(newMem, buffer->Data, buffer->MaxLength);
+        memset(newMem + buffer->MaxLength, 0, toAlloc - buffer->MaxLength);
+        totem_Free(buffer->Data);
+        buffer->MaxLength = toAlloc;
+        buffer->Data = newMem;
+    }
+    
+    buffer->Length += amount;
+    return totemBool_True;
+}
+
+void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index)
+{
+    index *= buffer->ObjectSize;
+    if(index < buffer->MaxLength)
+    {
+        return (void*)&buffer->Data[index];
+    }
+
+    return NULL;
+}
+
+size_t totemMemoryBuffer_GetNumObjects(totemMemoryBuffer *buffer)
+{
+    return buffer->Length / buffer->ObjectSize;
+}
+
+size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer)
+{
+    return buffer->MaxLength / buffer->ObjectSize;
+}
+
+totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t keyLen, size_t value)
+{
+    totemHashMapEntry *existingEntry = totemHashMap_Find(hashmap, key, keyLen);
+    if(existingEntry)
+    {
+        existingEntry->Value = value;
+        return totemBool_True;
+    }
+    else
+    {
+        if(hashmap->NumBuckets >= hashmap->NumKeys)
+        {
+            // TODO: hashmap realloc
+            
+            // TODO: hashmap reassign
+        }
+        
+        // TODO: hashmap insert
+    }
+    
+    return totemBool_False;
+}
+
+totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, size_t keyLen)
+{
+    uint32_t hash = totem_Hash((char*)key, keyLen);
+    int index = hash % hashmap->NumBuckets;
+    
+    for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
+    {
+        if(strncmp(entry->Key, key, entry->KeyLen))
+        {
+            return entry;
+        }
+    }
+    
+    return NULL;
+}
+
+void totemHashMap_MoveKeysToFreeList(totemHashMap *hashmap)
+{
+    for(size_t i = 0; i < hashmap->NumKeys; i++)
+    {
+        while(hashmap->Buckets[i])
+        {
+            totemHashMapEntry *entry = hashmap->Buckets[i];
+            hashmap->Buckets[i] = entry->Next;
+            entry->Next = hashmap->FreeList;
+            hashmap->FreeList = entry;
+        }
+    }
+}
+
+void totemHashMap_Reset(totemHashMap *hashmap)
+{
+    totemHashMap_MoveKeysToFreeList(hashmap);
+    hashmap->NumKeys = 0;
+}
+
+void totemHashMap_Cleanup(totemHashMap *map)
+{
+    totemHashMap_MoveKeysToFreeList(map);
+    while(map->FreeList)
+    {
+        totemHashMapEntry *entry = map->FreeList;
+        map->FreeList = entry->Next;
+        totem_Free(entry);
+    }
+    
+    totem_Free(map->Buckets);
 }
 
 const char *totemOperation_GetName(totemOperation op)
@@ -357,7 +538,6 @@ const char *totemDataType_GetName(totemDataType type)
     }
 }
 
-
 void totemInstruction_PrintList(FILE *file, totemInstruction *instructions, size_t num)
 {
     for(size_t i = 0; i < num; ++i)
@@ -384,7 +564,7 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
         case totemOperation_Subtract:
         case totemOperation_Move:
         case totemOperation_NotEquals:
-            totemInstruction_PrintAbcInstructon(file, instruction);
+            totemInstruction_PrintAbcInstruction(file, instruction);
             break;
             
         case totemOperation_ConditionalGoto:
@@ -405,7 +585,7 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
     }
 }
 
-void totemInstruction_PrintAbcInstructon(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instruction)
 {
     fprintf(file, "%s %s%d %s%d %s%d",
             totemOperation_GetName(instruction.Abc.Operation),
@@ -417,7 +597,7 @@ void totemInstruction_PrintAbcInstructon(FILE *file, totemInstruction instructio
             instruction.Abc.OperandCIndex);
 }
 
-void totemInstruction_PrintAbxInstructon(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintAbxInstruction(FILE *file, totemInstruction instruction)
 {
     fprintf(file, "%s %s%d %d",
             totemOperation_GetName(instruction.Abx.Operation),
@@ -426,7 +606,7 @@ void totemInstruction_PrintAbxInstructon(FILE *file, totemInstruction instructio
             instruction.Abx.OperandBx);
 }
 
-void totemInstruction_PrintAxxInstructon(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintAxxInstruction(FILE *file, totemInstruction instruction)
 {
     fprintf(file, "%s %d",
             totemOperation_GetName(instruction.Axx.Operation),

@@ -12,7 +12,6 @@
 #include <TotemScript/base.h>
 #include <TotemScript/parse.h>
 #include <TotemScript/eval.h>
-#include <TotemScript/build.h>
 #include <TotemScript/exec.h>
 
 #endif

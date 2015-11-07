@@ -16,7 +16,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+    
 /**
  * Register-based
  * There is a global stack for global variables & constants (strings mainly) that is unique to each instantiation of a compiled script
@@ -227,7 +227,7 @@ function test() {
     typedef union
     {
         totemNumber Number;
-        totemReference Teference;
+        totemReference Reference;
         totemRuntimeString String;
         uint64_t Data;
     }
@@ -248,6 +248,13 @@ function test() {
     }
     totemRegister;
 
+    typedef enum
+    {
+        totemFunctionType_Script,
+        totemFunctionType_Native
+    }
+    totemFunctionType;
+    
     /**
      * Operation Types
      */
@@ -317,12 +324,12 @@ function test() {
         totemOperandSize_RegisterIndex = 8
     }
     totemOperandSize;
-        
-    #define TOTEM_MAX_REGISTERS (1 << totemOperandSize_RegisterIndex)
+    
+#define TOTEM_MAX_REGISTERS (1 << totemOperandSize_RegisterIndex)
 
-    #define TOTEM_INSTRUCTION_OPERAND_DEF(name) \
-        name##Type:totemOperandSize_RegisterType, name##Index:totemOperandSize_RegisterIndex \
-        
+#define TOTEM_INSTRUCTION_OPERAND_DEF(name) \
+    name##Type:totemOperandSize_RegisterType, name##Index:totemOperandSize_RegisterIndex \
+    
     typedef enum
     {
         totemRegisterScopeType_Local = 0,
@@ -369,7 +376,7 @@ function test() {
         
     void totemInstruction_PrintList(FILE *file, totemInstruction *instructions, size_t num);
     void totemInstruction_Print(FILE *file, totemInstruction instruction);
-    void totemInstruction_PrintAbcInstructon(FILE *file, totemInstruction instruction);
+    void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAbxInstruction(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAxxInstruction(FILE *file, totemInstruction instruction);
     
@@ -382,6 +389,24 @@ function test() {
     uint32_t totem_Hash(char *data, size_t len);
     void totem_SetGlobalCallbacks(totemMallocCb malloc, totemFreeCb free, totemHashCb hash);
     
+    typedef struct
+    {
+        char *Data;
+        size_t ObjectSize;
+        size_t MaxLength;
+        size_t Length;
+    }
+    totemMemoryBuffer;
+    
+    totemBool totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount);
+    void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index);
+    size_t totemMemoryBuffer_GetNumObjects(totemMemoryBuffer *buffer);
+    size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer);
+    void totemMemoryBuffer_Reset(totemMemoryBuffer *buffer, size_t objectSize);
+    void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer);
+    
+    // TODO: Dynamically managed list of freelists / slabs to serve entire runtime
+    
 #define TOTEM_MEMORYBLOCK_DATASIZE (1024)
     
     typedef struct totemMemoryBlock
@@ -391,6 +416,8 @@ function test() {
         struct totemMemoryBlock *Prev;
     }
     totemMemoryBlock;
+    
+    void *totemMemoryBlock_Alloc(totemMemoryBlock **blockHead, size_t objectSize);
     
     typedef struct totemHashMapEntry
     {
@@ -404,12 +431,79 @@ function test() {
     typedef struct
     {
         totemHashMapEntry **Buckets;
+        totemHashMapEntry *FreeList;
         size_t NumBuckets;
+        size_t NumKeys;
     }
     totemHashMap;
     
-    totemHashMapEntry *totemHashMap_Insert(totemHashMap *hashmap, const char *Key, size_t KeyLen, size_t Value);
+    totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *Key, size_t KeyLen, size_t Value);
     totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *Key, size_t keyLen);
+    void totemHashMap_Reset(totemHashMap *hashmap);
+    void totemHashMap_Cleanup(totemHashMap *hashmap);
+    
+    typedef struct
+    {
+        totemMemoryBuffer Registers;
+        totemMemoryBuffer StringData;
+        totemHashMap Variables;
+        totemHashMap Strings;
+        totemHashMap Numbers;
+        totemRegisterScopeType Scope;
+    }
+    totemRegisterListPrototype;
+    
+    typedef struct
+    {
+        size_t ScriptHandle;
+        totemMemoryBuffer GlobalData;
+    }
+    totemActor;
+    
+    typedef struct totemFunctionCall
+    {
+        struct totemFunctionCall *Prev;
+        totemActor *Actor;
+        totemRegister *ReturnRegister;
+        totemRegister *RegisterFrameStart;
+        totemInstruction *LastInstruction;
+        size_t FunctionHandle;
+        totemFunctionType Type;
+        uint8_t NumArguments;
+    }
+    totemFunctionCall;
+    
+    typedef struct
+    {
+        totemMemoryBuffer NativeFunctions;
+        totemMemoryBuffer Scripts;
+
+        totemHashMap ScriptLookup;
+        totemHashMap NativeFunctionsLookup;
+        
+        totemMemoryBlock *LastMemBlock;
+        totemFunctionCall *FunctionCallFreeList;
+    }
+    totemRuntime;
+    
+    typedef struct
+    {
+        totemRegisterListPrototype GlobalRegisters;
+        totemHashMap FunctionLookup;
+        totemMemoryBuffer Functions;
+        totemMemoryBuffer Instructions;
+        void *ErrorContext;
+        totemRuntime *Runtime;
+    }
+    totemBuildPrototype;
+    
+    typedef struct
+    {
+        size_t InstructionsStart;
+        size_t RegistersNeeded;
+        totemString Name;
+    }
+    totemFunction;
 
 #ifdef __cplusplus
 }

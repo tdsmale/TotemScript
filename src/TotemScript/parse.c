@@ -1,5 +1,5 @@
 //
-//  parse.cpp
+//  parse.c
 //  TotemScript
 //
 //  Created by Timothy Smale on 19/10/2013.
@@ -11,10 +11,63 @@
 #include <string.h>
 #include <ctype.h>
 
+const static totemTokenDesc s_symbolTokenValues[] =
+{
+    { totemTokenType_Variable, "$" },
+    { totemTokenType_Plus, "+" },
+    { totemTokenType_Minus, "-" },
+    { totemTokenType_Multiply, "*" },
+    { totemTokenType_Divide, "/" },
+    { totemTokenType_Not, "!" },
+    { totemTokenType_And, "&" },
+    { totemTokenType_Or, "|" },
+    { totemTokenType_Assign, "=" },
+    { totemTokenType_LBracket, "(" },
+    { totemTokenType_RBracket, ")" },
+    { totemTokenType_LessThan, "<" },
+    { totemTokenType_MoreThan, ">" },
+    { totemTokenType_LCBracket, "{" },
+    { totemTokenType_RCBracket, "}" },
+    { totemTokenType_Dot, "." },
+    { totemTokenType_PowerTo, "^" },
+    { totemTokenType_Semicolon, ";" },
+    { totemTokenType_Whitespace, " " },
+    { totemTokenType_SingleQuote, "'" },
+    { totemTokenType_DoubleQuote, "\"" },
+    { totemTokenType_LSBracket, "[" },
+    { totemTokenType_RSBracket, "]" },
+    { totemTokenType_Comma, "," },
+    { totemTokenType_Colon, ":" },
+    { totemTokenType_Backslash, "\\" },
+    { totemTokenType_Slash, "/" },
+};
+
+const static totemTokenDesc s_reservedWordValues[] =
+{
+    { totemTokenType_If, "if" },
+    { totemTokenType_Do, "do" },
+    { totemTokenType_While, "while" },
+    { totemTokenType_For, "for" },
+    { totemTokenType_Return, "return" },
+    { totemTokenType_Switch, "switch" },
+    { totemTokenType_Case, "case" },
+    { totemTokenType_Break, "break" },
+    { totemTokenType_Function, "function" },
+    { totemTokenType_Default, "default" },
+    { totemTokenType_Else, "else" },
+    { totemTokenType_True, "true" },
+    { totemTokenType_False, "false" },
+};
+
+void totemTokenList_Reset(totemTokenList *list)
+{
+    totemMemoryBuffer_Reset(&list->Tokens, sizeof(totemToken));
+}
+
 /**
  * Lex buffer into token list
  */
-totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t bufferLength)
+totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length)
 {
     size_t currentTokenLength = 0;
     size_t currentTokenStart = 0;
@@ -22,11 +75,12 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
     size_t currentLineChar = 0;
     const char *toCheck = NULL;
     totemToken* currentToken;
-    TOTEM_LEX_ALLOC(currentToken, list);
-    memset(currentToken, 0, sizeof(totemToken));
     
-    for(size_t i = 0; i < bufferLength; ++i)
+    for(size_t i = 0; i < length; ++i)
     {
+        TOTEM_LEX_ALLOC(currentToken, list);
+        memset(currentToken, 0, sizeof(totemToken));
+        
         currentToken->Value.Value = NULL;
         currentToken->Value.Length = 0;
         currentToken->Type = totemTokenType_None;
@@ -83,6 +137,7 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
                     
                     totemToken *nextToken;
                     TOTEM_LEX_ALLOC(nextToken, list);
+                    currentToken = nextToken - 1;
                     memcpy(nextToken, currentToken, sizeof(totemToken));
                     
                     currentToken->Position.CharNumber = currentLineChar;
@@ -106,6 +161,16 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
     endToken->Position.CharNumber = currentLineChar;
     
     return totemLexStatus_Success;
+}
+
+totemToken *totemTokenList_Alloc(totemTokenList *list)
+{
+    if(totemMemoryBuffer_Secure(&list->Tokens, 1) == totemBool_True)
+    {
+        return ((totemToken*)list->Tokens.Data) + list->Tokens.Length - 1;
+    }
+    
+    return NULL;
 }
 
 void totemToken_LexNumberOrIdentifierToken(totemToken *currentToken, const char *toCheck, size_t length)
@@ -160,41 +225,7 @@ totemBool totemToken_LexSymbolToken(totemToken *token, const char *toCheck, size
 
 void *totemParseTree_Alloc(totemParseTree *tree, size_t objectSize)
 {
-    size_t allocSize = objectSize;
-    size_t extra = allocSize % sizeof(uintptr_t);
-    if(extra != 0)
-    {
-        allocSize += sizeof(uintptr_t) - extra;
-    }
-    
-    totemMemoryBlock *chosenBlock = NULL;
-    
-    for(totemMemoryBlock *block = tree->LastMemBlock; block != NULL; block = block->Prev)
-    {
-        if(block->Remaining > allocSize)
-        {
-            chosenBlock = block;
-            break;
-        }
-    }
-    
-    if(chosenBlock == NULL)
-    {
-        // alloc new
-        chosenBlock = (totemMemoryBlock*)totem_Malloc(sizeof(totemMemoryBlock));
-        if(chosenBlock == NULL)
-        {
-            return NULL;
-        }
-        chosenBlock->Remaining = TOTEM_MEMORYBLOCK_DATASIZE;
-        chosenBlock->Prev = tree->LastMemBlock;
-        tree->LastMemBlock = chosenBlock;
-    }
-    
-    void *ptr = chosenBlock->Data + (TOTEM_MEMORYBLOCK_DATASIZE - chosenBlock->Remaining);
-    memset(ptr, 0, objectSize);
-    chosenBlock->Remaining -= allocSize;
-    return ptr;
+    return totemMemoryBlock_Alloc(&tree->LastMemBlock, objectSize);
 }
 
 void totemParseTree_Cleanup(totemParseTree *tree)
@@ -217,7 +248,7 @@ totemParseStatus totemParseTree_Parse(totemParseTree *tree, totemTokenList *toke
 {
     totemBlockPrototype *lastBlock = NULL;
     
-    for(tree->CurrentToken = tokens->Token; tree->CurrentToken->Type != totemTokenType_EndScript; )
+    for(tree->CurrentToken = (totemToken*)tokens->Tokens.Data; tree->CurrentToken->Type != totemTokenType_EndScript; )
     {
         totemBlockPrototype *block;
         TOTEM_PARSE_ALLOC(block, totemBlockPrototype, tree);

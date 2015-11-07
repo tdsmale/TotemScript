@@ -15,124 +15,76 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+    
     typedef enum
     {
-        totemFunctionType_Script,
-        totemFunctionType_Native
+        totemExecStatus_Continue,
+        totemExecStatus_Return,
+        totemExecStatus_ScriptNotFound,
+        totemExecStatus_ScriptFunctionNotFound,
+        totemExecStatus_NativeFunctionNotFound,
+        totemExecStatus_UnexpectedDataType,
+        totemExecStatus_UnrecognisedOperation,
+        totemExecStatus_RegisterOverflow,
+        totemExecStatus_InstructionOverflow,
+        totemExecStatus_OutOfMemory
     }
-    totemFunctionType;
-
-    enum
-    {
-        totemInstructionReturnType_Stop = 0,
-        totemInstructionReturnType_Continue = 1,
-        totemInstructionReturnType_Return = 2
-    };
-    typedef uint8_t totemInstructionReturnType;
-        
-    #define TOTEM_STATUS totemInstructionReturnType
-    #define TOTEM_CONTINUE totemInstructionReturnType_Continue
-    #define TOTEM_STOP totemInstructionReturnType_Stop
-    #define TOTEM_RETURN totemInstructionReturnType_Return
+    totemExecStatus;
 
     typedef struct
     {
-        totemInstruction *Instructions;
-        size_t NumInstructions;
-        size_t *FunctionAddresses;
-        size_t NumFunctions;
-        char *GlobalData;
-        size_t GlobalDataLength;
-        totemRegister *GlobalRegisters;
-        size_t NumGlobalRegisters;
-        totemString Name;
+        totemHashMap FunctionNameLookup;
+        totemMemoryBuffer GlobalRegisters;
+        totemMemoryBuffer GlobalData;
+        totemMemoryBuffer Functions;
+        totemMemoryBuffer Instructions;
     }
     totemScript;
-    
-    typedef struct
-    {
-        size_t ScriptHandle;
-        char *GlobalData;
-        size_t GlobalDataLength;
-    }
-    totemActor;
-    
-    typedef struct totemFunctionCall
-    {
-        struct totemFunctionCall *Prev;
-        totemActor *Actor;
-        totemRegister *Arguments;
-        totemRegister *ReturnRegister;
-        totemRegister *RegisterFrameStart;
-        totemInstruction *CurrentInstruction;
-        size_t FunctionHandle;
-        totemFunctionType Type;
-        uint8_t NumArguments;
-    }
-    totemFunctionCall;
 
     typedef struct
     {
         totemFunctionCall *CallStack;
-        totemRegister *Registers;
-        size_t MaxRegisters;
+        totemInstruction *CurrentInstruction;
+        totemRuntime *Runtime;
+        totemRegister *Registers[2];
+        size_t MaxLocalRegisters;
+        size_t UsedLocalRegisters;
     }
     totemExecState;
 
-    typedef TOTEM_STATUS(*totemNativeFunction)(totemExecState*);
+    typedef totemExecStatus(*totemNativeFunction)(totemExecState*);
 
-    typedef struct
-    {
-        size_t ScriptHandle;
-        size_t FunctionIndex;
-    }
-    totemScriptFunction;
+    totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress);
     
-    typedef struct
-    {
-        totemNativeFunction *NativeFunctions;
-        size_t NumNativeFunctions;
-        totemScriptFunction *ScriptFunctions;
-        size_t NumScriptFunctions;
-        totemScript *Scripts;
-        size_t NumScripts;
-    }
-    totemRuntime;
-
-    totemBool totemRuntime_RegisterScript(totemRuntime *runtime, totemScript *script, size_t *indexOut);
-    totemBool totemRuntime_GetScriptAddress(totemRuntime *runtime, totemString name, size_t *addressOut);
-    totemBool totemRuntime_GetScriptFunctionAddress(totemRuntime *runtime, totemString name, size_t *addressOut);
-    totemBool totemRuntime_GetScriptFunction(totemRuntime *runtime, size_t address, totemScriptFunction **scriptOut);
-            
-    totemBool totemRuntime_RegisterNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString name, size_t *addressOut);
-    totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString name, size_t *addressOut);
-    totemBool totemRuntime_GetNativeFunction(totemRuntime *runtime, size_t address, totemNativeFunction *funcOut);
-
-    totemBool totemRuntime_CreateState(totemRuntime *runtime, size_t scriptHandle, totemExecState *state);
+    void totemRuntime_Reset(totemRuntime *runtime);
+    totemBool totemRuntime_RegisterScript(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
+    totemBool totemRuntime_RegisterNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut);
+    totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, size_t *addressOut);
 
     /**
      * Execute bytecode
      */
-    TOTEM_STATUS totemExecState_Exec(totemExecState *state, totemRuntime *runtime, size_t functionHandle, totemRegister *returnRegister);
-    TOTEM_STATUS totemExecState_ExecInstruction(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecMove(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecAdd(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecSubtract(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecMultiply(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecDivide(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecPower(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecEquals(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecNotEquals(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecLessThan(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecLessThanEquals(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecMoreThan(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecMoreThanEquals(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecReturn(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecGoto(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecConditionalGoto(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecNativeFunction(totemExecState *state);
-    TOTEM_STATUS totemExecState_ExecScriptFunction(totemExecState *state);
+    totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size_t numRegisters);
+    void totemExecState_Cleanup(totemExecStatus *state);
+    totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, size_t functionAddress, totemRegister *returnRegister);
+    totemExecStatus totemExecState_ExecInstruction(totemExecState *state);
+    totemExecStatus totemExecState_ExecMove(totemExecState *state);
+    totemExecStatus totemExecState_ExecAdd(totemExecState *state);
+    totemExecStatus totemExecState_ExecSubtract(totemExecState *state);
+    totemExecStatus totemExecState_ExecMultiply(totemExecState *state);
+    totemExecStatus totemExecState_ExecDivide(totemExecState *state);
+    totemExecStatus totemExecState_ExecPower(totemExecState *state);
+    totemExecStatus totemExecState_ExecEquals(totemExecState *state);
+    totemExecStatus totemExecState_ExecNotEquals(totemExecState *state);
+    totemExecStatus totemExecState_ExecLessThan(totemExecState *state);
+    totemExecStatus totemExecState_ExecLessThanEquals(totemExecState *state);
+    totemExecStatus totemExecState_ExecMoreThan(totemExecState *state);
+    totemExecStatus totemExecState_ExecMoreThanEquals(totemExecState *state);
+    totemExecStatus totemExecState_ExecReturn(totemExecState *state);
+    totemExecStatus totemExecState_ExecGoto(totemExecState *state);
+    totemExecStatus totemExecState_ExecConditionalGoto(totemExecState *state);
+    totemExecStatus totemExecState_ExecNativeFunction(totemExecState *state);
+    totemExecStatus totemExecState_ExecScriptFunction(totemExecState *state);
             
 #ifdef __cplusplus
 }
