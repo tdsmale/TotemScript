@@ -41,7 +41,7 @@ void totem_Free(void *mem)
     return free(mem);
 }
 
-uint32_t totem_Hash(char *data, size_t len)
+uint32_t totem_Hash(const char *data, size_t len)
 {
     if(hashCb)
     {
@@ -172,6 +172,26 @@ size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer)
     return buffer->MaxLength / buffer->ObjectSize;
 }
 
+void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, totemHashMapEntry *entry)
+{
+    size_t index = entry->Hash % numBuckets;
+    if(buckets[index] == NULL)
+    {
+        buckets[index] = entry;
+    }
+    else
+    {
+        for(totemHashMapEntry *bucket = buckets[index]; bucket != NULL; bucket = bucket->Next)
+        {
+            if(bucket->Next == NULL)
+            {
+                bucket->Next = entry;
+                break;
+            }
+        }
+    }
+}
+
 totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t keyLen, size_t value)
 {
     totemHashMapEntry *existingEntry = totemHashMap_Find(hashmap, key, keyLen);
@@ -182,14 +202,58 @@ totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t key
     }
     else
     {
-        if(hashmap->NumBuckets >= hashmap->NumKeys)
+        if(hashmap->NumKeys >= hashmap->NumBuckets)
         {
-            // TODO: hashmap realloc
+            // buckets realloc
+            size_t newNumBuckets = hashmap->NumKeys * 1.5;
+            totemHashMapEntry **newBuckets = totem_Malloc(sizeof(totemHashMapEntry**) * newNumBuckets);
+            if(!newBuckets)
+            {
+                return totemBool_False;
+            }
             
-            // TODO: hashmap reassign
+            // reassign
+            memset(newBuckets, 0, newNumBuckets * sizeof(totemHashMapEntry**));
+            for(size_t i = 0; i < hashmap->NumBuckets; i++)
+            {
+                totemHashMapEntry *next = NULL;
+                for(totemHashMapEntry *entry = hashmap->Buckets[i]; entry != NULL; entry = next)
+                {
+                    next = entry->Next;
+                    entry->Next = NULL;
+                    totemHashMap_InsertDirect(newBuckets, newNumBuckets, entry);
+                }
+            }
+            
+            // replace buckets
+            totem_Free(hashmap->Buckets);
+            hashmap->Buckets = newBuckets;
+            hashmap->NumBuckets = newNumBuckets;
         }
         
-        // TODO: hashmap insert
+        // hashmap insert
+        totemHashMapEntry *entry = NULL;
+        if (hashmap->FreeList)
+        {
+            entry = hashmap->FreeList;
+            hashmap->FreeList = entry->Next;
+        }
+        else
+        {
+            entry = totem_Malloc(sizeof(totemHashMapEntry));
+            if(entry == NULL)
+            {
+                return totemBool_False;
+            }
+        }
+        
+        entry->Next = NULL;
+        entry->Value = value;
+        entry->Key = key;
+        entry->KeyLen = keyLen;
+        entry->Hash = totem_Hash(key, keyLen);
+        totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
+        return totemBool_True;
     }
     
     return totemBool_False;

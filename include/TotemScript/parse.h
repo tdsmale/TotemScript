@@ -399,6 +399,8 @@ extern "C" {
     }
     totemParseTree;
     
+    // TODO: Parse file pointer
+    
     /**
      * Lex script into tokens
      */

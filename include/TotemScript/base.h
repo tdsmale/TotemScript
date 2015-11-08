@@ -17,6 +17,8 @@
 extern "C" {
 #endif
     
+    // TODO: declutter headers
+    
 /**
  * Register-based
  * There is a global stack for global variables & constants (strings mainly) that is unique to each instantiation of a compiled script
@@ -29,7 +31,6 @@ extern "C" {
  * Basic arithmetic can only be applied to numbers
  * 
  * String constants are stored as normal C strings, but are immutable, and are accessed via reference
- * no classes
  * Registers are passed by value
  *
  * 32-bit instruction size
@@ -91,16 +92,6 @@ extern "C" {
  |5     |9                   |18                                       |
  -----------------------------------------------------------------------
  
- Compile Process:
- * 
- * 1. lex into tokens
- * 2. parse into tree
- * 3. eval into prototype
- * 4. build to bytecode
- * 5. invalidate existing script instances
- * 6. insert new script at new location
- * 7. restart existing script instances with new global stacks
- * 
  Basic idea:
  
  1. define "Actors"
@@ -145,45 +136,12 @@ function test() {
     ///
     
     $x = 123;
-    
-    $x = new Dictionary();
-    NATIVEFUNCTION $x (new dictionary callback)
-    // x now stores a reference returned by callback
-    
-    $x.add("what", 123);
-    NATIVEFUNCTION $x.add (dictionary.add callback)
-    FUNCARG $x 0
-    FUNCARG "what" 0
-    FUNCARG 123 1
-    
-    $x.whatever;
-    NATIVEFUNCTION $x.whatever
-    
-    $x.whatever = 123;
-    NATIVEFUNCTION $x.whatever
-    FUNCARG 123 1
-    
-    $x = 123;
-    MOVE $x 123
-    // $x is now a number! the dictionary reference must be garbage-collected
-    // OR, the reference could be collected manually like this:
-    delete $x;
-    
-    $y = $x.somethingElse($y, 123 + 123);
-    ADD ?? 123 123
-    NATIVEFUNCTION $y $x.somethingElse
-    FUNCARG $y 0
-    FUNCARG ?? 1
-    
+ 
     $z = scriptFunction(10, 20);
     SCRIPTFUNCTION $z scriptFunction
     FUNCARG 10 0
     FUNCARG 20 1
-    
-    $x = new ScriptClass();
-    SCRIPTFUNCTION $x ScriptClass Constructor
 }
-
 */
 
     
@@ -214,6 +172,10 @@ function test() {
         uint32_t Index;
     }
     totemRuntimeString;
+    
+    // TODO: global string-value cache attached to runtime, instead of per-actor
+    // TODO: "fast-strings" (i.e. strings that are 8 or less chars long can sit inside register value)
+    // TODO: ascii char support (e.g. 'a', 'b' etc.)
         
     typedef struct
     {
@@ -236,7 +198,7 @@ function test() {
     enum
     {
         totemDataType_Number = 0,     // double stored in register
-        totemDataType_String = 1,	 // immutable C-style string stored in stack
+        totemDataType_String = 1,	  // immutable C-style string stored in cache
         totemDataType_Reference = 2   // void *pointer stored in register
     };
     typedef int8_t totemDataType;
@@ -382,11 +344,11 @@ function test() {
     
     typedef void *(*totemMallocCb)(size_t);
     typedef void (*totemFreeCb)(void*);
-    typedef uint32_t (*totemHashCb)(char*, size_t);
+    typedef uint32_t (*totemHashCb)(const char*, size_t);
     
     void *totem_Malloc(size_t len);
     void totem_Free(void * mem);
-    uint32_t totem_Hash(char *data, size_t len);
+    uint32_t totem_Hash(const char *data, size_t len);
     void totem_SetGlobalCallbacks(totemMallocCb malloc, totemFreeCb free, totemHashCb hash);
     
     typedef struct
@@ -421,9 +383,10 @@ function test() {
     
     typedef struct totemHashMapEntry
     {
-        char *Key;
+        const char *Key;
         size_t KeyLen;
         size_t Value;
+        size_t Hash;
         struct totemHashMapEntry *Next;
     }
     totemHashMapEntry;
