@@ -172,9 +172,9 @@ totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size
 {
     state->Runtime = runtime;
     
-    if(state->Registers)
+    if(state->Registers[totemOperandType_LocalRegister])
     {
-        totem_Free(state->Registers);
+        totem_Free(state->Registers[totemOperandType_LocalRegister]);
     }
     
     if(numRegisters > TOTEM_MAX_REGISTERS)
@@ -225,6 +225,8 @@ totemExecStatus totemExecState_PushFunctionCall(totemExecState *state, totemFunc
         state->CallStack->LastInstruction = state->CurrentInstruction;
         call->Prev = state->CallStack;
     }
+    
+    state->CallStack = call;
     
     return totemExecStatus_Continue;
 }
@@ -285,7 +287,10 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
     {
         state->CallStack = state->CallStack->Prev;
         totemExecState_PopFunctionCall(state);
-        return totemExecStatus_Continue;
+        if(state->CallStack)
+        {
+            return totemExecStatus_Continue;
+        }
     }
     
     return status;
@@ -296,6 +301,7 @@ totemExecStatus totemExecState_ExecInstruction(totemExecState *state)
     switch(state->CurrentInstruction->Abc.Operation)
     {
         case totemOperation_None:
+            state->CurrentInstruction++;
             return totemExecStatus_Continue;
             
         case totemOperation_Move:

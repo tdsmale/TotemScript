@@ -68,7 +68,7 @@ int main(int argc, const char * argv[])
     totemEvalStatus evalStatus = totemBuildPrototype_Eval(&build, &parseTree);
     if(evalStatus != totemEvalStatus_Success)
     {
-        printf("Eval error\n");
+        printf("Eval error %s\n", totemEvalStatus_Describe(evalStatus));
         return 1;
     }
     
@@ -103,7 +103,7 @@ int main(int argc, const char * argv[])
     totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, 0, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
-        printf("Could not exec script\n");
+        printf("exec error %s\n", totemExecStatus_Describe(execStatus));
         return 1;
     }
     

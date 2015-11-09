@@ -150,8 +150,8 @@ function test() {
     
     typedef enum
     {
-        totemBool_True,
-        totemBool_False
+        totemBool_True = 1,
+        totemBool_False = 0
     }
     totemBool;
     

@@ -10,18 +10,23 @@
 #include <TotemScript/base.h>
 #include <string.h>
 
+totemEvalStatus totemEvalStatus_Break(totemEvalStatus status)
+{
+    return status;
+}
+
 totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand)
 {
     size_t index = totemMemoryBuffer_GetNumObjects(&list->Registers);
     
     if(index + 1 >= TOTEM_MAX_REGISTERS)
     {
-        return totemEvalStatus_TooManyRegisters;
+        return totemEvalStatus_Break(totemEvalStatus_TooManyRegisters);
     }
     
-    if(!totemMemoryBuffer_Secure(&list->Registers, 1))
+    if(totemMemoryBuffer_Secure(&list->Registers, 1) != totemBool_True)
     {
-        return totemEvalStatus_OutOfMemory;
+        return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
 
     totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, index);
@@ -60,12 +65,12 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
         
         if(!totemHashMap_Insert(&list->Strings, str->Value, str->Length, operand->RegisterIndex))
         {
-            return totemEvalStatus_OutOfMemory;
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
         
         if(!totemMemoryBuffer_Secure(&list->StringData, str->Length))
         {
-            return totemEvalStatus_OutOfMemory;
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
         
         memcpy(totemMemoryBuffer_Get(&list->StringData, reg->Value.String.Index), str->Value, str->Length);
@@ -99,7 +104,7 @@ totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototyp
         
         if(!totemHashMap_Insert(&list->Variables, name->Value, name->Length, prototype->RegisterIndex))
         {
-            return totemEvalStatus_OutOfMemory;
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
     }
     
@@ -124,7 +129,7 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
         
         if(!totemHashMap_Insert(&list->Numbers, (const char*)&number, sizeof(totemNumber), operand->RegisterIndex))
         {
-            return totemEvalStatus_OutOfMemory;
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
         
         totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
@@ -207,29 +212,34 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
 
 totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemString *name, totemFunction **functionOut)
 {
+    size_t index = totemMemoryBuffer_GetNumObjects(&build->Functions);
     if(totemMemoryBuffer_Secure(&build->Functions, 1) == totemBool_True)
     {
-        *functionOut = ((totemFunction*)build->Functions.Data) + build->Functions.Length - 1;
+        *functionOut = totemMemoryBuffer_Get(&build->Functions, index);
         return totemEvalStatus_Success;
     }
     
-    return totemEvalStatus_OutOfMemory;
+    return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
 }
 
 totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build, totemInstruction **instructionOut)
 {
+    size_t index = totemMemoryBuffer_GetNumObjects(&build->Functions);
     if(totemMemoryBuffer_Secure(&build->Instructions, 1) == totemBool_True)
     {
-        *instructionOut = ((totemInstruction*)build->Instructions.Data) + build->Instructions.Length - 1;
+        *instructionOut = totemMemoryBuffer_Get(&build->Instructions, index);
         return totemEvalStatus_Success;
     }
     
-    return totemEvalStatus_OutOfMemory;
+    return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
 }
 
 totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationPrototype *function, totemBuildPrototype *build, totemRegisterListPrototype *globals)
 {
     totemRegisterListPrototype localRegisters;
+    memset(&localRegisters, 0, sizeof(totemRegisterListPrototype));
+    totemRegisterListPrototype_Reset(&localRegisters);
+    
     localRegisters.Scope = totemRegisterScopeType_Local;
     
     // TODO: Ensure function name doesn't already exist in runtime
@@ -240,7 +250,7 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, function->Identifier, &functionPrototype));
     if(!totemHashMap_Insert(&build->FunctionLookup, function->Identifier->Value, function->Identifier->Length, functionIndex))
     {
-        return totemEvalStatus_OutOfMemory;
+        return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
     
     for(totemVariablePrototype *parameter = function->ParametersStart; parameter != NULL; parameter = parameter->Next)
@@ -514,7 +524,7 @@ totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, to
         case totemRegisterScopeType_Global:
             if(!totemRegisterListPrototype_GetVariable(globals, &variable->Identifier, index))
             {
-                return totemEvalStatus_InvalidArgument;
+                return totemEvalStatus_Break(totemEvalStatus_InvalidArgument);
             }
             break;
     }
@@ -775,7 +785,7 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
         else
         {
             build->ErrorContext = functionCall;
-            return totemEvalStatus_FunctionNotDefined;
+            return totemEvalStatus_Break(totemEvalStatus_FunctionNotDefined);
         }
     }
     

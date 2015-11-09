@@ -216,7 +216,16 @@ totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t key
         if(hashmap->NumKeys >= hashmap->NumBuckets)
         {
             // buckets realloc
-            size_t newNumBuckets = hashmap->NumKeys * 1.5;
+            size_t newNumBuckets = 0;
+            if(hashmap->NumKeys == 0)
+            {
+                newNumBuckets = 32;
+            }
+            else
+            {
+                newNumBuckets = hashmap->NumKeys * 1.5;
+            }
+
             totemHashMapEntry **newBuckets = totem_Malloc(sizeof(totemHashMapEntry**) * newNumBuckets);
             if(!newBuckets)
             {
@@ -266,8 +275,6 @@ totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t key
         totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
         return totemBool_True;
     }
-    
-    return totemBool_False;
 }
 
 totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, size_t keyLen)
@@ -279,7 +286,7 @@ totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, siz
         
         for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
         {
-            if(strncmp(entry->Key, key, entry->KeyLen))
+            if(strncmp(entry->Key, key, entry->KeyLen) == 0)
             {
                 return entry;
             }
