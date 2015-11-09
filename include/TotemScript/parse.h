@@ -36,7 +36,7 @@ extern "C" {
  switch = switch-token expression lcbracket-token  { case expression colon-token { statement } break; } rcbracket
  simple-statement = expression end-statement
  
- statement = while-loop | for-loop | do-while-loop | if-loop | switch | simple-statement
+ statement = while-loop | for-loop | do-while-loop | if-loop | switch | return | simple-statement
  function-declaration = identifier-token lbracket-token { variable } rbracket-token lcbracket-token { statement } rcbracket-token
   
  script = { function-declaration | statement } end-script-token
@@ -45,9 +45,12 @@ extern "C" {
     typedef enum
     {
         totemLexStatus_Success,
+        totemLexStatus_Failure,
         totemLexStatus_OutOfMemory
     }
     totemLexStatus;
+    
+    const char *totemLexStatus_Describe(totemLexStatus status);
     
     typedef enum
     {
@@ -57,6 +60,8 @@ extern "C" {
         totemParseStatus_OutOfMemory
     }
     totemParseStatus;
+    
+    const char *totemParseStatus_Describe(totemParseStatus status);
         
     typedef enum
     {
@@ -121,6 +126,7 @@ extern "C" {
         totemStatementType_IfBlock,
         totemStatementType_DoWhileLoop,
         totemStatementType_SwitchBlock,
+        totemStatementType_Return,
         totemStatementType_Simple
     }
     totemStatementType;
@@ -203,6 +209,8 @@ extern "C" {
         totemTokenType_Max
     }
     totemTokenType;
+    
+    const char *totemTokenType_Describe(totemTokenType type);
 
     typedef struct
     {
@@ -364,6 +372,7 @@ extern "C" {
             totemIfBlockPrototype *IfBlock;
             totemDoWhileLoopPrototype *DoWhileLoop;
             totemSwitchBlockPrototype *SwitchBlock;
+            totemExpressionPrototype *Return;
             totemExpressionPrototype *Expression;
         };
         struct totemStatementPrototype *Next;
@@ -405,14 +414,14 @@ extern "C" {
      * Lex script into tokens
      */
     void totemTokenList_Reset(totemTokenList *list);
-    totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length);
-    totemToken *totemTokenList_Alloc(totemTokenList *list);
     void totemTokenList_Reset(totemTokenList *list);
     void totemTokenList_Cleanup(totemTokenList *list);
     
-    totemBool totemToken_LexSymbolToken(totemToken *token, const char *buffer, size_t length);
-    totemBool totemToken_LexReservedWordToken(totemToken *token, const char *buffer, size_t length);
-    void totemToken_LexNumberOrIdentifierToken(totemToken *token, const char *buffer, size_t length);
+    totemToken *totemTokenList_Alloc(totemTokenList *list);
+    totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length);
+    totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *token, const char *buffer);
+    totemLexStatus totemTokenList_LexReservedWordToken(totemTokenList *list, const char *buffer, size_t length);
+    totemLexStatus totemTokenList_LexNumberOrIdentifierToken(totemTokenList *list, const char *toCheck, size_t length);
 
 #define TOTEM_LEX_ALLOC(dest, list) dest = totemTokenList_Alloc(list); if(!dest) return totemLexStatus_OutOfMemory;
     
@@ -453,10 +462,11 @@ extern "C" {
     
 #define TOTEM_PARSE_SKIPWHITESPACE(token) while((*token)->Type == totemTokenType_Whitespace) { (*token)++; }
 #define TOTEM_PARSE_COPYPOSITION(token, dest) memcpy(&dest->Position, &(*token)->Position, sizeof(totemBufferPositionInfo))
-#define TOTEM_PARSE_ALLOC(dest, type, tree) dest = (type*)totemParseTree_Alloc(tree, sizeof(type)); if(!dest) return totemParseStatus_OutOfMemory;
+#define TOTEM_PARSE_ALLOC(dest, type, tree) dest = (type*)totemParseTree_Alloc(tree, sizeof(type)); if(!dest) return totemParseStatus_Break(totemParseStatus_OutOfMemory);
 #define TOTEM_PARSE_CHECKRETURN(exp) { totemParseStatus s = exp; if(s != totemParseStatus_Success) return s; }
-#define TOTEM_PARSE_ENFORCETOKEN(token, type) if((*token)->Type != type) return totemParseStatus_UnexpectedToken;
-#define TOTEM_PARSE_INC_NOT_ENDSCRIPT(token) (*token)++; TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_EndScript);
+#define TOTEM_PARSE_ENFORCETOKEN(token, type) if((*token)->Type != type) return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
+#define TOTEM_PARSE_ENFORCENOTTOKEN(token, type) if((*token)->Type == type) return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
+#define TOTEM_PARSE_INC_NOT_ENDSCRIPT(token) (*token)++; TOTEM_PARSE_ENFORCENOTTOKEN(token, totemTokenType_EndScript);
     
 #ifdef __cplusplus
 }

@@ -201,7 +201,7 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     };
 
     globalFunction->RegistersNeeded = build->GlobalRegisters.Registers.Length;
-    totemBuildPrototype_EvalImplicitReturn(build);
+    totemBuildPrototype_EvalReturn(build, NULL);
     return totemEvalStatus_Success;
 }
 
@@ -256,13 +256,13 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
     }
     
     functionPrototype->RegistersNeeded = localRegisters.Registers.Length;
-    totemBuildPrototype_EvalImplicitReturn(build);
+    totemBuildPrototype_EvalReturn(build, NULL);
     return totemEvalStatus_Success;
 }
 
 totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals)
 {
-    totemOperandRegisterPrototype empty;
+    totemOperandRegisterPrototype result;
 
     switch(statement->Type)
     {
@@ -287,7 +287,12 @@ totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement,
             break;
             
         case totemStatementType_Simple:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Expression, build, scope, globals, &empty));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Expression, build, scope, globals, &result));
+            break;
+            
+        case totemStatementType_Return:
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Return, build, scope, globals, &result));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalReturn(build, &result));
             break;
     }
     
@@ -455,6 +460,11 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
             case totemBinaryOperatorType_None:
                 break;
         }
+    }
+    else
+    {
+        // no binary operation - result is lValue
+        memcpy(&value, &lValue, sizeof(totemOperandRegisterPrototype));
     }
     
     // TODO: operator precedence reordering
@@ -727,15 +737,21 @@ totemEvalStatus totemBuildPrototype_EvalAbcInstruction(totemBuildPrototype *buil
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemBuildPrototype_EvalImplicitReturn(totemBuildPrototype *build)
+totemEvalStatus totemBuildPrototype_EvalReturn(totemBuildPrototype *build, totemOperandRegisterPrototype *dest)
 {
-    totemOperandRegisterPrototype operands[3];
-    memset(operands, 0, sizeof(totemOperandRegisterPrototype) * 3);
+    totemOperandX option = totemReturnOption_Register;
+    totemOperandRegisterPrototype def;
+    def.RegisterScopeType = totemRegisterScopeType_Local;
+    def.RegisterIndex = 0;
     
-    operands[0].RegisterScopeType = totemRegisterScopeType_Local;
-    operands[0].RegisterIndex = 0;
+    // implicit return
+    if(dest == NULL)
+    {
+        dest = &def;
+        option = totemReturnOption_Implicit;
+    }
     
-    return totemBuildPrototype_EvalAbcInstruction(build, &operands[0], &operands[1], &operands[2], totemOperation_Return);
+    return totemBuildPrototype_EvalAbxInstruction(build, dest, option, totemOperation_Return);
 }
 
 totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemBuildPrototype *build, totemOperandRegisterPrototype *index)
@@ -800,4 +816,17 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
     }
     
     return totemEvalStatus_Success;
+}
+
+const char *totemEvalStatus_Describe(totemEvalStatus status)
+{
+    switch(status)
+    {
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_FunctionNotDefined);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_InvalidArgument);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_OutOfMemory);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_Success);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_TooManyRegisters);
+        default: return "UNKNOWN";
+    }
 }

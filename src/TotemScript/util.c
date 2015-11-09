@@ -129,11 +129,22 @@ totemBool totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
     
     if(memCurrent + amount > memEnd)
     {
-        size_t toAlloc = buffer->MaxLength * 1.5;
+        size_t toAlloc = buffer->MaxLength;
+        
+        if(buffer->MaxLength == 0)
+        {
+            toAlloc = buffer->ObjectSize * 32;
+        }
+        else
+        {
+            toAlloc *= 1.5;
+        }
+
         if(amount > toAlloc)
         {
             toAlloc += amount;
         }
+        
         char *newMem = totem_Malloc(toAlloc);
         if(newMem == NULL)
         {
@@ -261,14 +272,17 @@ totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t key
 
 totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, size_t keyLen)
 {
-    uint32_t hash = totem_Hash((char*)key, keyLen);
-    int index = hash % hashmap->NumBuckets;
-    
-    for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
+    if(hashmap->NumBuckets > 0)
     {
-        if(strncmp(entry->Key, key, entry->KeyLen))
+        uint32_t hash = totem_Hash((char*)key, keyLen);
+        int index = hash % hashmap->NumBuckets;
+        
+        for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
         {
-            return entry;
+            if(strncmp(entry->Key, key, entry->KeyLen))
+            {
+                return entry;
+            }
         }
     }
     
@@ -635,11 +649,11 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
         case totemOperation_FunctionArg:
         case totemOperation_NativeFunction:
         case totemOperation_ScriptFunction:
+        case totemOperation_Return:
             totemInstruction_PrintAbxInstruction(file, instruction);
             break;
             
         case totemOperation_Goto:
-        case totemOperation_Return:
             totemInstruction_PrintAxxInstruction(file, instruction);
             break;
             

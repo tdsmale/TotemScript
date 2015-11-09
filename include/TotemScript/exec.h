@@ -30,6 +30,8 @@ extern "C" {
         totemExecStatus_OutOfMemory
     }
     totemExecStatus;
+    
+    const char *totemExecStatus_Describe(totemExecStatus status);
 
     typedef struct
     {

@@ -608,8 +608,31 @@ totemExecStatus totemExecState_ExecReturn(totemExecState *state)
     totemFunctionCall *call = state->CallStack;
     
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *source = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
-    call->ReturnRegister->Value = source->Value;
+    totemOperandX option = instruction.Abx.OperandBx;
+
+    if(option == totemReturnOption_Register)
+    {
+        totemRegister *source = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+        call->ReturnRegister->Value = source->Value;
+    }
     
     return totemExecStatus_Return;
+}
+
+const char *totemExecStatus_Describe(totemExecStatus status)
+{
+    switch(status)
+    {
+        TOTEM_STRINGIFY_CASE(totemExecStatus_Continue);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_InstructionOverflow);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_NativeFunctionNotFound);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_OutOfMemory);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_RegisterOverflow);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_Return);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_ScriptFunctionNotFound);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_ScriptNotFound);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_UnexpectedDataType);
+        TOTEM_STRINGIFY_CASE(totemExecStatus_UnrecognisedOperation);
+        default: return "UNKNOWN";
+    }
 }

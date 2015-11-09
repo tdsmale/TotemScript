@@ -27,6 +27,8 @@ extern "C" {
     }
     totemEvalStatus;
     
+    const char *totemEvalStatus_Describe(totemEvalStatus status);
+    
     typedef struct
     {
         totemRegisterScopeType RegisterScopeType;
@@ -72,7 +74,7 @@ extern "C" {
     totemEvalStatus totemBuildPrototype_EvalAbcInstruction(totemBuildPrototype *build, totemOperandRegisterPrototype *a, totemOperandRegisterPrototype *b, totemOperandRegisterPrototype *c, totemOperation operationType);
     totemEvalStatus totemBuildPrototype_EvalAbxInstruction(totemBuildPrototype *build, totemOperandRegisterPrototype *a, totemOperandX bx, totemOperation operationType);
     totemEvalStatus totemBuildPrototype_EvalAxxInstruction(totemBuildPrototype *build, totemOperandX ax, totemOperation operationType);
-    totemEvalStatus totemBuildPrototype_EvalImplicitReturn(totemBuildPrototype *build);
+    totemEvalStatus totemBuildPrototype_EvalReturn(totemBuildPrototype *build, totemOperandRegisterPrototype *dest);
     
 #define TOTEM_EVAL_CHECKRETURN(exp) { totemEvalStatus status = exp; if(status != totemEvalStatus_Success) return status; }
 

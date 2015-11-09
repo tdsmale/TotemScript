@@ -146,6 +146,7 @@ function test() {
 
     
 #define TOTEM_ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
+#define TOTEM_STRINGIFY_CASE(x) case x: return #x
     
     typedef enum
     {
@@ -153,6 +154,13 @@ function test() {
         totemBool_False
     }
     totemBool;
+    
+    typedef enum
+    {
+        totemReturnOption_Implicit = 0,
+        totemReturnOption_Register = 1
+    }
+    totemReturnOption;
     
     typedef uint8_t totemRegisterIndex;
     typedef int16_t totemOperand;

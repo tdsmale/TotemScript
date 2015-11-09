@@ -45,13 +45,19 @@ int main(int argc, const char * argv[])
         return 1;
     }
     
+    for(size_t i = 0; i < totemMemoryBuffer_GetNumObjects(&tokens.Tokens); i++)
+    {
+        totemToken *token = totemMemoryBuffer_Get(&tokens.Tokens, i);
+        printf("%s: %.*s\n", totemTokenType_Describe(token->Type), token->Value.Length, token->Value.Value);
+    }
+    
     // parse
     totemParseTree parseTree;
     memset(&parseTree, 0, sizeof(totemParseTree));
     totemParseStatus parseStatus = totemParseTree_Parse(&parseTree, &tokens);
     if(parseStatus != totemParseStatus_Success)
     {
-        printf("Parse error\n");
+        printf("Parse error %s (%s) at %.*s \n", totemParseStatus_Describe(parseStatus), totemTokenType_Describe(parseTree.CurrentToken->Type), 50, parseTree.CurrentToken->Value.Value);
         return 1;
     }
     
