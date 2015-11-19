@@ -20,6 +20,7 @@ extern "C" {
     {
         totemExecStatus_Continue,
         totemExecStatus_Return,
+        totemExecStatus_Stop,
         totemExecStatus_ScriptNotFound,
         totemExecStatus_ScriptFunctionNotFound,
         totemExecStatus_NativeFunctionNotFound,

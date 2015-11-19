@@ -258,7 +258,7 @@ extern "C" {
         {
             totemVariablePrototype *Variable;
             totemString String;
-            totemNumber Number;
+            totemString Number;
             totemFunctionCallPrototype *FunctionCall;
         };
         totemBufferPositionInfo Position;
@@ -458,16 +458,7 @@ extern "C" {
     totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, totemToken **token, totemParseTree *tree);
     
     void totemToken_PrintList(FILE *target, totemToken *token, size_t num);
-    const char *totemTokenType_GetName(totemTokenType token);
-    
-#define TOTEM_PARSE_SKIPWHITESPACE(token) while((*token)->Type == totemTokenType_Whitespace) { (*token)++; }
-#define TOTEM_PARSE_COPYPOSITION(token, dest) memcpy(&dest->Position, &(*token)->Position, sizeof(totemBufferPositionInfo))
-#define TOTEM_PARSE_ALLOC(dest, type, tree) dest = (type*)totemParseTree_Alloc(tree, sizeof(type)); if(!dest) return totemParseStatus_Break(totemParseStatus_OutOfMemory);
-#define TOTEM_PARSE_CHECKRETURN(exp) { totemParseStatus s = exp; if(s != totemParseStatus_Success) return s; }
-#define TOTEM_PARSE_ENFORCETOKEN(token, type) if((*token)->Type != type) return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
-#define TOTEM_PARSE_ENFORCENOTTOKEN(token, type) if((*token)->Type == type) return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
-#define TOTEM_PARSE_INC_NOT_ENDSCRIPT(token) (*token)++; TOTEM_PARSE_ENFORCENOTTOKEN(token, totemTokenType_EndScript);
-    
+        
 #ifdef __cplusplus
 }
 #endif

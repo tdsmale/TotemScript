@@ -10,6 +10,12 @@
 #include <string.h>
 #include <TotemScript/totem.h>
 
+totemExecStatus totemPrint(totemExecState *state)
+{
+    printf("print: %f\n", state->Registers[totemRegisterScopeType_Local][0].Value.Number);
+    return totemExecStatus_Continue;
+}
+
 int main(int argc, const char * argv[])
 {
     // load file
@@ -33,6 +39,14 @@ int main(int argc, const char * argv[])
     totemRuntime runtime;
     memset(&runtime, 0, sizeof(totemRuntime));
     totemRuntime_Reset(&runtime);
+    size_t printAddr = 0;
+    totemString printName;
+    totemString_FromLiteral(&printName, "print");
+    if(!totemRuntime_RegisterNativeFunction(&runtime, &totemPrint, &printName, &printAddr))
+    {
+        printf("Could not register print\n");
+        return 1;
+    }
     
     // lex
     totemTokenList tokens;
@@ -43,12 +57,6 @@ int main(int argc, const char * argv[])
     {
         printf("Lex error\n");
         return 1;
-    }
-    
-    for(size_t i = 0; i < totemMemoryBuffer_GetNumObjects(&tokens.Tokens); i++)
-    {
-        totemToken *token = totemMemoryBuffer_Get(&tokens.Tokens, i);
-        printf("%s: %.*s\n", totemTokenType_Describe(token->Type), token->Value.Length, token->Value.Value);
     }
     
     // parse
@@ -72,10 +80,12 @@ int main(int argc, const char * argv[])
         return 1;
     }
     
+    totemInstruction_PrintList(stdout, totemMemoryBuffer_Get(&build.Instructions, 0), totemMemoryBuffer_GetNumObjects(&build.Instructions));
+    printf("\n");
+
     totemString scriptName;
     totemString_FromLiteral(&scriptName, "TotemTest");
     size_t scriptAddr = 0;
-    
     if(!totemRuntime_RegisterScript(&runtime, &build, &scriptName, &scriptAddr))
     {
         printf("Could not register script\n");
@@ -98,9 +108,12 @@ int main(int argc, const char * argv[])
         return 1;
     }
     
+    totemScript *script = totemMemoryBuffer_Get(&runtime.Scripts, scriptAddr);
+    totemHashMapEntry *entry = totemHashMap_Find(&script->FunctionNameLookup, "test", 4);
+
     totemRegister returnRegister;
     memset(&returnRegister, 0, sizeof(totemRegister));
-    totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, 0, &returnRegister);
+    totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, entry->Value, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));

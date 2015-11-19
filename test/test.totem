@@ -1,40 +1,58 @@
 
 
-$a = 123;
-for($b = 0; $b < 10; $b++)
+function whileLoop()
 {
-    $a += $b;
-}
+    $a = 10;
 
-$c = $a;
-
-function doIt($arg)
-{
-    return --$arg;
-}
-
-function test($argA, $argB, $argC)
-{
     while($a)
     {
-        $argA += $a--;
+        print($a);
+        $a--;
     }
+
+    print($a);
+}
+
+function doWhileLoop()
+{
+    $a = 20;
 
     do
     {
-        $argB -= --$b;
+        print($a);
+        $a--;
     }
-    while($b);
+    while($a);
+}
 
-    for($i = 0; $i < $c; $i++)
+function forLoop()
+{
+    for($i = 0; $i < 30; $i++)
     {
-        $argC = $argA * $argB * $c;
+        print($i);
     }
+}
 
-    while(doIt($argA))
+function ifBlock()
+{
+    if(1 - 2 > 0)
     {
-        $d  = $a;
+        print(1);
     }
+    else if(3 == 0)
+    {
+        print(0);
+    }
+    else
+    {
+        print(2);
+    }
+}
 
-    return $argA / $argB - $argC;
+function test()
+{
+    whileLoop();
+    doWhileLoop();
+    forLoop();
+    ifBlock();
 }

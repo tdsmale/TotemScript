@@ -1,1 +1,1 @@
-A parser & virtual machine for a custom scripting language. Currently converting from C++ to C.
+A parser & virtual machine for a custom scripting language written in C.

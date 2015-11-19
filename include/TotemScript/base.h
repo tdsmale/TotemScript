@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -143,11 +144,21 @@ function test() {
     FUNCARG 20 1
 }
 */
-
     
 #define TOTEM_ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 #define TOTEM_STRINGIFY_CASE(x) case x: return #x
     
+#define TOTEM_BITMASK(start, length) (((((unsigned)1) << (length)) - 1) << (start))
+#define TOTEM_GETBITS(i, mask) ((i) & (mask))
+#define TOTEM_SETBITS(i, mask) ((i) |= (mask))
+#define TOTEM_GETBITS_OFFSET(i, mask, offset) (TOTEM_GETBITS((i), (mask)) >> (offset))
+#define TOTEM_SETBITS_OFFSET(i, mask, offset) (TOTEM_SETBITS((i), ((mask) << (offset))))
+#define TOTEM_MAXVAL_UNSIGNED(numBits) ((1 << (numBits)) - 1)
+#define TOTEM_MINVAL_UNSIGNED(numBits) (0)
+#define TOTEM_MAXVAL_SIGNED(numBits) ((totemOperandXSigned)TOTEM_MAXVAL_UNSIGNED((numBits) - 1))
+#define TOTEM_MINVAL_SIGNED(numBits) (-(TOTEM_MAXVAL_SIGNED(numBits)) - 1)
+#define TOTEM_NUMBITS(type) (sizeof(type) * CHAR_BIT)
+
     typedef enum
     {
         totemBool_True = 1,
@@ -163,10 +174,12 @@ function test() {
     totemReturnOption;
     
     typedef uint8_t totemRegisterIndex;
-    typedef int16_t totemOperand;
-    typedef int32_t totemOperandX;
+    typedef int32_t totemOperandXSigned;
+    typedef uint32_t totemOperandXUnsigned;
     typedef double totemNumber;
     typedef size_t totemReference;
+    
+    totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t numBits);
 
     enum
     {
@@ -184,6 +197,7 @@ function test() {
     // TODO: global string-value cache attached to runtime, instead of per-actor
     // TODO: "fast-strings" (i.e. strings that are 8 or less chars long can sit inside register value)
     // TODO: ascii char support (e.g. 'a', 'b' etc.)
+    // TODO: function pointers
         
     typedef struct
     {
@@ -210,6 +224,7 @@ function test() {
         totemDataType_Reference = 2   // void *pointer stored in register
     };
     typedef int8_t totemDataType;
+    const char *totemDataType_Describe(totemDataType type);
         
     typedef struct
     {
@@ -230,29 +245,30 @@ function test() {
      */
     enum
     {
-        totemOperation_None,			// empty instruction, used at end of script
-        totemOperation_Move,            // A = B
-        totemOperation_Add,             // A = B + C
-        totemOperation_Subtract,        // A = B - C
-        totemOperation_Multiply,        // A = B * C
-        totemOperation_Divide,          // A = B / C
-        totemOperation_Power,           // A = B ^ C
-        totemOperation_Equals,          // A = B == C
-        totemOperation_NotEquals,       // A = B != C
-        totemOperation_LessThan,        // A = B < C
-        totemOperation_LessThanEquals,  // A = B <= C
-        totemOperation_MoreThan,        // A = B > C
-        totemOperation_MoreThanEquals,  // A = B >= C
-        totemOperation_LogicalOr,       // A = B && C
-        totemOperation_LogicalAnd,      // A = B || C
-        totemOperation_ConditionalGoto, // if(A is 0) skip Bx instructions (can be negative)
-        totemOperation_Goto,            // skip Bx instructions (can be negative)
-        totemOperation_NativeFunction,  // A = Bx(), where Bx is the index of a native function
-        totemOperation_ScriptFunction,  // A = Bx(), where Bx is the index of a script function
-        totemOperation_FunctionArg,     // A is register to pass, Bx is 1 or 0 to indicate if this is the last argument to pass
-        totemOperation_Return           // return A
+        totemOperationType_None = 0,                // empty instruction, used at end of script
+        totemOperationType_Move = 1,                // A = B
+        totemOperationType_Add = 2,                 // A = B + C
+        totemOperationType_Subtract = 3,            // A = B - C
+        totemOperationType_Multiply = 4,            // A = B * C
+        totemOperationType_Divide = 5,              // A = B / C
+        totemOperationType_Power = 6,               // A = B ^ C
+        totemOperationType_Equals = 7,              // A = B == C
+        totemOperationType_NotEquals = 8,           // A = B != C
+        totemOperationType_LessThan = 9,            // A = B < C
+        totemOperationType_LessThanEquals = 10,     // A = B <= C
+        totemOperationType_MoreThan = 11,           // A = B > C
+        totemOperationType_MoreThanEquals = 12,     // A = B >= C
+        totemOperationType_LogicalOr = 13,          // A = B && C
+        totemOperationType_LogicalAnd = 14,         // A = B || C
+        totemOperationType_ConditionalGoto = 15,    // if(A is 0) skip Bx instructions (can be negative)
+        totemOperationType_Goto = 16,               // skip Bx instructions (can be negative)
+        totemOperationType_NativeFunction = 17,     // A = Bx(), where Bx is the index of a native function
+        totemOperationType_ScriptFunction = 18,     // A = Bx(), where Bx is the index of a script function
+        totemOperationType_FunctionArg = 19,        // A is register to pass, Bx is 1 or 0 to indicate if this is the last argument to pass
+        totemOperationType_Return = 20              // return A
     };
-    typedef int8_t totemOperation;
+    typedef uint8_t totemOperationType;
+    const char *totemOperationType_Describe(totemOperationType op);
 
     /**
      * Instruction Format
@@ -264,23 +280,36 @@ function test() {
         totemInstructionType_Axx
     }
     totemInstructionType;
+    totemInstructionType totemOperationType_GetInstructionType(totemOperationType op);
 
     enum
     {
         totemInstructionSize_Op = 5,
         totemInstructionSize_Operand = 9,
         totemInstructionSize_A = 9,
-        totemInstructionSize_Axx = 27,
+        totemInstructionSize_Ax = 27,
         totemInstructionSize_B = 9,
         totemInstructionSize_Bx = 18,
         totemInstructionSize_C = 9
     };
-        
-    #define TOTEM_MAX_NATIVEFUNCTIONS (1 << totemInstructionSize_Bx)
-    #define TOTEM_MAX_SCRIPTFUNCTIONS (1 << totemInstructionSize_Bx)
-    #define TOTEM_MAX_SCRIPTS (1 << totemInstructionSize_A)
-    #define TOTEM_MAX_OBJECT_MEMBERS (1 << totemInstructionSize_A)
+    
+    enum
+    {
+        totemInstructionStart_Op = 0,
+        totemInstructionStart_A = 5,
+        totemInstructionStart_B = 14,
+        totemInstructionStart_C = 23
+    };
 
+#define TOTEM_OPERANDX_SIGNED_MAX TOTEM_MAXVAL_SIGNED(totemInstructionSize_Bx)
+#define TOTEM_OPERANDX_SIGNED_MIN TOTEM_MINVAL_SIGNED(totemInstructionSize_Bx)
+#define TOTEM_OPERANDX_UNSIGNED_MAX TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Bx)
+#define TOTEM_OPERANDX_UNSIGNED_MIN TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Bx)
+
+#define TOTEM_MAX_NATIVEFUNCTIONS TOTEM_OPERANDX_UNSIGNED_MAX
+#define TOTEM_MAX_SCRIPTFUNCTIONS TOTEM_OPERANDX_UNSIGNED_MAX
+#define TOTEM_MAX_REGISTERS TOTEM_MAXVAL_UNSIGNED(totemOperandSize_RegisterIndex)
+    
     enum
     {
         totemOperandType_LocalRegister = 0,
@@ -295,69 +324,77 @@ function test() {
     }
     totemOperandSize;
     
-#define TOTEM_MAX_REGISTERS (1 << totemOperandSize_RegisterIndex)
-
-#define TOTEM_INSTRUCTION_OPERAND_DEF(name) \
-    name##Type:totemOperandSize_RegisterType, name##Index:totemOperandSize_RegisterIndex \
-    
-    typedef enum
+    enum
     {
         totemRegisterScopeType_Local = 0,
         totemRegisterScopeType_Global = 1
-    }
-    totemRegisterScopeType;
-        
-    typedef struct
-    {
-        uint32_t Operation:totemInstructionSize_Op,
-        TOTEM_INSTRUCTION_OPERAND_DEF(OperandA),
-        TOTEM_INSTRUCTION_OPERAND_DEF(OperandB),
-        TOTEM_INSTRUCTION_OPERAND_DEF(OperandC);
-    }
-    totemABCInstruction;
-
-    typedef struct
-    {
-        uint32_t Operation:totemInstructionSize_Op,
-        TOTEM_INSTRUCTION_OPERAND_DEF(OperandA),
-        OperandBx:totemInstructionSize_Bx;
-    }
-    totemABxInstruction;
-
-    typedef struct
-    {
-        uint32_t Operation:totemInstructionSize_Op,
-        OperandAxx:totemInstructionSize_Axx;
-    }
-    totemAxxInstruction;
-
-    typedef union
-    {
-        totemABCInstruction Abc;
-        totemABxInstruction Abx;
-        totemAxxInstruction Axx;
-        uint32_t Value;
-    }
-    totemInstruction;
-        
-    const char *totemOperation_GetName(totemOperation op);
-    const char *totemDataType_GetName(totemDataType type);
+    };
+    typedef uint8_t totemRegisterScopeType;
     const char *totemRegisterScopeType_GetOperandTypeCode(totemRegisterScopeType type);
-        
+    
+    typedef uint32_t totemInstruction;
+    
+    void totemInstruction_PrintBits(FILE *file, totemInstruction instruction);
+    void totemInstruction_PrintAbcBits(FILE *file, totemInstruction instruction);
+    void totemInstruction_PrintAbxBits(FILE *file, totemInstruction instruction);
+    void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintList(FILE *file, totemInstruction *instructions, size_t num);
     void totemInstruction_Print(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAbxInstruction(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAxxInstruction(FILE *file, totemInstruction instruction);
     
+#define TOTEM_INSTRUCTION_MASK_REGISTERA TOTEM_BITMASK(totemInstructionStart_A, totemInstructionSize_A)
+#define TOTEM_INSTRUCTION_MASK_REGISTERA_SCOPE TOTEM_BITMASK(totemInstructionStart_A, 1)
+#define TOTEM_INSTRUCTION_MASK_REGISTERA_INDEX TOTEM_BITMASK(totemInstructionStart_A + 1, totemInstructionSize_A - 1)
+    
+#define TOTEM_INSTRUCTION_MASK_REGISTERB TOTEM_BITMASK(totemInstructionStart_B, totemInstructionSize_B)
+#define TOTEM_INSTRUCTION_MASK_REGISTERB_SCOPE TOTEM_BITMASK(totemInstructionStart_B, 1)
+#define TOTEM_INSTRUCTION_MASK_REGISTERB_INDEX TOTEM_BITMASK(totemInstructionStart_B + 1, totemInstructionSize_B - 1)
+    
+#define TOTEM_INSTRUCTION_MASK_REGISTERC TOTEM_BITMASK(totemInstructionStart_C, totemInstructionSize_C)
+#define TOTEM_INSTRUCTION_MASK_REGISTERC_SCOPE TOTEM_BITMASK(totemInstructionStart_C, 1)
+#define TOTEM_INSTRUCTION_MASK_REGISTERC_INDEX TOTEM_BITMASK(totemInstructionStart_C + 1, totemInstructionSize_C - 1)
+    
+#define TOTEM_INSTRUCTION_MASK_AX TOTEM_BITMASK(totemInstructionStart_A, totemInstructionSize_Ax)
+#define TOTEM_INSTRUCTION_MASK_BX TOTEM_BITMASK(totemInstructionStart_B, totemInstructionSize_Bx)
+#define TOTEM_INSTRUCTION_MASK_OP TOTEM_BITMASK(totemInstructionStart_Op, totemInstructionSize_Op)
+    
+#define TOTEM_INSTRUCTION_GET_OP(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_OP, totemInstructionStart_Op)
+    
+#define TOTEM_INSTRUCTION_GET_AX_UNSIGNED(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_AX, totemInstructionStart_A)
+#define TOTEM_INSTRUCTION_GET_AX_SIGNED(ins) totemOperandXSigned_FromUnsigned(TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_AX, totemInstructionStart_A), totemInstructionSize_Ax)
+    
+#define TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_BX, totemInstructionStart_B)
+#define TOTEM_INSTRUCTION_GET_BX_SIGNED(ins) totemOperandXSigned_FromUnsigned(TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_BX, totemInstructionStart_B), totemInstructionSize_Bx)
+    
+#define TOTEM_INSTRUCTION_GET_REGISTERA(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA, totemInstructionStart_A)
+#define TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA_SCOPE, totemInstructionStart_A)
+#define TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA_INDEX, totemInstructionStart_A + 1)
+    
+#define TOTEM_INSTRUCTION_GET_REGISTERB(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB, totemInstructionStart_B)
+#define TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB_SCOPE, totemInstructionStart_B)
+#define TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB_INDEX, totemInstructionStart_B + 1)
+    
+#define TOTEM_INSTRUCTION_GET_REGISTERC(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERC, totemInstructionStart_C)
+#define TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERC_SCOPE, totemInstructionStart_C)
+#define TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERC_INDEX, totemInstructionStart_C + 1)
+    
     typedef void *(*totemMallocCb)(size_t);
     typedef void (*totemFreeCb)(void*);
     typedef uint32_t (*totemHashCb)(const char*, size_t);
-    
+
     void *totem_Malloc(size_t len);
     void totem_Free(void * mem);
+    void *totem_CacheMalloc(size_t len);
+    void totem_CacheFree(void *ptr, size_t len);
+
+    void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start);
+    void totem_Exit(int code);
+    
     uint32_t totem_Hash(const char *data, size_t len);
-    void totem_SetGlobalCallbacks(totemMallocCb malloc, totemFreeCb free, totemHashCb hash);
+    void totem_SetMemoryCallbacks(totemMallocCb malloc, totemFreeCb free);
+    void totem_SetHashCallback(totemHashCb hash);
     
     typedef struct
     {
@@ -375,9 +412,7 @@ function test() {
     void totemMemoryBuffer_Reset(totemMemoryBuffer *buffer, size_t objectSize);
     void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer);
     
-    // TODO: Dynamically managed list of freelists / slabs to serve entire runtime
-    
-#define TOTEM_MEMORYBLOCK_DATASIZE (1024)
+#define TOTEM_MEMORYBLOCK_DATASIZE (512)
     
     typedef struct totemMemoryBlock
     {
@@ -428,6 +463,7 @@ function test() {
     {
         size_t ScriptHandle;
         totemMemoryBuffer GlobalData;
+        totemMemoryBuffer GlobalRegisters;
     }
     totemActor;
     
@@ -437,7 +473,7 @@ function test() {
         totemActor *Actor;
         totemRegister *ReturnRegister;
         totemRegister *RegisterFrameStart;
-        totemInstruction *LastInstruction;
+        totemInstruction *ResumeAt;
         size_t FunctionHandle;
         totemFunctionType Type;
         uint8_t NumArguments;

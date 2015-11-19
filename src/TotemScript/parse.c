@@ -11,6 +11,14 @@
 #include <string.h>
 #include <ctype.h>
 
+#define TOTEM_PARSE_SKIPWHITESPACE(token) while((*token)->Type == totemTokenType_Whitespace) { (*token)++; }
+#define TOTEM_PARSE_COPYPOSITION(token, dest) memcpy(&dest->Position, &(*token)->Position, sizeof(totemBufferPositionInfo))
+#define TOTEM_PARSE_ALLOC(dest, type, tree) dest = (type*)totemParseTree_Alloc(tree, sizeof(type)); if(!dest) return totemParseStatus_Break(totemParseStatus_OutOfMemory);
+#define TOTEM_PARSE_CHECKRETURN(exp) { totemParseStatus s = exp; if(s != totemParseStatus_Success) return s; }
+#define TOTEM_PARSE_ENFORCETOKEN(token, type) if((*token)->Type != type) return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
+#define TOTEM_PARSE_ENFORCENOTTOKEN(token, type) if((*token)->Type == type) return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
+#define TOTEM_PARSE_INC_NOT_ENDSCRIPT(token) (*token)++; TOTEM_PARSE_ENFORCENOTTOKEN(token, totemTokenType_EndScript);
+
 const static totemTokenDesc s_symbolTokenValues[] =
 {
     { totemTokenType_Variable, "$" },
@@ -480,6 +488,13 @@ totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionProt
     while((*token)->Type != totemTokenType_RBracket)
     {
         TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_ParseParameterInList(first, last, token, tree));
+        
+        if((*token)->Type == totemTokenType_Comma)
+        {
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            TOTEM_PARSE_SKIPWHITESPACE(token);
+            TOTEM_PARSE_ENFORCENOTTOKEN(token, totemTokenType_RBracket);
+        }
     }
     
     (*token)++;
@@ -1088,28 +1103,18 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     // number constant
     if((*token)->Type == totemTokenType_Number)
     {
-        char numberBuffer[128];
-        memset(numberBuffer, 0, sizeof(numberBuffer));
-        size_t size = 0;
+        argument->Number.Value = (*token)->Value.Value;
+        argument->Type = totemArgumentType_Number;
         
         while((*token)->Type == totemTokenType_Number || (*token)->Type == totemTokenType_Dot)
         {
-            if(size > sizeof(numberBuffer) - 1)
-            {
-                return totemParseStatus_Break(totemParseStatus_ValueTooLarge);
-            }
-            
-            numberBuffer[size] = (*token)->Value.Value[0];
+            argument->Number.Length += (*token)->Value.Length;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
         }
         
         (*token)--;
         TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Number);
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-        
-        numberBuffer[size] = '\0';
-        argument->Number = atof(numberBuffer);
-        argument->Type = totemArgumentType_Number;
         
         return totemParseStatus_Success;
     }
@@ -1162,7 +1167,7 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     if((*token)->Type == totemTokenType_True || (*token)->Type == totemTokenType_False)
     {
         argument->Type = totemArgumentType_Number;
-        argument->Number = (*token)->Type == totemTokenType_True;
+        totemString_FromLiteral(&argument->Number, (*token)->Type == totemTokenType_True ? "1" : "0");
         
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
         TOTEM_PARSE_SKIPWHITESPACE(token);
@@ -1204,8 +1209,9 @@ const char *totemParseStatus_Describe(totemParseStatus status)
         TOTEM_STRINGIFY_CASE(totemParseStatus_Success);
         TOTEM_STRINGIFY_CASE(totemParseStatus_UnexpectedToken);
         TOTEM_STRINGIFY_CASE(totemParseStatus_ValueTooLarge);
-        default: return "UNKNOWN";
     }
+    
+    return "UNKNOWN";
 }
 
 const char *totemLexStatus_Describe(totemLexStatus status)
@@ -1214,8 +1220,10 @@ const char *totemLexStatus_Describe(totemLexStatus status)
     {
         TOTEM_STRINGIFY_CASE(totemLexStatus_OutOfMemory);
         TOTEM_STRINGIFY_CASE(totemLexStatus_Success);
-        default: return "UNKNOWN";
+        TOTEM_STRINGIFY_CASE(totemLexStatus_Failure);
     }
+    
+    return "UNKNOWN";
 }
 
 const char *totemTokenType_Describe(totemTokenType type)
@@ -1267,6 +1275,7 @@ const char *totemTokenType_Describe(totemTokenType type)
         TOTEM_STRINGIFY_CASE(totemTokenType_Variable);
         TOTEM_STRINGIFY_CASE(totemTokenType_While);
         TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
-        default:return "UNKNOWN";
     }
+    
+    return "UNKNOWN";
 }
