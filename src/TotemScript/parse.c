@@ -65,6 +65,7 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_Else, "else" },
     { totemTokenType_True, "true" },
     { totemTokenType_False, "false" },
+    { totemTokenType_Null, "null" },
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return status;
@@ -73,6 +74,14 @@ void totemTokenList_Reset(totemTokenList *list)
 {
     totemMemoryBuffer_Reset(&list->Tokens, sizeof(totemToken));
 }
+
+typedef enum
+{
+    totemCommentType_None,
+    totemCommentType_Line,
+    totemCommentType_Block
+}
+totemCommentType;
 
 /**
  * Lex buffer into token list
@@ -85,6 +94,7 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
     size_t currentLineChar = 0;
     const char *toCheck = NULL;
     totemLexStatus status = totemLexStatus_Success;
+    totemCommentType comment = totemCommentType_None;
     
     for(size_t i = 0; i < length; ++i)
     {
@@ -97,11 +107,46 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
         {
             ++currentLine;
             currentLineChar = 0;
+            
+            if(comment == totemCommentType_Line)
+            {
+                comment = totemCommentType_None;
+            }
+            
             continue;
         }
         else
         {
             ++currentLineChar;
+        }
+        
+        if(comment == totemCommentType_Block)
+        {
+            if(buffer[i] == '/' && buffer[i - 1] == '*')
+            {
+                comment = totemCommentType_None;
+            }
+            
+            continue;
+        }
+        
+        if(comment == totemCommentType_Line)
+        {
+            continue;
+        }
+        
+        if(buffer[i] == '/' && i < length - 1)
+        {
+            switch(buffer[i + 1])
+            {
+                case '*':
+                    comment = totemCommentType_Block;
+                    continue;
+                    
+                case '/':
+                    comment = totemCommentType_Line;
+                    continue;
+            }
         }
         
         // lexing new token
@@ -1100,6 +1145,14 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
         return totemVariablePrototype_Parse(argument->Variable, token, tree);
     }
     
+    // null
+    if((*token)->Type == totemTokenType_Null)
+    {
+        argument->Type = totemArgumentType_Null;
+        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+        return totemParseStatus_Success;
+    }
+    
     // number constant
     if((*token)->Type == totemTokenType_Number)
     {
@@ -1185,7 +1238,7 @@ totemParseStatus totemString_ParseIdentifier(totemString *string, totemToken **t
     const char *start = (*token)->Value.Value;
     uint32_t length = 0;
     
-    while((*token)->Type == totemTokenType_Identifier || (*token)->Type == totemTokenType_Colon)
+    while((*token)->Type == totemTokenType_Identifier)
     {
         length += (*token)->Value.Length;
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
@@ -1230,6 +1283,7 @@ const char *totemTokenType_Describe(totemTokenType type)
 {
     switch(type)
     {
+        TOTEM_STRINGIFY_CASE(totemTokenType_Null);
         TOTEM_STRINGIFY_CASE(totemTokenType_And);
         TOTEM_STRINGIFY_CASE(totemTokenType_Assign);
         TOTEM_STRINGIFY_CASE(totemTokenType_Backslash);

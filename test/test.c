@@ -12,7 +12,9 @@
 
 totemExecStatus totemPrint(totemExecState *state)
 {
-    printf("print: %f\n", state->Registers[totemRegisterScopeType_Local][0].Value.Number);
+    totemRegister *reg = &state->CallStack->RegisterFrameStart[0];
+    
+    printf("print: %s %f %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Float, reg->Value.Int);
     return totemExecStatus_Continue;
 }
 
@@ -58,6 +60,8 @@ int main(int argc, const char * argv[])
         printf("Lex error\n");
         return 1;
     }
+    
+    totemToken_PrintList(stdout, (totemToken*)tokens.Tokens.Data, totemMemoryBuffer_GetNumObjects(&tokens.Tokens));
     
     // parse
     totemParseTree parseTree;

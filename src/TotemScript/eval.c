@@ -222,10 +222,32 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
     totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, index);
     
     reg->Value.Data = 0;
-    reg->DataType = totemDataType_Number;
+    reg->DataType = totemDataType_Null;
     
     operand->RegisterIndex = index;
     operand->RegisterScopeType = list->Scope;
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand)
+{
+    if(list->HasNull)
+    {
+        operand->RegisterIndex = list->NullIndex;
+        operand->RegisterScopeType = list->Scope;
+        return totemEvalStatus_Success;
+    }
+    
+    totemEvalStatus status = totemRegisterListPrototype_AddRegister(list, operand);
+    if(status != totemEvalStatus_Success)
+    {
+        return status;
+    }
+    
+    totemRegister *reg = totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
+    reg->DataType = totemDataType_Null;
+    list->HasNull = totemBool_True;
     
     return totemEvalStatus_Success;
 }
@@ -323,7 +345,17 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
         }
         
         totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
-        reg->Value.Number = atof(number->Value);
+        
+        if(strnstr(number->Value, ".", number->Length) != NULL)
+        {
+            reg->Value.Float = atof(number->Value);
+            reg->DataType = totemDataType_Float;
+        }
+        else
+        {
+            reg->Value.Int = atoi(number->Value);
+            reg->DataType = totemDataType_Int;
+        }
     }
     
     return totemEvalStatus_Success;
@@ -337,6 +369,8 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list, totemReg
     totemMemoryBuffer_Reset(&list->Registers, sizeof(totemRegister));
     totemMemoryBuffer_Reset(&list->StringData, sizeof(char));
     list->Scope = scope;
+    list->NullIndex = 0;
+    list->HasNull = totemBool_False;
 }
 
 void totemBuildPrototype_Init(totemBuildPrototype *build, totemRuntime *runtime)
@@ -693,6 +727,9 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
             
             return status;
             
+        case totemArgumentType_Null:
+            return totemRegisterListPrototype_AddNull(globals, value);
+            
         case totemArgumentType_String:
             return totemRegisterListPrototype_AddStringConstant(globals, &argument->String, value);
             
@@ -952,7 +989,7 @@ totemEvalStatus totemBuildPrototype_EvalReturn(totemBuildPrototype *build, totem
     return totemBuildPrototype_EvalAbxInstructionUnsigned(build, dest, option, totemOperationType_Return);
 }
 
-totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemBuildPrototype *build, totemOperandRegisterPrototype *index)
+totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemBuildPrototype *build, totemOperandRegisterPrototype *result)
 {
     size_t address;
     totemOperationType opType;
@@ -977,40 +1014,14 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
         }
     }
     
-    size_t numArgs = 0;
-    totemOperandRegisterPrototype arg, result;
-    totemRegisterIndex firstIndex = 0;
+    TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, result));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, result, (totemOperandXUnsigned)address, opType));
+    
     for(totemExpressionPrototype *parameter = functionCall->ParametersStart; parameter != NULL; parameter = parameter->Next)
     {
-        TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, &arg));
-        if(numArgs == 0)
-        {
-            firstIndex = arg.RegisterIndex;
-        }
-        numArgs++;
-    }
-    
-    size_t currentArg;
-    for(totemExpressionPrototype *parameter = functionCall->ParametersStart; parameter != NULL; parameter = parameter->Next)
-    {
-        totemOperandRegisterPrototype paramRegister;
-        paramRegister.RegisterIndex = firstIndex + currentArg;
-        paramRegister.RegisterScopeType = scope->Scope;
-        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(parameter, build, scope, globals, &paramRegister));
-        currentArg++;
-    }
-    
-    TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(scope, &result));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, &result, (totemOperandXUnsigned)address, opType));
-    
-    currentArg = 0;
-    for(totemExpressionPrototype *parameter = functionCall->ParametersStart; parameter != NULL; parameter = parameter->Next)
-    {
-        totemOperandRegisterPrototype paramRegister;
-        paramRegister.RegisterIndex = firstIndex + currentArg;
-        paramRegister.RegisterScopeType = scope->Scope;
-        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, &paramRegister, (totemOperandXUnsigned)(currentArg == numArgs - 1), totemOperationType_FunctionArg));
-        currentArg++;
+        totemOperandRegisterPrototype operand;
+        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(parameter, build, scope, globals, &operand));
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, &operand, 0, totemOperationType_FunctionArg));
     }
     
     return totemEvalStatus_Success;

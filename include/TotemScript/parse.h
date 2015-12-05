@@ -66,6 +66,7 @@ extern "C" {
     typedef enum
     {
         totemArgumentType_Variable = 1,
+        totemArgumentType_Null,
         totemArgumentType_String,
         totemArgumentType_Number,
         totemArgumentType_FunctionCall,
@@ -163,6 +164,7 @@ extern "C" {
     typedef enum
     {
         totemTokenType_None = 0,
+        totemTokenType_Null,
         totemTokenType_Variable,
         totemTokenType_Identifier,
         totemTokenType_Plus,

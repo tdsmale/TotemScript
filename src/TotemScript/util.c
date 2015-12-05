@@ -73,7 +73,9 @@ const char *totemDataType_Describe(totemDataType type)
 {
     switch(type)
     {
-        TOTEM_STRINGIFY_CASE(totemDataType_Number);
+        TOTEM_STRINGIFY_CASE(totemDataType_Null);
+        TOTEM_STRINGIFY_CASE(totemDataType_Float);
+        TOTEM_STRINGIFY_CASE(totemDataType_Int);
         TOTEM_STRINGIFY_CASE(totemDataType_Reference);
         TOTEM_STRINGIFY_CASE(totemDataType_String);
     }
@@ -231,7 +233,7 @@ void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)
     for(size_t i = 0 ; i < num; ++i)
     {
         totemToken *token = tokens + i;
-        fprintf(target, "%zu %s %.*s", i, totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value);
+        fprintf(target, "%zu %s %.*s\n", i, totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value);
     }
 }
 

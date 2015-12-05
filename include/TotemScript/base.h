@@ -19,6 +19,13 @@ extern "C" {
 #endif
     
     // TODO: declutter headers
+    // TODO: arrays
+    // TODO: function pointers
+    // TODO: anonymous functions (eval to function pointer)
+    // TODO: global string-value cache attached to runtime, instead of per-actor
+    // TODO: "fast-strings" (i.e. strings that are 8 or less chars long can sit inside register value)
+    // TODO: ascii char support (e.g. 'a', 'b' etc.)
+    // TODO: modules (loading scripts as garbage-collected objects)
     
 /**
  * Register-based
@@ -92,57 +99,6 @@ extern "C" {
  -----------------------------------------------------------------------
  |5     |9                   |18                                       |
  -----------------------------------------------------------------------
- 
- Basic idea:
- 
- 1. define "Actors"
- 2. "Actors" have functions & variables
- 3. Other actors can invoke functions, but not access variables
-
-function test() {
-    $x = 1;
-    MOVE $x 1
-    
-    $z = "This string is stored as a constant in the global stack. String values are immutable.";
-    MOVE $z string
-    
-    $z = "Another string. The first string hasn't gone anywhere.";
-    MOVE $z string
-    
-    $z = 123;
-    MOVE $z 123 ($z is now a number!)
-    
-    if($x == $globalNumber) {
-        EQUALS a $x $globalNumber
-        CONDITIONALGOTO a 123
-    }
-    
-    while($x == $globalNumber) {
-        EQUALS a $x $globalNumber
-        CONDITIONALGOTO a 123
-        
-        GOTO 122
-    }
-    
-    x($a, $b, $c, $d);
-    NATIVEFUNCTION ?? x
-    FUNCARG $a 0
-    FUNCARG $b 0
-    FUNCARG $c 0
-    FUNCARG $d 1 // each argument is inserted into function's local registers, function uses whatever it wants
-    
-    return $z;
-    RETURN $z
-    
-    ///
-    
-    $x = 123;
- 
-    $z = scriptFunction(10, 20);
-    SCRIPTFUNCTION $z scriptFunction
-    FUNCARG 10 0
-    FUNCARG 20 1
-}
 */
     
 #define TOTEM_ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -176,7 +132,8 @@ function test() {
     typedef uint8_t totemRegisterIndex;
     typedef int32_t totemOperandXSigned;
     typedef uint32_t totemOperandXUnsigned;
-    typedef double totemNumber;
+    typedef double totemFloat;
+    typedef int64_t totemInt;
     typedef size_t totemReference;
     
     totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t numBits);
@@ -194,11 +151,6 @@ function test() {
     }
     totemRuntimeString;
     
-    // TODO: global string-value cache attached to runtime, instead of per-actor
-    // TODO: "fast-strings" (i.e. strings that are 8 or less chars long can sit inside register value)
-    // TODO: ascii char support (e.g. 'a', 'b' etc.)
-    // TODO: function pointers
-        
     typedef struct
     {
         const char *Value;
@@ -210,7 +162,8 @@ function test() {
 
     typedef union
     {
-        totemNumber Number;
+        totemFloat Float;
+        totemInt Int;
         totemReference Reference;
         totemRuntimeString String;
         uint64_t Data;
@@ -219,13 +172,16 @@ function test() {
 
     enum
     {
-        totemDataType_Number = 0,     // double stored in register
-        totemDataType_String = 1,	  // immutable C-style string stored in cache
-        totemDataType_Reference = 2   // void *pointer stored in register
+        totemDataType_Null = 0,
+        totemDataType_Int = 1,
+        totemDataType_Float = 2,
+        totemDataType_String = 3,
+        totemDataType_Reference = 4
     };
     typedef int8_t totemDataType;
     const char *totemDataType_Describe(totemDataType type);
-        
+#define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
+    
     typedef struct
     {
         totemRegisterValue Value;
@@ -455,6 +411,8 @@ function test() {
         totemHashMap Variables;
         totemHashMap Strings;
         totemHashMap Numbers;
+        totemRegisterIndex NullIndex;
+        totemBool HasNull;
         totemRegisterScopeType Scope;
     }
     totemRegisterListPrototype;

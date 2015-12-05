@@ -1,5 +1,5 @@
 
-
+/*
 function whileLoop()
 {
     $a = 10;
@@ -32,7 +32,7 @@ function forLoop()
         print($i);
     }
 }
-
+/*
 function ifBlock()
 {
     if(1 - 2 > 0)
@@ -47,12 +47,36 @@ function ifBlock()
     {
         print(2);
     }
+}*/
+
+function intFloat()
+{
+    $a = 1;
+    print($a);
+
+    $b = $a + 0.5;
+    print($b);
+
+    $c = 12.4;
+    print($c);
+
+    $d = $c + 5;
+    print($d);
+}
+
+function nullTest()
+{
+    $a = null;
+    print($a);
 }
 
 function test()
 {
-    whileLoop();
-    doWhileLoop();
-    forLoop();
-    ifBlock();
+    //whileLoop();
+    //doWhileLoop();
+    //forLoop();
+    //ifBlock();
+
+    intFloat();
+    nullTest();
 }

@@ -226,6 +226,7 @@ totemExecStatus totemExecState_PushFunctionCall(totemExecState *state, totemFunc
         {
             call->RegisterFrameStart[call->NumArguments] = *TOTEM_GET_OPERANDA_REGISTER(state, (*state->CurrentInstruction));
             state->CurrentInstruction++;
+            call->NumArguments++;
         }
     }
     
@@ -397,11 +398,31 @@ totemExecStatus totemExecState_ExecAdd(totemExecState *state)
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number + source2->Value.Number;
-    destination->DataType = totemDataType_Number;
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int + source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Float = source1->Value.Float + source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Float = source1->Value.Float + source2->Value.Int;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Float = source1->Value.Int + source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -414,11 +435,31 @@ totemExecStatus totemExecState_ExecSubtract(totemExecState *state)
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number - source2->Value.Number;
-    destination->DataType = totemDataType_Number;
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int - source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Float = source1->Value.Float - source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Float = source1->Value.Float - source2->Value.Int;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Float = source1->Value.Int - source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -430,12 +471,31 @@ totemExecStatus totemExecState_ExecMultiply(totemExecState *state)
     totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
-    
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number * source2->Value.Number;
-    destination->DataType = totemDataType_Number;
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int * source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Float = source1->Value.Float * source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Float = source1->Value.Float * source2->Value.Int;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Float = source1->Value.Int * source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -447,12 +507,31 @@ totemExecStatus totemExecState_ExecDivide(totemExecState *state)
     totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
-    
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number / source2->Value.Number;
-    destination->DataType = totemDataType_Number;
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int / source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Float = source1->Value.Float / source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Float = source1->Value.Float / source2->Value.Int;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Float = source1->Value.Int / source2->Value.Float;
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -464,13 +543,31 @@ totemExecStatus totemExecState_ExecPower(totemExecState *state)
     totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
-    
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = pow(source1->Value.Number, source2->Value.Number);
-    destination->DataType = totemDataType_Number;
-    
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Float = pow(source1->Value.Int, source2->Value.Int);
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Float = pow(source1->Value.Float, source2->Value.Float);
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Float = pow(source1->Value.Float, source2->Value.Int);
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Float = pow(source1->Value.Int, source2->Value.Float);
+            destination->DataType = totemDataType_Float;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
 }
@@ -484,8 +581,8 @@ totemExecStatus totemExecState_ExecEquals(totemExecState *state)
     
     TOTEM_ENFORCE_TYPE(source1, source2->DataType);
     
-    destination->Value.Number = source1->Value.Data == source2->Value.Data;
-    destination->DataType = totemDataType_Number;
+    destination->Value.Int = source1->Value.Data == source2->Value.Data;
+    destination->DataType = totemDataType_Int;
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -500,8 +597,8 @@ totemExecStatus totemExecState_ExecNotEquals(totemExecState *state)
     
     TOTEM_ENFORCE_TYPE(source1, source2->DataType);
     
-    destination->Value.Number = source1->Value.Data != source2->Value.Data;
-    destination->DataType = totemDataType_Number;
+    destination->Value.Int = source1->Value.Data != source2->Value.Data;
+    destination->DataType = totemDataType_Int;
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -514,11 +611,31 @@ totemExecStatus totemExecState_ExecLessThan(totemExecState *state)
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number < source2->Value.Number;
-    destination->DataType = totemDataType_Number;
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int < source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Int = source1->Value.Float < source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Int = source1->Value.Float < source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Int = source1->Value.Int < source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -531,11 +648,31 @@ totemExecStatus totemExecState_ExecLessThanEquals(totemExecState *state)
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number <= source2->Value.Number;
-    destination->DataType = totemDataType_Number;
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int <= source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Int = source1->Value.Float <= source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Int = source1->Value.Float <= source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Int = source1->Value.Int <= source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
@@ -548,12 +685,31 @@ totemExecStatus totemExecState_ExecMoreThan(totemExecState *state)
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number > source2->Value.Number;
-    destination->DataType = totemDataType_Number;
-    
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int > source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Int = source1->Value.Float > source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Int = source1->Value.Float > source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Int = source1->Value.Int > source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
 }
@@ -565,11 +721,31 @@ totemExecStatus totemExecState_ExecMoreThanEquals(totemExecState *state)
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
-    TOTEM_ENFORCE_TYPE(source1, totemDataType_Number);
-    TOTEM_ENFORCE_TYPE(source2, totemDataType_Number);
-    
-    destination->Value.Number = source1->Value.Number >= source2->Value.Number;
-    destination->DataType = totemDataType_Number;
+    switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+            destination->Value.Int = source1->Value.Int >= source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            destination->Value.Int = source1->Value.Float >= source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            destination->Value.Int = source1->Value.Float >= source2->Value.Int;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            destination->Value.Int = source1->Value.Int >= source2->Value.Float;
+            destination->DataType = totemDataType_Int;
+            break;
+            
+        default:
+            return totemExecStatus_UnexpectedDataType;
+    }
     
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
