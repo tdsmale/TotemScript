@@ -17,15 +17,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+    // TODO: const  e.g. const $x = 1; // cannot modify variable $x, must be a constant value, eval to global variable
+    // TODO: global string-value cache attached to runtime, instead of per-actor
+    // TODO: function pointers, e.g. $x = @funcName; $x($y, $z);
+    // TODO: garbage-collected, fixed-size arrays with bounds-checking, e.g. $x = [20]; $x[19] = 1; $y = $x[4];
+
+    // TODO: include other scripts, e.g. include script.totem; Skip functions & variables that aren't actually used. Variables are private, Functions are public.
     
     // TODO: declutter headers
-    // TODO: arrays
-    // TODO: function pointers
-    // TODO: anonymous functions (eval to function pointer)
-    // TODO: global string-value cache attached to runtime, instead of per-actor
-    // TODO: "fast-strings" (i.e. strings that are 8 or less chars long can sit inside register value)
-    // TODO: ascii char support (e.g. 'a', 'b' etc.)
-    // TODO: modules (loading scripts as garbage-collected objects)
     
 /**
  * Register-based
@@ -159,6 +158,7 @@ extern "C" {
     totemString;
     
     void totemString_FromLiteral(totemString *strOut, const char *str);
+    totemBool totemString_Equals(totemString *a, totemString *b);
 
     typedef union
     {

@@ -12,9 +12,20 @@
 
 totemExecStatus totemPrint(totemExecState *state)
 {
-    totemRegister *reg = &state->CallStack->RegisterFrameStart[0];
+    totemRegister *reg = &state->Registers[totemRegisterScopeType_Local][0];
+
+    switch(reg->DataType)
+    {
+        case totemDataType_String:
+            printf("print: %s %.*s (%i) \n", totemDataType_Describe(reg->DataType), reg->Value.String.Length, &state->CallStack->Actor->GlobalData.Data[reg->Value.String.Index], reg->Value.String.Length);
+            break;
+            
+        default:
+            printf("print: %s %f %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Float, reg->Value.Int);
+            break;
+    }
     
-    printf("print: %s %f %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Float, reg->Value.Int);
+
     return totemExecStatus_Continue;
 }
 

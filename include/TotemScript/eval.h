@@ -23,6 +23,8 @@ extern "C" {
         totemEvalStatus_OutOfMemory,
         totemEvalStatus_InvalidArgument,
         totemEvalStatus_FunctionNotDefined,
+        totemEvalStatus_NativeFunctionAlreadyDefined,
+        totemEvalStatus_ScriptFunctionAlreadyDefined,
         totemEvalStatus_TooManyRegisters,
         totemEvalStatus_InstructionOverflow
     }
@@ -60,8 +62,6 @@ extern "C" {
     totemEvalStatus totemDoWhileLoopPrototype_Eval(totemDoWhileLoopPrototype *doWhileLoop, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals);
     
     totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals);
-    
-    totemEvalStatus totemSwitchBlockPrototype_Eval(totemSwitchBlockPrototype *switchBlock, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals);
     
     totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals);
 

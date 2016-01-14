@@ -1,7 +1,9 @@
 
-/*
 function whileLoop()
 {
+    print("While Loop");
+    print("---");
+
     $a = 10;
 
     while($a)
@@ -11,10 +13,14 @@ function whileLoop()
     }
 
     print($a);
+    print("---");
 }
 
 function doWhileLoop()
 {
+    print("Do While Loop");
+    print("---");
+
     $a = 20;
 
     do
@@ -23,34 +29,49 @@ function doWhileLoop()
         $a--;
     }
     while($a);
+
+    print("---");
 }
 
 function forLoop()
 {
+    print("For Loop");
+    print("---");
+
     for($i = 0; $i < 30; $i++)
     {
         print($i);
     }
+
+    print("---");
 }
-/*
+
 function ifBlock()
 {
-    if(1 - 2 > 0)
+    print("If Block");
+    print("---");
+    $x = 0;
+
+    if($x < 0)
     {
-        print(1);
+        print("Less Than");
     }
-    else if(3 == 0)
+    else if($x > 0)
     {
-        print(0);
+        print("More Than");
     }
     else
     {
-        print(2);
+        print("Equals");
     }
-}*/
+
+    print("---");
+}
 
 function intFloat()
 {
+    print("Int Float Test");
+    print("---");
     $a = 1;
     print($a);
 
@@ -62,21 +83,25 @@ function intFloat()
 
     $d = $c + 5;
     print($d);
+    print("---");
 }
 
 function nullTest()
 {
+    print("Null Test");
+    print("---");
     $a = null;
     print($a);
+    print("---");
 }
 
 function test()
 {
-    //whileLoop();
-    //doWhileLoop();
-    //forLoop();
-    //ifBlock();
-
+    print("Hello, World!");
+    whileLoop();
+    doWhileLoop();
+    forLoop();
     intFloat();
     nullTest();
+    ifBlock();
 }

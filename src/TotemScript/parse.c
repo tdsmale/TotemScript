@@ -57,7 +57,6 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_While, "while" },
     { totemTokenType_For, "for" },
     { totemTokenType_Return, "return" },
-    { totemTokenType_Switch, "switch" },
     { totemTokenType_Case, "case" },
     { totemTokenType_Break, "break" },
     { totemTokenType_Function, "function" },
@@ -70,11 +69,6 @@ const static totemTokenDesc s_reservedWordValues[] =
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return status;
 
-void totemTokenList_Reset(totemTokenList *list)
-{
-    totemMemoryBuffer_Reset(&list->Tokens, sizeof(totemToken));
-}
-
 typedef enum
 {
     totemCommentType_None,
@@ -83,15 +77,22 @@ typedef enum
 }
 totemCommentType;
 
+void totemTokenList_Reset(totemTokenList *list)
+{
+    totemMemoryBuffer_Reset(&list->Tokens, sizeof(totemToken));
+    list->CurrentChar = 0;
+    list->CurrentLine = 0;
+    list->NextTokenStart = 0;
+}
+
 /**
  * Lex buffer into token list
  */
 totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length)
 {
     size_t currentTokenLength = 0;
-    size_t currentTokenStart = 0;
-    size_t currentLine = 1;
-    size_t currentLineChar = 0;
+    list->CurrentLine = 1;
+    list->CurrentChar = 0;
     const char *toCheck = NULL;
     totemLexStatus status = totemLexStatus_Success;
     totemCommentType comment = totemCommentType_None;
@@ -105,8 +106,8 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
         
         if(buffer[i] == '\n')
         {
-            ++currentLine;
-            currentLineChar = 0;
+            list->CurrentLine++;
+            list->CurrentChar = 0;
             
             if(comment == totemCommentType_Line)
             {
@@ -117,7 +118,7 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
         }
         else
         {
-            ++currentLineChar;
+            list->CurrentChar++;
         }
         
         if(comment == totemCommentType_Block)
@@ -152,11 +153,8 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
         // lexing new token
         if(currentTokenLength == 0)
         {
-            currentTokenStart = i;
-            toCheck = buffer + currentTokenStart;
-            //currentToken->Position.LineNumber = currentLine;
-            //currentToken->Position.CharNumber = currentLineChar;
-            // TODO: line & char numbers
+            list->NextTokenStart = list->CurrentChar - 1;
+            toCheck = buffer + i;
         }
         else if(buffer[i] == ' ')
         {
@@ -220,8 +218,6 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
     endToken->Type = totemTokenType_EndScript;
     endToken->Value.Value = NULL;
     endToken->Value.Length = 0;
-    endToken->Position.LineNumber = currentLine;
-    endToken->Position.CharNumber = currentLineChar;
     
     return totemLexStatus_Success;
 }
@@ -236,6 +232,8 @@ totemToken *totemTokenList_Alloc(totemTokenList *list)
         currentToken->Value.Value = NULL;
         currentToken->Value.Length = 0;
         currentToken->Type = totemTokenType_None;
+        currentToken->Position.CharNumber = list->NextTokenStart;
+        currentToken->Position.LineNumber = list->CurrentLine;
         return currentToken;
     }
     
@@ -428,13 +426,6 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             statement->Type = totemStatementType_IfBlock;
             TOTEM_PARSE_ALLOC(statement->IfBlock, totemIfBlockPrototype, tree);
             return totemIfBlockPrototype_Parse(statement->IfBlock, token, tree);
-        }
-            
-        case totemTokenType_Switch:
-        {
-            statement->Type = totemStatementType_SwitchBlock;
-            TOTEM_PARSE_ALLOC(statement->SwitchBlock, totemSwitchBlockPrototype, tree);
-            return totemSwitchBlockPrototype_Parse(statement->SwitchBlock, token, tree);
         }
             
         case totemTokenType_Return:
@@ -733,96 +724,6 @@ totemParseStatus totemForLoopPrototype_Parse(totemForLoopPrototype *loop, totemT
     totemStatementPrototype *firstStatement = NULL, *lastStatement = NULL;
     TOTEM_PARSE_CHECKRETURN(totemStatementPrototype_ParseSet(&firstStatement, &lastStatement, token, tree));
     loop->StatementsStart = firstStatement;
-    
-    return totemParseStatus_Success;
-}
-
-totemParseStatus totemSwitchBlockPrototype_Parse(totemSwitchBlockPrototype *block, totemToken **token, totemParseTree *tree)
-{
-    TOTEM_PARSE_SKIPWHITESPACE(token);
-    TOTEM_PARSE_COPYPOSITION(token, block);
-    TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Switch);
-    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-    
-    TOTEM_PARSE_ALLOC(block->Expression, totemExpressionPrototype, tree);
-    TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(block->Expression, token, tree));
-    
-    TOTEM_PARSE_SKIPWHITESPACE(token);
-    TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_LCBracket);
-    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-    
-    totemSwitchCasePrototype *first = NULL, *last = NULL;
-    while((*token)->Type != totemTokenType_RCBracket)
-    {
-        totemSwitchCasePrototype *switchCase = NULL;
-        TOTEM_PARSE_ALLOC(switchCase, totemSwitchCasePrototype, tree);
-        TOTEM_PARSE_CHECKRETURN(totemSwitchCasePrototype_Parse(switchCase, token, tree));
-        TOTEM_PARSE_SKIPWHITESPACE(token);
-        
-        if(first == NULL)
-        {
-            first = switchCase;
-        }
-        else
-        {
-            last->Next = switchCase;
-        }
-        
-        last = switchCase;
-    }
-    (*token)++;
-    block->CasesStart = first;
-    
-    return totemParseStatus_Success;
-}
-
-totemParseStatus totemSwitchCasePrototype_Parse(totemSwitchCasePrototype *block, totemToken **token, totemParseTree *tree)
-{
-    TOTEM_PARSE_SKIPWHITESPACE(token);
-    TOTEM_PARSE_COPYPOSITION(token, block);
-    
-    if((*token)->Type != totemTokenType_Default)
-    {
-        TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Case);
-        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-        TOTEM_PARSE_SKIPWHITESPACE(token);
-        
-        block->Type = totemSwitchCaseType_Expression;
-        TOTEM_PARSE_ALLOC(block->Expression, totemExpressionPrototype, tree);
-        TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(block->Expression, token, tree));
-    }
-    else
-    {
-        block->Type = totemSwitchCaseType_Default;
-        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-    }
-    
-    TOTEM_PARSE_SKIPWHITESPACE(token);
-    TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Colon);
-    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-    TOTEM_PARSE_SKIPWHITESPACE(token);
-    
-    totemStatementPrototype *firstStatement = NULL, *lastStatement = NULL;
-    
-    while((*token)->Type != totemTokenType_Break && (*token)->Type != totemTokenType_Case && (*token)->Type != totemTokenType_Default)
-    {
-        TOTEM_PARSE_CHECKRETURN(totemStatementPrototype_ParseInSet(&firstStatement, &lastStatement, token, tree));
-    }
-    
-    block->StatementsStart = firstStatement;
-    
-    if((*token)->Type == totemTokenType_Break)
-    {
-        block->HasBreak = totemBool_True;
-        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-        TOTEM_PARSE_SKIPWHITESPACE(token);
-        TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Semicolon);
-        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-    }
-    else
-    {
-        block->HasBreak = totemBool_False;
-    }
     
     return totemParseStatus_Success;
 }
@@ -1324,7 +1225,6 @@ const char *totemTokenType_Describe(totemTokenType type)
         TOTEM_STRINGIFY_CASE(totemTokenType_Semicolon);
         TOTEM_STRINGIFY_CASE(totemTokenType_SingleQuote);
         TOTEM_STRINGIFY_CASE(totemTokenType_Slash);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Switch);
         TOTEM_STRINGIFY_CASE(totemTokenType_True);
         TOTEM_STRINGIFY_CASE(totemTokenType_Variable);
         TOTEM_STRINGIFY_CASE(totemTokenType_While);

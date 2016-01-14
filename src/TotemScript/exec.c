@@ -170,6 +170,8 @@ totemFunctionCall *totemRuntime_SecureFunctionCall(totemRuntime *runtime)
 
 void totemRuntime_FreeFunctionCall(totemRuntime *runtime, totemFunctionCall *call)
 {
+    call->Prev = NULL;
+    
     if(runtime->FunctionCallFreeList)
     {
         call->Prev = runtime->FunctionCallFreeList;
@@ -219,10 +221,20 @@ totemExecStatus totemExecState_PushFunctionCall(totemExecState *state, totemFunc
     call->ResumeAt = NULL;
     call->Prev = NULL;
     call->NumArguments = 0;
-
+    
     if(state->CurrentInstruction)
     {
-        while(TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction) == totemOperationType_FunctionArg)
+        totemOperationType type = TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction);
+        
+        if(type == totemOperationType_FunctionArg)
+        {
+            if(state->UsedLocalRegisters + TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*state->CurrentInstruction) > state->MaxLocalRegisters)
+            {
+                return totemExecStatus_RegisterOverflow;
+            }
+        }
+        
+        for(/* nada */; type == totemOperationType_FunctionArg; type = TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction))
         {
             call->RegisterFrameStart[call->NumArguments] = *TOTEM_GET_OPERANDA_REGISTER(state, (*state->CurrentInstruction));
             state->CurrentInstruction++;
@@ -238,6 +250,7 @@ totemExecStatus totemExecState_PushFunctionCall(totemExecState *state, totemFunc
     
     state->CallStack = call;
     state->Registers[totemRegisterScopeType_Global] = (totemRegister*)actor->GlobalRegisters.Data;
+    state->Registers[totemRegisterScopeType_Local] = call->RegisterFrameStart;
     
     return totemExecStatus_Continue;
 }
@@ -250,9 +263,11 @@ void totemExecState_PopFunctionCall(totemExecState *state)
         totemFunctionCall *prev = call->Prev;
         totemRuntime_FreeFunctionCall(state->Runtime, call);
         state->CallStack = prev;
+        
         if(state->CallStack)
         {
             state->Registers[totemRegisterScopeType_Global] = (totemRegister*)state->CallStack->Actor->GlobalRegisters.Data;
+            state->Registers[totemRegisterScopeType_Local] = state->CallStack->RegisterFrameStart;
             state->CurrentInstruction = state->CallStack->ResumeAt;
         }
     }
@@ -278,6 +293,8 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
         return totemExecStatus_RegisterOverflow;
     }
     
+    // reset values to be used
+    memset(&state->Registers[totemRegisterScopeType_Local][state->UsedLocalRegisters], 0, function->RegistersNeeded);
     state->UsedLocalRegisters += function->RegistersNeeded;
     
     totemExecStatus status = totemExecState_PushFunctionCall(state, totemFunctionType_Script, functionAddress, actor, returnRegister);
@@ -297,8 +314,6 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
         status = totemExecState_ExecInstruction(state);
     }
     while(status == totemExecStatus_Continue);
-
-    state->CallStack->ResumeAt = state->CurrentInstruction;
     
     if(status == totemExecStatus_Return)
     {
@@ -314,7 +329,7 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
 
 totemExecStatus totemExecState_ExecInstruction(totemExecState *state)
 {
-    totemInstruction_Print(stdout, *state->CurrentInstruction);
+    //totemInstruction_Print(stdout, *state->CurrentInstruction);
     totemOperationType op = TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction);
     
     switch(op)

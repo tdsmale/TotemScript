@@ -39,6 +39,16 @@ void totemString_FromLiteral(totemString *strOut, const char *str)
     strOut->Length = (uint32_t)strlen(str);
 }
 
+totemBool totemString_Equals(totemString *a, totemString *b)
+{
+    if(a->Length != b->Length)
+    {
+        return totemBool_False;
+    }
+    
+    return strncmp(a->Value, b->Value, a->Length) == 0;
+}
+
 const char *totemOperationType_Describe(totemOperationType op)
 {
     switch (op)
@@ -233,7 +243,7 @@ void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)
     for(size_t i = 0 ; i < num; ++i)
     {
         totemToken *token = tokens + i;
-        fprintf(target, "%zu %s %.*s\n", i, totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value);
+        fprintf(target, "%zu %s %.*s at %zu:%zu\n", i, totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value, token->Position.LineNumber, token->Position.CharNumber);
     }
 }
 

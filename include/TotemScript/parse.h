@@ -33,7 +33,6 @@ extern "C" {
  for-loop = for-token lbracket statement statement statement rbracket rbracket lcbracket { statement } rcbracket-token
  do-while-loop = do-token lcbracket { statement } rcbracket while-token statement
  if-loop = if-token expression lcbracket { statement } rcbracket
- switch = switch-token expression lcbracket-token  { case expression colon-token { statement } break; } rcbracket
  simple-statement = expression end-statement
  
  statement = while-loop | for-loop | do-while-loop | if-loop | switch | return | simple-statement
@@ -126,7 +125,6 @@ extern "C" {
         totemStatementType_ForLoop,
         totemStatementType_IfBlock,
         totemStatementType_DoWhileLoop,
-        totemStatementType_SwitchBlock,
         totemStatementType_Return,
         totemStatementType_Simple
     }
@@ -138,13 +136,6 @@ extern "C" {
         totemBlockType_Statement
     }
     totemBlockType;
-
-    typedef enum
-    {
-        totemSwitchCaseType_Expression = 1,
-        totemSwitchCaseType_Default
-    }
-    totemSwitchCaseType;
 
     typedef enum
     {
@@ -194,7 +185,7 @@ extern "C" {
         totemTokenType_SingleQuote,
         totemTokenType_LSBracket,
         totemTokenType_RSBracket,
-        totemTokenType_Switch,
+        //totemTokenType_Switch,
         totemTokenType_Case,
         totemTokenType_Function,
         totemTokenType_EndScript,
@@ -337,25 +328,6 @@ extern "C" {
     }
     totemDoWhileLoopPrototype;
 
-    typedef struct totemSwitchCasePrototype
-    {
-        struct totemStatementPrototype *StatementsStart;
-        totemExpressionPrototype *Expression;
-        struct totemSwitchCasePrototype *Next;
-        totemBufferPositionInfo Position;
-        totemSwitchCaseType Type;
-        totemBool HasBreak;
-    }
-    totemSwitchCasePrototype;
-        
-    typedef struct
-    {
-        totemSwitchCasePrototype *CasesStart;
-        totemExpressionPrototype *Expression;
-        totemBufferPositionInfo Position;
-    }
-    totemSwitchBlockPrototype;
-
     typedef struct
     {
         totemVariablePrototype *ParametersStart;
@@ -373,7 +345,7 @@ extern "C" {
             totemForLoopPrototype *ForLoop;
             totemIfBlockPrototype *IfBlock;
             totemDoWhileLoopPrototype *DoWhileLoop;
-            totemSwitchBlockPrototype *SwitchBlock;
+            //totemSwitchBlockPrototype *SwitchBlock;
             totemExpressionPrototype *Return;
             totemExpressionPrototype *Expression;
         };
@@ -399,6 +371,9 @@ extern "C" {
     typedef struct
     {
         totemMemoryBuffer Tokens;
+        size_t CurrentLine;
+        size_t NextTokenStart;
+        size_t CurrentChar;
     }
     totemTokenList;
     
@@ -415,7 +390,6 @@ extern "C" {
     /**
      * Lex script into tokens
      */
-    void totemTokenList_Reset(totemTokenList *list);
     void totemTokenList_Reset(totemTokenList *list);
     void totemTokenList_Cleanup(totemTokenList *list);
     
@@ -442,8 +416,6 @@ extern "C" {
     totemParseStatus totemWhileLoopPrototype_Parse(totemWhileLoopPrototype *loop, totemToken **token, totemParseTree *tree);
     totemParseStatus totemDoWhileLoopPrototype_Parse(totemDoWhileLoopPrototype *loop, totemToken **token, totemParseTree *tree);
     totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemSwitchBlockPrototype_Parse(totemSwitchBlockPrototype *block, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemSwitchCasePrototype_Parse(totemSwitchCasePrototype *block, totemToken **token, totemParseTree *tree);
     totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemToken **token, totemParseTree *tree);
     totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expression, totemToken **token, totemParseTree *tree);
     totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemToken **token, totemParseTree *tree);
