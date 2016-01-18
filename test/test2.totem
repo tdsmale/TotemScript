@@ -1,0 +1,14 @@
+$x = "It Works! YAY";
+
+$y = 0;
+
+for($y = 0; $y < 10; $y++)
+{
+
+}
+
+function includeTest($z)
+{
+    print($z);
+    print($y);
+}

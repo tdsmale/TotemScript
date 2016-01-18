@@ -26,7 +26,7 @@ extern "C" {
  argument = variable | number-token | string | function-call
  
  generic-expression = [ pre-unary operator ] ( argument | expression ) [ post-unary operator ] { binary-operator expression }
- assignment-expression = argument assignment-operator expression
+ assignment-expression = [ const-token ] argument assignment-operator expression
  expression = generic-expression | assignment-expression
  
  while-loop = while-token expression lcbracket { statement } rcbracket-token
@@ -35,11 +35,29 @@ extern "C" {
  if-loop = if-token expression lcbracket { statement } rcbracket
  simple-statement = expression end-statement
  
- statement = while-loop | for-loop | do-while-loop | if-loop | switch | return | simple-statement
+ statement = while-loop | for-loop | do-while-loop | if-loop | return | simple-statement
  function-declaration = identifier-token lbracket-token { variable } rbracket-token lcbracket-token { statement } rcbracket-token
   
  script = { function-declaration | statement } end-script-token
 */
+    
+    typedef enum
+    {
+        totemLoadScriptStatus_Success,
+        totemLoadScriptStatus_FileNotFound,
+        totemLoadScriptStatus_Recursion,
+        totemLoadScriptStatus_OutOfMemory
+    }
+    totemLoadScriptStatus;
+    
+    const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status);
+    
+    typedef struct
+    {
+        totemString Description;
+        totemLoadScriptStatus Status;
+    }
+    totemLoadScriptError;
     
     typedef enum
     {
@@ -185,7 +203,6 @@ extern "C" {
         totemTokenType_SingleQuote,
         totemTokenType_LSBracket,
         totemTokenType_RSBracket,
-        //totemTokenType_Switch,
         totemTokenType_Case,
         totemTokenType_Function,
         totemTokenType_EndScript,
@@ -345,7 +362,6 @@ extern "C" {
             totemForLoopPrototype *ForLoop;
             totemIfBlockPrototype *IfBlock;
             totemDoWhileLoopPrototype *DoWhileLoop;
-            //totemSwitchBlockPrototype *SwitchBlock;
             totemExpressionPrototype *Return;
             totemExpressionPrototype *Expression;
         };
@@ -385,7 +401,10 @@ extern "C" {
     }
     totemParseTree;
     
-    // TODO: Parse file pointer
+    /**
+     * Load script contents
+     */
+    totemBool totemMemoryBuffer_LoadScriptFromFile(totemMemoryBuffer *dst, const char *srcPath, totemLoadScriptError *err);
     
     /**
      * Lex script into tokens
@@ -431,6 +450,7 @@ extern "C" {
     totemParseStatus totemPostUnaryOperatorType_Parse(totemPostUnaryOperatorType *type, totemToken **token, totemParseTree *tree);
     totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, totemToken **token, totemParseTree *tree);
     
+    void totemToken_Print(FILE *target, totemToken *token);
     void totemToken_PrintList(FILE *target, totemToken *token, size_t num);
         
 #ifdef __cplusplus

@@ -1,4 +1,6 @@
+include test2.totem;
 
+/*
 function whileLoop()
 {
     print("While Loop");
@@ -93,10 +95,12 @@ function nullTest()
     $a = null;
     print($a);
     print("---");
-}
+}*/
 
 function test()
 {
+    includeTest($x);
+    /*
     print("Hello, World!");
     whileLoop();
     doWhileLoop();
@@ -104,4 +108,5 @@ function test()
     intFloat();
     nullTest();
     ifBlock();
+    */
 }

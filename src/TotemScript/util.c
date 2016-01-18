@@ -9,6 +9,8 @@
 #include <TotemScript/base.h>
 #include <TotemScript/parse.h>
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
 
 static totemHashCb hashCb = NULL;
 
@@ -238,15 +240,6 @@ const char *totemRegisterScopeType_GetOperandTypeCode(totemRegisterScopeType typ
     }
 }
 
-void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)
-{
-    for(size_t i = 0 ; i < num; ++i)
-    {
-        totemToken *token = tokens + i;
-        fprintf(target, "%zu %s %.*s at %zu:%zu\n", i, totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value, token->Position.LineNumber, token->Position.CharNumber);
-    }
-}
-
 void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start)
 {
     uint32_t end = start + numBits;
@@ -272,4 +265,27 @@ totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, 
     }
     
     return val;
+}
+
+const char *totem_getcwd()
+{
+    size_t size = 100;
+
+    while (1)
+    {
+        char *buffer = totem_Malloc(size);
+        if(getcwd(buffer, size) == buffer)
+        {
+            return buffer;
+        }
+        
+        totem_Free(buffer);
+        
+        if(errno != ERANGE)
+        {
+            return NULL;
+        }
+
+        size *= 2;
+    }
 }

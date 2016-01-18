@@ -10,6 +10,7 @@
 #include <TotemScript/base.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #define TOTEM_PARSE_SKIPWHITESPACE(token) while((*token)->Type == totemTokenType_Whitespace) { (*token)++; }
 #define TOTEM_PARSE_COPYPOSITION(token, dest) memcpy(&dest->Position, &(*token)->Position, sizeof(totemBufferPositionInfo))
@@ -64,7 +65,7 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_Else, "else" },
     { totemTokenType_True, "true" },
     { totemTokenType_False, "false" },
-    { totemTokenType_Null, "null" },
+    { totemTokenType_Null, "null" }
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return status;
@@ -77,12 +78,221 @@ typedef enum
 }
 totemCommentType;
 
+typedef struct totemScriptName
+{
+    const char *Filename;
+    struct totemScriptName *Next;
+}
+totemScriptName;
+
+void totemToken_Print(FILE *target, totemToken *token)
+{
+    fprintf(target, "%s %.*s at %zu:%zu\n", totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value, token->Position.LineNumber, token->Position.CharNumber);
+}
+
+void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)
+{
+    for(size_t i = 0 ; i < num; ++i)
+    {
+        totemToken *token = tokens + i;
+        totemToken_Print(target, token);
+    }
+}
+
 void totemTokenList_Reset(totemTokenList *list)
 {
     totemMemoryBuffer_Reset(&list->Tokens, sizeof(totemToken));
     list->CurrentChar = 0;
     list->CurrentLine = 0;
     list->NextTokenStart = 0;
+}
+
+#define TOTEM_LOADSCRIPT_SKIPWHITESPACE(str) while(str[0] == ' ' || str[0] == '\n' || str[0] == '\t' || str[0] == '\r') str++;
+
+const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status)
+{
+    switch(status)
+    {
+        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_OutOfMemory);
+        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_FileNotFound);
+        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Recursion);
+        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Success);
+    }
+    
+    return "UNKNOWN";
+}
+
+totemBool totemScriptName_Push(totemScriptName **tree, const char *name)
+{
+    totemScriptName *treeEntry = totem_CacheMalloc(sizeof(totemScriptName));
+    if(treeEntry == NULL)
+    {
+        return totemBool_False;
+    }
+    
+    treeEntry->Filename = name;
+    treeEntry->Next = *tree;
+    *tree = treeEntry;
+    
+    return totemBool_True;
+}
+
+totemBool totemScriptName_Search(totemScriptName **tree, const char *filename)
+{
+    totemScriptName *treeEntry = *tree;
+    while(treeEntry != NULL)
+    {
+        if(strcmp(treeEntry->Filename, filename) == 0)
+        {
+            return totemBool_True;
+        }
+        
+        treeEntry = treeEntry->Next;
+    }
+    
+    return totemBool_False;
+}
+
+void totemScriptName_Pop(totemScriptName **tree)
+{
+    totemScriptName *toDelete = *tree;
+    *tree = (*tree)->Next;
+    totem_CacheFree(toDelete, sizeof(totemScriptName));
+}
+
+totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, const char *srcPath, totemLoadScriptError *err, totemScriptName **tree)
+{
+    FILE *file = fopen(srcPath, "r");
+    if(!file)
+    {
+        err->Status = totemLoadScriptStatus_FileNotFound;
+        totemString_FromLiteral(&err->Description, srcPath);
+        return totemBool_False;
+    }
+    
+    fseek(file, 0, SEEK_END);
+    long fSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    fchdir(fileno(file));
+    
+    // add to tree
+    if(totemScriptName_Push(tree, srcPath) == totemBool_False)
+    {
+        err->Status = totemLoadScriptStatus_OutOfMemory;
+        return totemBool_False;
+    }
+    
+    for(char cha = fgetc(file); totemBool_True; /* nada */)
+    {
+        while((cha == ' ' || cha == '\n' || cha == '\t' || cha == '\r') && cha != EOF)
+        {
+            cha = fgetc(file);
+        }
+        
+        fseek(file, -1, SEEK_CUR);
+        
+        // any include statements?
+        char include[8];
+        include[7] = 0;
+        size_t numRead = fread(include, 1, 7, file);
+        if(numRead != 7)
+        {
+            fseek(file, -numRead, SEEK_CUR);
+            break;
+        }
+        
+        if(strncmp("include", include, 7) != 0)
+        {
+            fseek(file, -numRead, SEEK_CUR);
+            break;
+        }
+        
+        for(cha = fgetc(file); cha == ' ' && cha != EOF; /* nada */)
+        {
+            cha = fgetc(file);
+        }
+        
+        fseek(file, -1, SEEK_CUR);
+        
+        size_t filenameSize = 0;
+        for(cha = fgetc(file); cha != ';' && cha != EOF; /* nada */)
+        {
+            filenameSize++;
+            cha = fgetc(file);
+        }
+        
+        char *filename = totem_Malloc(filenameSize + 1);
+        if(filename == NULL)
+        {
+            err->Status = totemLoadScriptStatus_OutOfMemory;
+            return totemBool_False;
+        }
+        
+        fseek(file, -(filenameSize + 1), SEEK_CUR);
+        fread(filename, 1, filenameSize, file);
+        filename[filenameSize] = 0;
+        fseek(file, 2, SEEK_CUR);
+        
+        // already in tree? bad! can't allow recursion
+        if(totemScriptName_Search(tree, filename) == totemBool_True)
+        {
+            err->Status = totemLoadScriptStatus_Recursion;
+            totemString_FromLiteral(&err->Description, srcPath);
+            return totemBool_False;
+        }
+        
+        totemScriptName *restore = *tree;
+        
+        if(totemMemoryBuffer_LoadScriptFromFileRecursive(dst, filename, err, tree) != totemBool_True)
+        {
+            return totemBool_False;
+        }
+        
+        fchdir(fileno(file));
+        
+        *tree = restore;
+    }
+    
+    size_t start = totemMemoryBuffer_GetNumObjects(dst);
+    if(totemMemoryBuffer_Secure(dst, fSize + 1) == totemBool_False)
+    {
+        fclose(file);
+        err->Status = totemLoadScriptStatus_OutOfMemory;
+        totemString_FromLiteral(&err->Description, "");
+        return totemBool_False;
+    }
+    
+    char *buffer = totemMemoryBuffer_Get(dst, start);
+    fread(buffer, 1, fSize, file);
+    fclose(file);
+    
+    totemScriptName_Pop(tree);
+    
+    return totemBool_True;
+}
+
+totemBool totemMemoryBuffer_LoadScriptFromFile(totemMemoryBuffer *dst, const char *srcPath, totemLoadScriptError *err)
+{
+    totemMemoryBuffer_Reset(dst, 1);
+    totemScriptName *nameTree = NULL;
+    const char *currentDir = totem_getcwd();
+    
+    totemBool result = totemMemoryBuffer_LoadScriptFromFileRecursive(dst, srcPath, err, &nameTree);
+    
+    if(result == totemBool_True)
+    {
+        size_t bufferSize = totemMemoryBuffer_GetNumObjects(dst);
+        if(bufferSize > 0)
+        {
+            totemMemoryBuffer_Secure(dst, 1);
+            dst->Data[bufferSize] = 0;
+        }
+    }
+    
+    chdir(currentDir);
+    totem_Free((void*)currentDir);
+    return result;
 }
 
 /**
@@ -99,6 +309,8 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
     
     for(size_t i = 0; i < length; ++i)
     {
+        printf("%c", buffer[i]);
+        
         if(buffer[i] == '\r' || buffer[i] == '\t')
         {
             continue;
@@ -142,10 +354,12 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
             {
                 case '*':
                     comment = totemCommentType_Block;
+                    currentTokenLength = 0;
                     continue;
                     
                 case '/':
                     comment = totemCommentType_Line;
+                    currentTokenLength = 0;
                     continue;
             }
         }
@@ -257,6 +471,8 @@ totemLexStatus totemTokenList_LexNumberOrIdentifierToken(totemTokenList *list, c
         }
     }
     
+    //totemToken_Print(stdout, currentToken);
+    
     return totemLexStatus_Success;
 }
 
@@ -272,6 +488,9 @@ totemLexStatus totemTokenList_LexReservedWordToken(totemTokenList *list, const c
             token->Type = s_reservedWordValues[i].Type;
             token->Value.Value = buffer;
             token->Value.Length = (uint32_t)tokenLength;
+            
+            //totemToken_Print(stdout, token);
+            
             return totemLexStatus_Success;
         }
     }
@@ -305,6 +524,9 @@ totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *list, const char *t
             token->Type = s_symbolTokenValues[i].Type;
             token->Value.Value = toCheck;
             token->Value.Length = 1;
+            
+            //totemToken_Print(stdout, token);
+            
             return totemLexStatus_Success;
         }
     }

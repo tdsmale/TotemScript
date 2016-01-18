@@ -26,11 +26,21 @@ extern "C" {
         totemEvalStatus_NativeFunctionAlreadyDefined,
         totemEvalStatus_ScriptFunctionAlreadyDefined,
         totemEvalStatus_TooManyRegisters,
-        totemEvalStatus_InstructionOverflow
+        totemEvalStatus_InstructionOverflow,
+        totemEvalStatus_VariableAlreadyDefined,
+        totemEvalStatus_VariableNotDefined
     }
     totemEvalStatus;
     
     const char *totemEvalStatus_Describe(totemEvalStatus status);
+    
+    typedef enum
+    {
+        totemEvalVariableFlag_None = 0,
+        totemEvalVariableFlag_LocalOnly = 1,
+        totemEvalVariableFlag_MustBeDefined = 1 << 1
+    }
+    totemEvalVariableFlag;
     
     typedef struct
     {
@@ -65,11 +75,11 @@ extern "C" {
     
     totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals);
 
-    totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value);
+    totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value, totemEvalVariableFlag flags);
 
-    totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value);
+    totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value, totemEvalVariableFlag flags);
     
-    totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *index, totemRegisterScopeType type);
+    totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *index, totemEvalVariableFlag flags);
     
     totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemBuildPrototype *build, totemOperandRegisterPrototype *index);
 

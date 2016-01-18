@@ -12,7 +12,7 @@
 
 totemExecStatus totemPrint(totemExecState *state)
 {
-    totemRegister *reg = &state->Registers[totemRegisterScopeType_Local][0];
+    totemRegister *reg = &state->CallStack->RegisterFrameStart[0];
 
     switch(reg->DataType)
     {
@@ -32,21 +32,20 @@ totemExecStatus totemPrint(totemExecState *state)
 int main(int argc, const char * argv[])
 {
     // load file
-    FILE *file = fopen("test.totem", "r");
-    if(!file)
+    totemMemoryBuffer scriptContents;
+    totemLoadScriptError err;
+    if(totemMemoryBuffer_LoadScriptFromFile(&scriptContents, "test.totem", &err) != totemBool_True)
     {
-        printf("Can't open file\n");
+        printf("Load script error: %s: %.*s\n", totemLoadScriptStatus_Describe(err.Status), err.Description.Length, err.Description.Value);
         return 1;
     }
     
-    fseek(file, 0, SEEK_END);
-    long fSize = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    for(uint32_t i = 0; i < scriptContents.Length; i++)
+    {
+        printf("%c", scriptContents.Data[i]);
+    }
     
-    char *str = (char*)malloc(fSize + 1);
-    fread(str, fSize, 1, file);
-    fclose(file);
-    str[fSize] = 0;
+    printf("\n");
     
     // init runtime
     totemRuntime runtime;
@@ -65,7 +64,7 @@ int main(int argc, const char * argv[])
     totemTokenList tokens;
     memset(&tokens, 0, sizeof(totemTokenList));
     totemTokenList_Reset(&tokens);
-    totemLexStatus lexStatus = totemTokenList_Lex(&tokens, str, strlen(str));
+    totemLexStatus lexStatus = totemTokenList_Lex(&tokens, scriptContents.Data, scriptContents.Length);
     if(lexStatus != totemLexStatus_Success)
     {
         printf("Lex error\n");
@@ -124,11 +123,21 @@ int main(int argc, const char * argv[])
     }
     
     totemScript *script = totemMemoryBuffer_Get(&runtime.Scripts, scriptAddr);
-    totemHashMapEntry *entry = totemHashMap_Find(&script->FunctionNameLookup, "test", 4);
+    totemHashMapEntry *function = totemHashMap_Find(&script->FunctionNameLookup, "test", 4);
 
     totemRegister returnRegister;
     memset(&returnRegister, 0, sizeof(totemRegister));
-    totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, entry->Value, &returnRegister);
+    
+    // init global vars
+    totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, 0, &returnRegister);
+    if(execStatus != totemExecStatus_Return)
+    {
+        printf("exec error %s\n", totemExecStatus_Describe(execStatus));
+        return 1;
+    }
+    
+    // run test
+    execStatus = totemExecState_Exec(&execState, &actor, function->Value, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));

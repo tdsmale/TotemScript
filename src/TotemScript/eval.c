@@ -54,7 +54,7 @@ void totemEvalLoopPrototype_SetStartPosition(totemEvalLoopPrototype *loop, totem
 totemEvalStatus totemEvalLoopPrototype_SetCondition(totemEvalLoopPrototype *loop, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemExpressionPrototype *condition)
 {
     totemOperandRegisterPrototype conditionOp;
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(condition, build, scope, globals, &conditionOp));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(condition, build, scope, globals, &conditionOp, totemEvalVariableFlag_None));
     
     loop->ConditionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionSigned(build, &conditionOp, 0, totemOperationType_ConditionalGoto));
@@ -438,10 +438,9 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, &globalFunction));
     globalFunction->InstructionsStart = 0;
     totemString_FromLiteral(&globalFunction->Name, "__initGlobals");
-
-    totemBlockPrototype *block = prototype->FirstBlock;
     
-    while(block != NULL)
+    // globals
+    for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
     {
         switch(block->Type)
         {
@@ -449,16 +448,28 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
                 TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(block->Statement, build, &build->GlobalRegisters, &build->GlobalRegisters));
                 break;
                 
-            case totemBlockType_FunctionDeclaration:
-                TOTEM_EVAL_CHECKRETURN(totemFunctionDeclarationPrototype_Eval(block->FuncDec, build, &build->GlobalRegisters));
+            default:
                 break;
         }
-        
-        block = block->Next;
-    };
+    }
     
     globalFunction->RegistersNeeded = totemMemoryBuffer_GetNumObjects(&build->GlobalRegisters.Registers);
     totemBuildPrototype_EvalReturn(build, NULL);
+    
+    // all other functions
+    for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
+    {
+        switch(block->Type)
+        {
+            case totemBlockType_FunctionDeclaration:
+                TOTEM_EVAL_CHECKRETURN(totemFunctionDeclarationPrototype_Eval(block->FuncDec, build, &build->GlobalRegisters));
+                break;
+                
+            default:
+                break;
+        }
+    }
+    
     return totemEvalStatus_Success;
 }
 
@@ -526,7 +537,7 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
     for(totemVariablePrototype *parameter = function->ParametersStart; parameter != NULL; parameter = parameter->Next)
     {
         totemOperandRegisterPrototype dummy;
-        TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddVariable(&localRegisters, &parameter->Identifier, &dummy));
+        TOTEM_EVAL_CHECKRETURN(totemVariablePrototype_Eval(parameter, &localRegisters, globals, &dummy, totemEvalVariableFlag_LocalOnly));
     }
     
     // loop through statements & create instructions
@@ -570,11 +581,11 @@ totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement,
             break;
             
         case totemStatementType_Simple:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Expression, build, scope, globals, &result));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Expression, build, scope, globals, &result, totemEvalVariableFlag_None));
             break;
             
         case totemStatementType_Return:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Return, build, scope, globals, &result));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Return, build, scope, globals, &result, totemEvalVariableFlag_None));
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalReturn(build, &result));
             break;
     }
@@ -582,7 +593,7 @@ totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement,
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value)
+totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value, totemEvalVariableFlag flags)
 {
     totemOperandRegisterPrototype lValue;
     
@@ -590,11 +601,11 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     switch(expression->LValueType)
     {
         case totemLValueType_Argument:
-            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_Eval(expression->LValueArgument, build, scope, globals, &lValue));
+            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_Eval(expression->LValueArgument, build, scope, globals, &lValue, flags));
             break;
             
         case totemLValueType_Expression:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->LValueExpression, build, scope, globals, &lValue));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->LValueExpression, build, scope, globals, &lValue, flags));
             break;
     }
     
@@ -663,7 +674,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     if(expression->BinaryOperator != totemBinaryOperatorType_None)
     {
         totemOperandRegisterPrototype rValue;
-        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, scope, globals, &rValue));
+        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, scope, globals, &rValue, flags));
         
         switch(expression->BinaryOperator)
         {
@@ -757,14 +768,14 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value)
+totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value, totemEvalVariableFlag flags)
 {
     // evaluate argument to register
     switch(argument->Type)
     {
         case totemArgumentType_Variable:
             build->ErrorContext = argument;
-            totemEvalStatus status = totemVariablePrototype_Eval(argument->Variable, scope, globals, value, scope->Scope);
+            totemEvalStatus status = totemVariablePrototype_Eval(argument->Variable, scope, globals, value, flags);
             if(status == totemEvalStatus_Success)
             {
                 build->ErrorContext = NULL;
@@ -788,23 +799,25 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *index, totemRegisterScopeType type)
+totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *index, totemEvalVariableFlag flags)
 {
-    switch(type)
+    if(!totemRegisterListPrototype_GetVariable(globals, &variable->Identifier, index))
     {
-        case totemRegisterScopeType_Local:
-            if(!totemRegisterListPrototype_GetVariable(globals, &variable->Identifier, index))
+        if(TOTEM_GETBITS(flags, totemEvalVariableFlag_MustBeDefined))
+        {
+            if(!totemRegisterListPrototype_GetVariable(scope, &variable->Identifier, index))
             {
-                return totemRegisterListPrototype_AddVariable(scope, &variable->Identifier, index);
+                return totemEvalStatus_Break(totemEvalStatus_VariableNotDefined);
             }
-            break;
-            
-        case totemRegisterScopeType_Global:
-            if(!totemRegisterListPrototype_GetVariable(globals, &variable->Identifier, index))
-            {
-                return totemEvalStatus_Break(totemEvalStatus_InvalidArgument);
-            }
-            break;
+        }
+        else
+        {
+            return totemRegisterListPrototype_AddVariable(scope, &variable->Identifier, index);
+        }
+    }
+    else if(TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
+    {
+        return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
     }
     
     return totemEvalStatus_Success;
@@ -826,7 +839,7 @@ totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totem
 {
     totemOperandRegisterPrototype initialisation, afterThought;
     
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, scope, globals, &initialisation));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, scope, globals, &initialisation, totemEvalVariableFlag_None));
     
     totemEvalLoopPrototype loop;
     totemEvalLoopPrototype_Begin(&loop, build);
@@ -838,7 +851,7 @@ totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totem
         TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(statement, build, scope, globals));
     }
     
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->AfterThought, build, scope, globals, &afterThought));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->AfterThought, build, scope, globals, &afterThought, totemEvalVariableFlag_None));
     TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_Loop(&loop, build));
     totemEvalLoopPrototype_SetConditionFailPosition(&loop, build);
     TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_End(&loop, build));
@@ -1084,7 +1097,7 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
     for(totemExpressionPrototype *parameter = functionCall->ParametersStart; parameter != NULL; parameter = parameter->Next)
     {
         totemOperandRegisterPrototype operand;
-        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(parameter, build, scope, globals, &operand));
+        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(parameter, build, scope, globals, &operand, totemEvalVariableFlag_MustBeDefined));
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, &operand, 0, totemOperationType_FunctionArg));
     }
     
@@ -1103,6 +1116,8 @@ const char *totemEvalStatus_Describe(totemEvalStatus status)
         TOTEM_STRINGIFY_CASE(totemEvalStatus_Success);
         TOTEM_STRINGIFY_CASE(totemEvalStatus_TooManyRegisters);
         TOTEM_STRINGIFY_CASE(totemEvalStatus_InstructionOverflow);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_VariableAlreadyDefined);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_VariableNotDefined);
         default: return "UNKNOWN";
     }
 }

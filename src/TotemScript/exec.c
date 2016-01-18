@@ -287,7 +287,6 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
         return totemExecStatus_ScriptFunctionNotFound;
     }
 
-    // TODO: Dynamically allocate register frames per function call, instead of just having one big stack per exec state...
     if((state->MaxLocalRegisters - state->UsedLocalRegisters) < function->RegistersNeeded)
     {
         return totemExecStatus_RegisterOverflow;

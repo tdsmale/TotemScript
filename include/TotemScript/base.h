@@ -17,15 +17,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    // TODO: const  e.g. const $x = 1; // cannot modify variable $x, must be a constant value, eval to global variable
+    
+    // TODO: hide variables imported from other scripts
+    // TODO: const, e.g. const $x = 1; $x = 2; // eval-error
+    // TODO: loop scope
     // TODO: global string-value cache attached to runtime, instead of per-actor
     // TODO: function pointers, e.g. $x = @funcName; $x($y, $z);
     // TODO: garbage-collected, fixed-size arrays with bounds-checking, e.g. $x = [20]; $x[19] = 1; $y = $x[4];
-
-    // TODO: include other scripts, e.g. include script.totem; Skip functions & variables that aren't actually used. Variables are private, Functions are public.
     
-    // TODO: declutter headers
-    
+    // TODO: anonymous functions that eval to function pointers
 /**
  * Register-based
  * There is a global stack for global variables & constants (strings mainly) that is unique to each instantiation of a compiled script
@@ -347,6 +347,7 @@ extern "C" {
 
     void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start);
     void totem_Exit(int code);
+    const char *totem_getcwd();
     
     uint32_t totem_Hash(const char *data, size_t len);
     void totem_SetMemoryCallbacks(totemMallocCb malloc, totemFreeCb free);
