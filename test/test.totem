@@ -99,7 +99,8 @@ function nullTest()
 
 function test()
 {
-    includeTest($x);
+    constTest();
+    //includeTest($x);
     /*
     print("Hello, World!");
     whileLoop();

@@ -18,22 +18,39 @@
 extern "C" {
 #endif
     
-    // TODO: hide variables imported from other scripts
-    // TODO: const, e.g. const $x = 1; $x = 2; // eval-error
-    // TODO: loop scope
-    // TODO: global string-value cache attached to runtime, instead of per-actor
+    // TODO: new language features
+    // ---------------------------
+    // TODO: garbage-collected, fixed-size arrays with bounds-checking, e.g. $x = [20]; $x[19] = 1; $y = $x[4]; include operators.
     // TODO: function pointers, e.g. $x = @funcName; $x($y, $z);
-    // TODO: garbage-collected, fixed-size arrays with bounds-checking, e.g. $x = [20]; $x[19] = 1; $y = $x[4];
-    
+    // TODO: loop scope for vars
+    // TODO: yield - stores this function's call stack in a local var, allowing it to be resumed later as a function pointer (e.g. $x = callFunc(); $x();)
+    // TODO: operator precedence reordering
+
+    // TODO: syntactic sugar
+    // --------------------
     // TODO: anonymous functions that eval to function pointers
+    // TODO: erlang-style records ("indexes") that eval to arrays with default values, e.g. index vec2 {x:0.0, y:0.0}; $x = new vec2{ x: 4.5 }; return $x:vec2.x;
+    // TODO: default indexes - emitting the index name when accessing a member will default to the last used index name (e.g. $x:vec2 = new vec2; $x.x = 123;)
+    
+    // TODO: runtime improvements
+    // --------------------------
+    // TODO: line/char numbers for eval errors
+    // TODO: move-to-global and move-to-local instructions, to expand potential number of global vars from 255 to TOTEM_OPERANDX_UNSIGNED_MAX
+    // TODO: global string-value cache attached to runtime, instead of per-actor
+    // TODO: local const vars should eval to global vars wherever possible
+    // TODO: unroll determinant loops
+
 /**
  * Register-based
  * There is a global stack for global variables & constants (strings mainly) that is unique to each instantiation of a compiled script
  *
- * Registers are 64-bit & can store either:
+ * Registers are 64-bit & can store:
  *  - 64-bit floating point number
- *  - reference to string constant, represented as an index into global stack
- *  - a user-supplied "reference" to data stored elsewhere
+ *  - 64-bit int
+ *  - reference to immutable string, stored in global lookup table
+ *  - reference to fixed-sized, garbage-collected, bounds-checked array
+ *  - function pointer
+ *  - null
  * 
  * Basic arithmetic can only be applied to numbers
  * 

@@ -20,14 +20,12 @@ extern "C" {
 /*
  grammatically parses a given string buffer and creates a tree structure that can then be eval()'d
  
- variable = variable-start-token [ colon-token identifier-token ] identifier-token
+ variable = [ const-token ] variable-start-token [ colon-token identifier-token ] identifier-token
  string = double-quote-token { * } double-quote-token
  function-call = function-token identifier-token lbracket-token { expression } rbracket-token
  argument = variable | number-token | string | function-call
  
- generic-expression = [ pre-unary operator ] ( argument | expression ) [ post-unary operator ] { binary-operator expression }
- assignment-expression = [ const-token ] argument assignment-operator expression
- expression = generic-expression | assignment-expression
+ expression = [ pre-unary operator ] ( argument | expression ) [ post-unary operator ] { binary-operator expression }
  
  while-loop = while-token expression lcbracket { statement } rcbracket-token
  for-loop = for-token lbracket statement statement statement rbracket rbracket lcbracket { statement } rcbracket-token
@@ -38,7 +36,8 @@ extern "C" {
  statement = while-loop | for-loop | do-while-loop | if-loop | return | simple-statement
  function-declaration = identifier-token lbracket-token { variable } rbracket-token lcbracket-token { statement } rcbracket-token
   
- script = { function-declaration | statement } end-script-token
+ block = function-declaration | statement
+ script = { block } end-script-token
 */
     
     typedef enum
@@ -216,6 +215,7 @@ extern "C" {
         totemTokenType_False,
         totemTokenType_Backslash,
         totemTokenType_Slash,
+        totemTokenType_Const,
         totemTokenType_Max
     }
     totemTokenType;
@@ -249,6 +249,7 @@ extern "C" {
         totemString Identifier;
         totemBufferPositionInfo Position;
         struct totemVariablePrototype *Next;
+        totemBool IsConst;
     }
     totemVariablePrototype;
         

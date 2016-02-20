@@ -42,6 +42,22 @@ extern "C" {
     }
     totemEvalVariableFlag;
     
+    typedef enum
+    {
+        totemRegisterPrototypeFlag_None = 0,
+        totemRegisterPrototypeFlag_IsConst = 1,
+        totemRegisterPrototypeFlag_IsAssigned = 1 << 1
+    }
+    totemRegisterPrototypeFlag;
+    
+    typedef struct
+    {
+        totemRegisterValue Value;
+        totemDataType DataType;
+        totemRegisterPrototypeFlag Flags;
+    }
+    totemRegisterPrototype;
+    
     typedef struct
     {
         totemRegisterScopeType RegisterScopeType;
@@ -52,6 +68,8 @@ extern "C" {
     void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list, totemRegisterScopeType scope);
     void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list);
     totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand);
+    totemBool totemRegisterListPrototype_SetRegisterFlags(totemRegisterListPrototype *list, totemRegisterIndex index, totemRegisterPrototypeFlag flags);
+    totemBool totemRegisterListPrototype_GetRegisterFlags(totemRegisterListPrototype *list, totemRegisterIndex index, totemRegisterPrototypeFlag *flags);
     totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *prototype);
     totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPrototype *list, totemString *number, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPrototype *list, totemString *buffer, totemOperandRegisterPrototype *operand);

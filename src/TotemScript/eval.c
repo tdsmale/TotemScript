@@ -252,15 +252,40 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
         return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
 
-    totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, index);
+    totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, index);
     
     reg->Value.Data = 0;
     reg->DataType = totemDataType_Null;
+    reg->Flags = totemRegisterPrototypeFlag_None;
     
     operand->RegisterIndex = index;
     operand->RegisterScopeType = list->Scope;
     
     return totemEvalStatus_Success;
+}
+
+totemBool totemRegisterListPrototype_SetRegisterFlags(totemRegisterListPrototype *list, totemRegisterIndex index, totemRegisterPrototypeFlag flags)
+{
+    totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, index);
+    if(!reg)
+    {
+        return totemBool_False;
+    }
+    
+    reg->Flags |= flags;
+    return totemBool_True;
+}
+
+totemBool totemRegisterListPrototype_GetRegisterFlags(totemRegisterListPrototype *list, totemRegisterIndex index, totemRegisterPrototypeFlag *flags)
+{
+    totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, index);
+    if(!reg)
+    {
+        return totemBool_False;
+    }
+    
+    *flags = reg->Flags;
+    return totemBool_True;
 }
 
 totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand)
@@ -278,7 +303,7 @@ totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *l
         return status;
     }
     
-    totemRegister *reg = totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
+    totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
     reg->DataType = totemDataType_Null;
     list->HasNull = totemBool_True;
     
@@ -289,7 +314,7 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
 {
     totemHashMapEntry *searchResult = totemHashMap_Find(&list->Strings, str->Value, str->Length);
     
-    totemRegister *reg = NULL;
+    totemRegisterPrototype *reg = NULL;
     if(searchResult != NULL)
     {
         operand->RegisterIndex = searchResult->Value;
@@ -303,7 +328,7 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
             return status;
         }
         
-        reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
+        reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
         reg->DataType = totemDataType_String;
         reg->Value.String.Index = (uint32_t)list->StringData.Length;
         reg->Value.String.Length = str->Length;
@@ -377,7 +402,7 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
             return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
         
-        totemRegister *reg = (totemRegister*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
+        totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
         
         if(strnstr(number->Value, ".", number->Length) != NULL)
         {
@@ -399,7 +424,7 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list, totemReg
     totemHashMap_Reset(&list->Numbers);
     totemHashMap_Reset(&list->Strings);
     totemHashMap_Reset(&list->Variables);
-    totemMemoryBuffer_Reset(&list->Registers, sizeof(totemRegister));
+    totemMemoryBuffer_Reset(&list->Registers, sizeof(totemRegisterPrototype));
     totemMemoryBuffer_Reset(&list->StringData, sizeof(char));
     list->Scope = scope;
     list->NullIndex = 0;
@@ -609,6 +634,75 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
             break;
     }
     
+    // const assignments can only happen to vars that are being declared const right here, right now
+    // so if the lvalue is const and this isn't its declaration, and an assignment op is happening on it...throw an error
+    totemBool performConstCheck = totemBool_False;
+    
+    switch(expression->PreUnaryOperator)
+    {
+        case totemPreUnaryOperatorType_Dec:
+        case totemPreUnaryOperatorType_Inc:
+            performConstCheck = totemBool_True;
+            break;
+            
+        default:
+            break;
+    }
+    
+    switch(expression->PostUnaryOperator)
+    {
+        case totemPostUnaryOperatorType_Dec:
+        case totemPostUnaryOperatorType_Inc:
+            performConstCheck = totemBool_True;
+            break;
+            
+        default:
+            break;
+    }
+    
+    switch(expression->BinaryOperator)
+    {
+        case totemBinaryOperatorType_Assign:
+        case totemBinaryOperatorType_DivideAssign:
+        case totemBinaryOperatorType_MinusAssign:
+        case totemBinaryOperatorType_MultiplyAssign:
+        case totemBinaryOperatorType_PlusAssign:
+            performConstCheck = totemBool_True;
+            break;
+            
+        default:
+            break;
+    }
+    
+    if(performConstCheck)
+    {
+        totemRegisterListPrototype *list = NULL;
+        
+        switch(lValue.RegisterScopeType)
+        {
+            case totemRegisterScopeType_Global:
+                list = globals;
+                break;
+                
+            case totemRegisterScopeType_Local:
+                list = scope;
+                break;
+        }
+        
+        // if already assigned, and is const, throw an error
+        totemRegisterPrototypeFlag flags;
+        if(totemRegisterListPrototype_GetRegisterFlags(list, lValue.RegisterIndex, &flags))
+        {
+            if(TOTEM_GETBITS(flags, totemRegisterPrototypeFlag_IsConst | totemRegisterPrototypeFlag_IsAssigned) == (totemRegisterPrototypeFlag_IsConst | totemRegisterPrototypeFlag_IsAssigned))
+            {
+                return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
+            }
+        }
+        
+        // this lvalue is assigned
+        totemRegisterListPrototype_SetRegisterFlags(list, lValue.RegisterIndex, totemRegisterPrototypeFlag_IsAssigned);
+    }
+    
     totemOperandRegisterPrototype preUnaryRegister, preUnaryLValue;
     totemString preUnaryNumber;
     totemString_FromLiteral(&preUnaryNumber, "0");
@@ -684,6 +778,8 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                 break;
                 
             case totemBinaryOperatorType_PlusAssign:
+                
+                
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &lValue, &rValue, totemOperationType_Add));
                 break;
                 
@@ -763,8 +859,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         memcpy(value, &lValue, sizeof(totemOperandRegisterPrototype));
     }
     
-    // TODO: operator precedence reordering
-    
     return totemEvalStatus_Success;
 }
 
@@ -801,6 +895,9 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
 
 totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *index, totemEvalVariableFlag flags)
 {
+    totemEvalStatus result = totemEvalStatus_Success;
+    totemBool justCreated = totemBool_False;
+    
     if(!totemRegisterListPrototype_GetVariable(globals, &variable->Identifier, index))
     {
         if(TOTEM_GETBITS(flags, totemEvalVariableFlag_MustBeDefined))
@@ -812,7 +909,8 @@ totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, to
         }
         else
         {
-            return totemRegisterListPrototype_AddVariable(scope, &variable->Identifier, index);
+            justCreated = totemBool_True;
+            result = totemRegisterListPrototype_AddVariable(scope, &variable->Identifier, index);
         }
     }
     else if(TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
@@ -820,7 +918,29 @@ totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, to
         return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
     }
     
-    return totemEvalStatus_Success;
+    if(variable->IsConst)
+    {
+        if(!justCreated)
+        {
+            // can't declare a var const if it already exists
+            return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
+        }
+        else
+        {
+            switch(index->RegisterScopeType)
+            {
+                case totemRegisterScopeType_Global:
+                    totemRegisterListPrototype_SetRegisterFlags(globals, index->RegisterIndex, totemRegisterPrototypeFlag_IsConst);
+                    break;
+                    
+                case totemRegisterScopeType_Local:
+                    totemRegisterListPrototype_SetRegisterFlags(scope, index->RegisterIndex, totemRegisterPrototypeFlag_IsConst);
+                    break;
+            }
+        }
+    }
+    
+    return result;
 }
 
 /*

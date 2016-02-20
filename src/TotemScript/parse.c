@@ -65,7 +65,8 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_Else, "else" },
     { totemTokenType_True, "true" },
     { totemTokenType_False, "false" },
-    { totemTokenType_Null, "null" }
+    { totemTokenType_Null, "null" },
+    { totemTokenType_Const, "const" }
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return status;
@@ -84,6 +85,8 @@ typedef struct totemScriptName
     struct totemScriptName *Next;
 }
 totemScriptName;
+
+#define TOTEM_LOADSCRIPT_SKIPWHITESPACE(str) while(str[0] == ' ' || str[0] == '\n' || str[0] == '\t' || str[0] == '\r') str++;
 
 void totemToken_Print(FILE *target, totemToken *token)
 {
@@ -106,8 +109,6 @@ void totemTokenList_Reset(totemTokenList *list)
     list->CurrentLine = 0;
     list->NextTokenStart = 0;
 }
-
-#define TOTEM_LOADSCRIPT_SKIPWHITESPACE(str) while(str[0] == ' ' || str[0] == '\n' || str[0] == '\t' || str[0] == '\r') str++;
 
 const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status)
 {
@@ -309,8 +310,6 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
     
     for(size_t i = 0; i < length; ++i)
     {
-        printf("%c", buffer[i]);
-        
         if(buffer[i] == '\r' || buffer[i] == '\t')
         {
             continue;
@@ -1009,8 +1008,6 @@ totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expres
         TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(expression->RValue, token, tree));
     }
     
-    // TODO: reorder with operator precedence
-    
     return totemParseStatus_Success;
 }
 
@@ -1236,6 +1233,18 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
 {
     TOTEM_PARSE_SKIPWHITESPACE(token);
     TOTEM_PARSE_COPYPOSITION(token, variable);
+    
+    if((*token)->Type == totemTokenType_Const)
+    {
+        variable->IsConst = totemBool_True;
+        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+        TOTEM_PARSE_SKIPWHITESPACE(token);
+    }
+    else
+    {
+        variable->IsConst = totemBool_False;
+    }
+    
     TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Variable);
     TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
     TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(&variable->Identifier, token, tree));
@@ -1261,7 +1270,7 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     TOTEM_PARSE_COPYPOSITION(token, argument);
     
     // variable
-    if((*token)->Type == totemTokenType_Variable)
+    if((*token)->Type == totemTokenType_Variable || (*token)->Type == totemTokenType_Const)
     {
         argument->Type = totemArgumentType_Variable;
         TOTEM_PARSE_ALLOC(argument->Variable, totemVariablePrototype, tree);
@@ -1414,6 +1423,7 @@ const char *totemTokenType_Describe(totemTokenType type)
         TOTEM_STRINGIFY_CASE(totemTokenType_Case);
         TOTEM_STRINGIFY_CASE(totemTokenType_Colon);
         TOTEM_STRINGIFY_CASE(totemTokenType_Comma);
+        TOTEM_STRINGIFY_CASE(totemTokenType_Const);
         TOTEM_STRINGIFY_CASE(totemTokenType_Default);
         TOTEM_STRINGIFY_CASE(totemTokenType_Divide);
         TOTEM_STRINGIFY_CASE(totemTokenType_Do);

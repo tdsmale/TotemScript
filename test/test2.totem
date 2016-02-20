@@ -12,3 +12,9 @@ function includeTest($z)
     print($z);
     print($y);
 }
+
+function constTest()
+{
+    const $xw = 123;
+    print($xw);
+}
