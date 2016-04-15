@@ -21,14 +21,16 @@ extern "C" {
     {
         totemEvalStatus_Success,
         totemEvalStatus_OutOfMemory,
-        totemEvalStatus_InvalidArgument,
         totemEvalStatus_FunctionNotDefined,
         totemEvalStatus_NativeFunctionAlreadyDefined,
         totemEvalStatus_ScriptFunctionAlreadyDefined,
         totemEvalStatus_TooManyRegisters,
         totemEvalStatus_InstructionOverflow,
+        totemEvalStatus_VariableAlreadyAssigned,
+        totemEvalStatus_VariableNotDefined,
         totemEvalStatus_VariableAlreadyDefined,
-        totemEvalStatus_VariableNotDefined
+        totemEvalStatus_AssignmentLValueNotMutable,
+        totemEvalStatus_AssignmentLValueCannotBeConst
     }
     totemEvalStatus;
     
@@ -46,7 +48,9 @@ extern "C" {
     {
         totemRegisterPrototypeFlag_None = 0,
         totemRegisterPrototypeFlag_IsConst = 1,
-        totemRegisterPrototypeFlag_IsAssigned = 1 << 1
+        totemRegisterPrototypeFlag_IsAssigned = 1 << 1,
+        totemRegisterPrototypeFlag_IsVariable = 1 << 2,
+        totemRegisterPrototypeFlag_IsValue = 1 << 3
     }
     totemRegisterPrototypeFlag;
     
@@ -67,9 +71,12 @@ extern "C" {
     
     void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list, totemRegisterScopeType scope);
     void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list);
-    totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand);
+    totemEvalStatus totemRegisterListPrototype_AddStrongRegister(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand);
+    totemEvalStatus totemRegisterListPrototype_AddWeakRegister(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand);
     totemBool totemRegisterListPrototype_SetRegisterFlags(totemRegisterListPrototype *list, totemRegisterIndex index, totemRegisterPrototypeFlag flags);
     totemBool totemRegisterListPrototype_GetRegisterFlags(totemRegisterListPrototype *list, totemRegisterIndex index, totemRegisterPrototypeFlag *flags);
+    totemBool totemRegisterListPrototype_GetRegisterType(totemRegisterListPrototype *list, totemRegisterIndex index, totemDataType *type);
+    totemBool totemRegisterListPrototype_SetRegisterType(totemRegisterListPrototype *list, totemRegisterIndex index, totemDataType type);
     totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *prototype);
     totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPrototype *list, totemString *number, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPrototype *list, totemString *buffer, totemOperandRegisterPrototype *operand);
@@ -80,6 +87,7 @@ extern "C" {
      * Convert parse tree into instructions, link globals * functions
      */
     void totemBuildPrototype_Init(totemBuildPrototype *build, totemRuntime *runtime);
+    void totemBuildPrototype_Cleanup(totemBuildPrototype *build);
     totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseTree *prototype);
     totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemFunction **functionOut);
     totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationPrototype *function, totemBuildPrototype *build, totemRegisterListPrototype *globals);
@@ -97,9 +105,11 @@ extern "C" {
 
     totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value, totemEvalVariableFlag flags);
     
+    totemEvalStatus totemNewArrayPrototype_Eval(totemNewArrayPrototype *newArray, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *value);
+    
     totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *index, totemEvalVariableFlag flags);
     
-    totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemBuildPrototype *build, totemOperandRegisterPrototype *index);
+    totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *index);
 
     totemEvalStatus totemBuildPrototype_EvalAbcInstruction(totemBuildPrototype *build, totemOperandRegisterPrototype *a, totemOperandRegisterPrototype *b, totemOperandRegisterPrototype *c, totemOperationType operationType);
     totemEvalStatus totemBuildPrototype_EvalAbxInstructionSigned(totemBuildPrototype *build, totemOperandRegisterPrototype *a, totemOperandXSigned bx, totemOperationType operationType);

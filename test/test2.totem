@@ -1,4 +1,4 @@
-$x = "It Works! YAY";
+/*$x = "It Works! YAY";
 
 $y = 0;
 
@@ -17,4 +17,21 @@ function constTest()
 {
     const $xw = 123;
     print($xw);
+}*/
+
+function arrayTest()
+{
+    $a = [10];
+    $a[3] = 12;
+    $a[0] = 1 * 2 + $a[3] * 4;
+
+    $a[4] = [20];
+    $a[4][15] = 12345;
+
+    $b = $a[3];
+    $c = $a[4][15];
+
+    print($a);
+    print($b);
+    print($c);
 }

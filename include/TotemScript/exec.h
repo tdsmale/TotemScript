@@ -28,7 +28,9 @@ extern "C" {
         totemExecStatus_UnrecognisedOperation,
         totemExecStatus_RegisterOverflow,
         totemExecStatus_InstructionOverflow,
-        totemExecStatus_OutOfMemory
+        totemExecStatus_OutOfMemory,
+        totemExecStatus_IndexOutOfBounds,
+        totemExecStatus_RefCountOverflow
     }
     totemExecStatus;
     
@@ -58,17 +60,23 @@ extern "C" {
     typedef totemExecStatus(*totemNativeFunction)(totemExecState*);
 
     totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress);
+    void totemActor_Cleanup(totemActor *actor);
     
     void totemRuntime_Reset(totemRuntime *runtime);
+    void totemRuntime_Cleanup(totemRuntime *runtime);
     totemBool totemRuntime_RegisterScript(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
     totemBool totemRuntime_RegisterNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, size_t *addressOut);
 
+    void totemRuntimeArray_DefRefCount(totemRuntimeArray *arr);
+    totemExecStatus totemRuntimeArray_IncRefCount(totemRuntimeArray *arr);
+    totemExecStatus totemRegister_Assign(totemRegister *dst, totemRegister *src);
+    
     /**
      * Execute bytecode
      */
     totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size_t numRegisters);
-    void totemExecState_Cleanup(totemExecStatus *state);
+    void totemExecState_Cleanup(totemExecState *state);
     totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, size_t functionAddress, totemRegister *returnRegister);
     totemExecStatus totemExecState_ExecInstruction(totemExecState *state);
     totemExecStatus totemExecState_ExecMove(totemExecState *state);
@@ -88,6 +96,9 @@ extern "C" {
     totemExecStatus totemExecState_ExecConditionalGoto(totemExecState *state);
     totemExecStatus totemExecState_ExecNativeFunction(totemExecState *state);
     totemExecStatus totemExecState_ExecScriptFunction(totemExecState *state);
+    totemExecStatus totemExecState_ExecNewArray(totemExecState *state);
+    totemExecStatus totemExecState_ExecArrayGet(totemExecState *state);
+    totemExecStatus totemExecState_ExecArraySet(totemExecState *state);
             
 #ifdef __cplusplus
 }

@@ -18,28 +18,6 @@
 extern "C" {
 #endif
     
-    // TODO: new language features
-    // ---------------------------
-    // TODO: garbage-collected, fixed-size arrays with bounds-checking, e.g. $x = [20]; $x[19] = 1; $y = $x[4]; include operators.
-    // TODO: function pointers, e.g. $x = @funcName; $x($y, $z);
-    // TODO: loop scope for vars
-    // TODO: yield - stores this function's call stack in a local var, allowing it to be resumed later as a function pointer (e.g. $x = callFunc(); $x();)
-    // TODO: operator precedence reordering
-
-    // TODO: syntactic sugar
-    // --------------------
-    // TODO: anonymous functions that eval to function pointers
-    // TODO: erlang-style records ("indexes") that eval to arrays with default values, e.g. index vec2 {x:0.0, y:0.0}; $x = new vec2{ x: 4.5 }; return $x:vec2.x;
-    // TODO: default indexes - emitting the index name when accessing a member will default to the last used index name (e.g. $x:vec2 = new vec2; $x.x = 123;)
-    
-    // TODO: runtime improvements
-    // --------------------------
-    // TODO: line/char numbers for eval errors
-    // TODO: move-to-global and move-to-local instructions, to expand potential number of global vars from 255 to TOTEM_OPERANDX_UNSIGNED_MAX
-    // TODO: global string-value cache attached to runtime, instead of per-actor
-    // TODO: local const vars should eval to global vars wherever possible
-    // TODO: unroll determinant loops
-
 /**
  * Register-based
  * There is a global stack for global variables & constants (strings mainly) that is unique to each instantiation of a compiled script
@@ -121,6 +99,7 @@ extern "C" {
 #define TOTEM_STRINGIFY_CASE(x) case x: return #x
     
 #define TOTEM_BITMASK(start, length) (((((unsigned)1) << (length)) - 1) << (start))
+#define TOTEM_HASBITS(i, mask) (((i) & (mask)) == (mask))
 #define TOTEM_GETBITS(i, mask) ((i) & (mask))
 #define TOTEM_SETBITS(i, mask) ((i) |= (mask))
 #define TOTEM_GETBITS_OFFSET(i, mask, offset) (TOTEM_GETBITS((i), (mask)) >> (offset))
@@ -176,6 +155,16 @@ extern "C" {
     
     void totemString_FromLiteral(totemString *strOut, const char *str);
     totemBool totemString_Equals(totemString *a, totemString *b);
+    
+    struct totemRegister;
+    
+    typedef struct
+    {
+        struct totemRegister *Registers;
+        uint32_t RefCount;
+        uint32_t NumRegisters;
+    }
+    totemRuntimeArray;
 
     typedef union
     {
@@ -183,6 +172,7 @@ extern "C" {
         totemInt Int;
         totemReference Reference;
         totemRuntimeString String;
+        totemRuntimeArray *Array;
         uint64_t Data;
     }
     totemRegisterValue;
@@ -193,13 +183,14 @@ extern "C" {
         totemDataType_Int = 1,
         totemDataType_Float = 2,
         totemDataType_String = 3,
-        totemDataType_Reference = 4
+        totemDataType_Reference = 4,
+        totemDataType_Array = 5
     };
     typedef int8_t totemDataType;
     const char *totemDataType_Describe(totemDataType type);
 #define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
     
-    typedef struct
+    typedef struct totemRegister
     {
         totemRegisterValue Value;
         totemDataType DataType;
@@ -238,7 +229,12 @@ extern "C" {
         totemOperationType_NativeFunction = 17,     // A = Bx(), where Bx is the index of a native function
         totemOperationType_ScriptFunction = 18,     // A = Bx(), where Bx is the index of a script function
         totemOperationType_FunctionArg = 19,        // A is register to pass, Bx is 1 or 0 to indicate if this is the last argument to pass
-        totemOperationType_Return = 20              // return A
+        totemOperationType_Return = 20,             // return A,
+        totemOperationType_NewArray = 21,           // A = array of size B
+        totemOperationType_ArrayGet = 22,           // A = B[C]
+        totemOperationType_ArraySet = 23,           // A[B] = C
+        
+        totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;
     const char *totemOperationType_Describe(totemOperationType op);
@@ -357,14 +353,13 @@ extern "C" {
     typedef void (*totemFreeCb)(void*);
     typedef uint32_t (*totemHashCb)(const char*, size_t);
 
-    void *totem_Malloc(size_t len);
-    void totem_Free(void * mem);
     void *totem_CacheMalloc(size_t len);
     void totem_CacheFree(void *ptr, size_t len);
 
     void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start);
     void totem_Exit(int code);
     const char *totem_getcwd();
+    void totem_freecwd(const char* cwd);
     
     uint32_t totem_Hash(const char *data, size_t len);
     void totem_SetMemoryCallbacks(totemMallocCb malloc, totemFreeCb free);
@@ -397,6 +392,7 @@ extern "C" {
     totemMemoryBlock;
     
     void *totemMemoryBlock_Alloc(totemMemoryBlock **blockHead, size_t objectSize);
+    void totemMemoryBlock_Cleanup(totemMemoryBlock **blockHead);
     
     typedef struct totemHashMapEntry
     {

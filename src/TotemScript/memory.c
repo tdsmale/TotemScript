@@ -156,8 +156,21 @@ void totem_CacheFree(void *ptr, size_t amount)
     size_t actualAmount = amount;
     totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount, &actualAmount);
     totemMemoryPageObject *obj = ptr;
+    
     obj->Next = freeList->HeadObject;
     freeList->HeadObject = obj;
+}
+
+void totemMemoryBlock_Cleanup(totemMemoryBlock **blockHead)
+{
+    totemMemoryBlock *block = *blockHead;
+    
+    while(block)
+    {
+        void *ptr = block;
+        block = block->Prev;
+        totem_CacheFree(ptr, sizeof(totemMemoryBlock));
+    }
 }
 
 void *totemMemoryBlock_Alloc(totemMemoryBlock **blockHead, size_t objectSize)
@@ -399,7 +412,7 @@ totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, siz
 
 void totemHashMap_MoveKeysToFreeList(totemHashMap *hashmap)
 {
-    for(size_t i = 0; i < hashmap->NumKeys; i++)
+    for(size_t i = 0; i < hashmap->NumBuckets; i++)
     {
         while(hashmap->Buckets[i])
         {
@@ -427,5 +440,6 @@ void totemHashMap_Cleanup(totemHashMap *map)
         totem_CacheFree(entry, sizeof(totemHashMapEntry));
     }
     
-    totem_Free(map->Buckets);
+    totem_CacheFree(map->Buckets, sizeof(totemHashMapEntry) * map->NumBuckets);
+    map->Buckets = NULL;
 }

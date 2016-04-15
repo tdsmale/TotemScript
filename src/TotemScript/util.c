@@ -76,6 +76,9 @@ const char *totemOperationType_Describe(totemOperationType op)
         TOTEM_STRINGIFY_CASE(totemOperationType_Return);
         TOTEM_STRINGIFY_CASE(totemOperationType_ScriptFunction);
         TOTEM_STRINGIFY_CASE(totemOperationType_Subtract);
+        TOTEM_STRINGIFY_CASE(totemOperationType_ArrayGet);
+        TOTEM_STRINGIFY_CASE(totemOperationType_ArraySet);
+        TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
     }
     
     return "UNKNOWN";
@@ -267,25 +270,20 @@ totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, 
     return val;
 }
 
+void totem_freecwd(const char *cwd)
+{
+    totem_CacheFree((void*)cwd, PATH_MAX + 1);
+}
+
 const char *totem_getcwd()
 {
-    size_t size = 100;
+    size_t size = PATH_MAX + 1;
 
-    while (1)
+    char *buffer = totem_CacheMalloc(size);
+    if(getcwd(buffer, size) == buffer)
     {
-        char *buffer = totem_Malloc(size);
-        if(getcwd(buffer, size) == buffer)
-        {
-            return buffer;
-        }
-        
-        totem_Free(buffer);
-        
-        if(errno != ERANGE)
-        {
-            return NULL;
-        }
-
-        size *= 2;
+        return buffer;
     }
+    
+    return NULL;
 }

@@ -10,22 +10,54 @@
 #include <string.h>
 #include <TotemScript/totem.h>
 
-totemExecStatus totemPrint(totemExecState *state)
+void totemPrintRegister(totemRegister *reg, totemExecState *state, size_t indent)
 {
-    totemRegister *reg = &state->CallStack->RegisterFrameStart[0];
-
     switch(reg->DataType)
     {
         case totemDataType_String:
-            printf("print: %s %.*s (%i) \n", totemDataType_Describe(reg->DataType), reg->Value.String.Length, &state->CallStack->Actor->GlobalData.Data[reg->Value.String.Index], reg->Value.String.Length);
+            printf("%s %.*s (%i) \n", totemDataType_Describe(reg->DataType), reg->Value.String.Length, &state->CallStack->Actor->GlobalData.Data[reg->Value.String.Index], reg->Value.String.Length);
             break;
             
+        case totemDataType_Array:
+        {
+            indent += 5;
+            totemRuntimeArray *arr = reg->Value.Array;
+            printf("array[%u] {\n", arr->NumRegisters);
+            
+            for(totemInt i = 0; i < arr->NumRegisters; ++i)
+            {
+                for(size_t i = 0; i < indent; i++)
+                {
+                    printf(" ");
+                }
+                
+                printf("%lld: ", i);
+                
+                totemRegister *val = &arr->Registers[i];
+                totemPrintRegister(val, state, indent);
+            }
+            
+            indent -= 5;
+            
+            for(size_t i = 0; i < indent; i++)
+            {
+                printf(" ");
+            }
+            
+            printf("}\n");
+            break;
+        }
+            
         default:
-            printf("print: %s %f %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Float, reg->Value.Int);
+            printf("%s %f %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Float, reg->Value.Int);
             break;
     }
-    
+}
 
+totemExecStatus totemPrint(totemExecState *state)
+{
+    totemRegister *reg = &state->CallStack->RegisterFrameStart[0];
+    totemPrintRegister(reg, state, 0);
     return totemExecStatus_Continue;
 }
 
@@ -51,6 +83,8 @@ int main(int argc, const char * argv[])
     totemRuntime runtime;
     memset(&runtime, 0, sizeof(totemRuntime));
     totemRuntime_Reset(&runtime);
+    
+    // register print function
     size_t printAddr = 0;
     totemString printName;
     totemString_FromLiteral(&printName, "print");
@@ -143,6 +177,17 @@ int main(int argc, const char * argv[])
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));
         return 1;
     }
+    
+    // free
+    totemExecState_Cleanup(&execState);
+    totemActor_Cleanup(&actor);
+    
+    totemBuildPrototype_Cleanup(&build);
+    totemParseTree_Cleanup(&parseTree);
+    totemTokenList_Cleanup(&tokens);
+    
+    totemRuntime_Cleanup(&runtime);
+    totemMemoryBuffer_Cleanup(&scriptContents);
     
     return 0;
 }
