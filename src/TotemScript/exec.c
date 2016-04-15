@@ -384,7 +384,7 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
     }
     
     // reset values to be used
-    memset(&state->Registers[totemRegisterScopeType_Local][state->UsedLocalRegisters], 0, function->RegistersNeeded);
+    memset(&state->Registers[totemRegisterScopeType_Local][state->UsedLocalRegisters], 0, function->RegistersNeeded * sizeof(totemRegister));
     state->UsedLocalRegisters += function->RegistersNeeded;
     
     totemExecStatus status = totemExecState_PushFunctionCall(state, totemFunctionType_Script, functionAddress, actor, returnRegister);
@@ -492,7 +492,7 @@ totemExecStatus totemExecState_ExecInstruction(totemExecState *state)
         case totemOperationType_ScriptFunction:
             return totemExecState_ExecScriptFunction(state);
 
-		case totemOperationType_Return:
+        case totemOperationType_Return:
             return totemExecState_ExecReturn(state);
             
         case totemOperationType_NewArray:
@@ -512,7 +512,7 @@ totemExecStatus totemExecState_ExecInstruction(totemExecState *state)
 totemExecStatus totemExecState_ExecMove(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     
     totemExecStatus status = totemRegister_Assign(destination, source);
@@ -527,7 +527,7 @@ totemExecStatus totemExecState_ExecMove(totemExecState *state)
 totemExecStatus totemExecState_ExecAdd(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
@@ -564,7 +564,7 @@ totemExecStatus totemExecState_ExecAdd(totemExecState *state)
 totemExecStatus totemExecState_ExecSubtract(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
@@ -601,7 +601,7 @@ totemExecStatus totemExecState_ExecSubtract(totemExecState *state)
 totemExecStatus totemExecState_ExecMultiply(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
@@ -637,7 +637,7 @@ totemExecStatus totemExecState_ExecMultiply(totemExecState *state)
 totemExecStatus totemExecState_ExecDivide(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
@@ -673,7 +673,7 @@ totemExecStatus totemExecState_ExecDivide(totemExecState *state)
 totemExecStatus totemExecState_ExecPower(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     switch(TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
@@ -708,7 +708,7 @@ totemExecStatus totemExecState_ExecPower(totemExecState *state)
 totemExecStatus totemExecState_ExecEquals(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
@@ -724,7 +724,7 @@ totemExecStatus totemExecState_ExecEquals(totemExecState *state)
 totemExecStatus totemExecState_ExecNotEquals(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
@@ -740,7 +740,7 @@ totemExecStatus totemExecState_ExecNotEquals(totemExecState *state)
 totemExecStatus totemExecState_ExecLessThan(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
@@ -777,7 +777,7 @@ totemExecStatus totemExecState_ExecLessThan(totemExecState *state)
 totemExecStatus totemExecState_ExecLessThanEquals(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
@@ -814,7 +814,7 @@ totemExecStatus totemExecState_ExecLessThanEquals(totemExecState *state)
 totemExecStatus totemExecState_ExecMoreThan(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
@@ -850,7 +850,7 @@ totemExecStatus totemExecState_ExecMoreThan(totemExecState *state)
 totemExecStatus totemExecState_ExecMoreThanEquals(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *destination =TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *destination = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *source1 = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     totemRegister *source2 = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
