@@ -231,7 +231,19 @@ void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer)
     }
 }
 
-totemBool totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
+void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t numObjects)
+{
+    void *ptr = totemMemoryBuffer_Secure(buffer, numObjects);
+    if(!ptr)
+    {
+        return NULL;
+    }
+    
+    memcpy(ptr, data, buffer->ObjectSize * numObjects);
+    return ptr;
+}
+
+void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
 {
     char *memEnd = buffer->Data + buffer->MaxLength;
     char *memCurrent = buffer->Data + buffer->Length;
@@ -260,7 +272,7 @@ totemBool totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
         
         if(newMem == NULL)
         {
-            return totemBool_False;
+            return NULL;
         }
         
         memcpy(newMem, buffer->Data, buffer->MaxLength);
@@ -272,8 +284,9 @@ totemBool totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
         buffer->Data = newMem;
     }
     
+    void *ptr = buffer->Data + buffer->Length;
     buffer->Length += amount;
-    return totemBool_True;
+    return ptr;
 }
 
 void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index)
@@ -317,7 +330,7 @@ void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, t
     }
 }
 
-totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t keyLen, size_t value)
+totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const char *key, size_t keyLen, totemHashValue value, totemHash hash)
 {
     totemHashMapEntry *existingEntry = totemHashMap_Find(hashmap, key, keyLen);
     if(existingEntry)
@@ -385,10 +398,15 @@ totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t key
         entry->Value = value;
         entry->Key = key;
         entry->KeyLen = keyLen;
-        entry->Hash = totem_Hash(key, keyLen);
+        entry->Hash = hash == 0 ? totem_Hash(key, keyLen) : hash;
         totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
         return totemBool_True;
     }
+}
+
+totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t keyLen, totemHashValue value)
+{
+    return totemHashMap_InsertPrecomputed(hashmap, key, keyLen, value, 0);
 }
 
 totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, size_t keyLen)

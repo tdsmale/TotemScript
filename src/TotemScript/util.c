@@ -92,7 +92,7 @@ const char *totemDataType_Describe(totemDataType type)
         TOTEM_STRINGIFY_CASE(totemDataType_Float);
         TOTEM_STRINGIFY_CASE(totemDataType_Int);
         TOTEM_STRINGIFY_CASE(totemDataType_Reference);
-        TOTEM_STRINGIFY_CASE(totemDataType_String);
+        TOTEM_STRINGIFY_CASE(totemDataType_InternedString);
     }
     
     return "UNKNOWN";

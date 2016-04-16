@@ -26,7 +26,6 @@ A parser & virtual machine for a custom scripting language written in C.
 #### runtime improvements
 * line/char numbers for eval errors
 * move-to-global and move-to-local instructions, to expand potential number of global vars from 255 to TOTEM_OPERANDX_UNSIGNED_MAX
-* global string-value cache attached to runtime, instead of per-actor
 * two string types behind-the-scenes: the default interned strings, and a mutable string type that is created when a string is modified (which is then interned when needed e.g. equality check, hash check etc.)
 * local const vars should eval to global vars wherever possible
 * unroll determinant loops

@@ -460,6 +460,7 @@ extern "C" {
      */
     totemParseStatus totemParseTree_Parse(totemParseTree *tree, totemTokenList *token);
     void *totemParseTree_Alloc(totemParseTree *tree, size_t size);
+    void totemParseTree_Init(totemParseTree *tree);
     void totemParseTree_Reset(totemParseTree *tree);
     void totemParseTree_Cleanup(totemParseTree *tree);
     

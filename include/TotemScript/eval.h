@@ -30,7 +30,9 @@ extern "C" {
         totemEvalStatus_VariableNotDefined,
         totemEvalStatus_VariableAlreadyDefined,
         totemEvalStatus_AssignmentLValueNotMutable,
-        totemEvalStatus_AssignmentLValueCannotBeConst
+        totemEvalStatus_AssignmentLValueCannotBeConst,
+        totemEvalStatus_TooManyNativeFunctions,
+        totemEvalStatus_TooManyScriptFunctions
     }
     totemEvalStatus;
     
@@ -86,7 +88,8 @@ extern "C" {
     /**
      * Convert parse tree into instructions, link globals * functions
      */
-    void totemBuildPrototype_Init(totemBuildPrototype *build, totemRuntime *runtime);
+    void totemBuildPrototype_Init(totemBuildPrototype *build);
+    void totemBuildPrototype_Reset(totemBuildPrototype *build);
     void totemBuildPrototype_Cleanup(totemBuildPrototype *build);
     totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseTree *prototype);
     totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemFunction **functionOut);

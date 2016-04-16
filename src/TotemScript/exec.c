@@ -17,6 +17,11 @@
 #define TOTEM_GET_OPERANDC_REGISTER(state, instruction) &state->Registers[TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)][TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction)]
 #define TOTEM_ENFORCE_TYPE(reg, type) if(reg->DataType != type) return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
 
+totemLinkStatus totemLinkStatus_Break(totemLinkStatus status)
+{
+    return status;
+}
+
 totemExecStatus totemExecStatus_Break(totemExecStatus status)
 {
     return status;
@@ -99,21 +104,11 @@ totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t
         return totemExecStatus_Break(totemExecStatus_ScriptNotFound);
     }
     
-    void *globalData = totem_CacheMalloc(script->GlobalData.Length);
-    if(globalData == NULL)
-    {
-        return totemExecStatus_Break(totemExecStatus_OutOfMemory);
-    }
-    
     totemRegister *globalRegisters = totem_CacheMalloc(script->GlobalRegisters.Length);
     if(globalRegisters == NULL)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
-    
-    memcpy(globalData, script->GlobalData.Data, script->GlobalData.Length);
-    memcpy(&actor->GlobalData, &script->GlobalData, sizeof(totemMemoryBuffer));
-    actor->GlobalData.Data = globalData;
     
     memcpy(globalRegisters, script->GlobalRegisters.Data, script->GlobalRegisters.Length);
     memcpy(&actor->GlobalRegisters, &script->GlobalRegisters, sizeof(totemMemoryBuffer));
@@ -124,7 +119,6 @@ totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t
 
 void totemActor_Cleanup(totemActor *actor)
 {
-    totemMemoryBuffer_Cleanup(&actor->GlobalData);
     totemMemoryBuffer_Cleanup(&actor->GlobalRegisters);
 }
 
@@ -146,12 +140,18 @@ void totemScript_Cleanup(totemScript *script)
     totemHashMap_Cleanup(&script->FunctionNameLookup);
 }
 
+void totemRuntime_Init(totemRuntime *runtime)
+{
+    totemRuntime_Reset(runtime);
+}
+
 void totemRuntime_Reset(totemRuntime *runtime)
 {
     totemMemoryBuffer_Reset(&runtime->NativeFunctions, sizeof(totemNativeFunction));
     totemMemoryBuffer_Reset(&runtime->Scripts, sizeof(totemScript));
     totemHashMap_Reset(&runtime->ScriptLookup);
     totemHashMap_Reset(&runtime->NativeFunctionsLookup);
+    totemHashMap_Reset(&runtime->InternedStrings);
 }
 
 void totemRuntime_Cleanup(totemRuntime *runtime)
@@ -160,43 +160,150 @@ void totemRuntime_Cleanup(totemRuntime *runtime)
     totemMemoryBuffer_Cleanup(&runtime->Scripts);
     totemHashMap_Cleanup(&runtime->ScriptLookup);
     totemHashMap_Cleanup(&runtime->NativeFunctionsLookup);
+    
+    // clean up interned strings
+    for(size_t i = 0; i < runtime->InternedStrings.NumBuckets; i++)
+    {
+        for(totemHashMapEntry *entry = runtime->InternedStrings.Buckets[i]; entry != NULL; entry = entry->Next)
+        {
+            totemInternedStringHeader *hdr = (totemInternedStringHeader*)entry->Value;
+            if(hdr)
+            {
+                totem_CacheFree(hdr, sizeof(totemInternedStringHeader) + hdr->Length);
+            }
+        }
+    }
+    
+    totemHashMap_Cleanup(&runtime->InternedStrings);
 }
 
-totemBool totemRuntime_RegisterScript(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *indexOut)
+const char *totemInternedStringHeader_GetString(totemInternedStringHeader *hdr)
 {
+    return (const char*)(hdr + sizeof(totemInternedStringHeader));
+}
+
+totemInternedStringHeader *totemRuntime_InternString(totemRuntime *runtime, totemString *str)
+{
+    totemHashMapEntry *result = totemHashMap_Find(&runtime->InternedStrings, str->Value, str->Length);
+    if(result)
+    {
+        return (totemInternedStringHeader*)result->Value;
+    }
+    
+    size_t toAllocate = str->Length + sizeof(totemInternedStringHeader);
+    
+    totemInternedStringHeader *newStr = totem_CacheMalloc(toAllocate);
+    if(!newStr)
+    {
+        return NULL;
+    }
+    
+    newStr->Hash = totem_Hash(str->Value, str->Length);
+    newStr->Length = str->Length;
+    memcpy(newStr + sizeof(totemInternedStringHeader), str->Value, str->Length);
+    
+    if(!totemHashMap_InsertPrecomputed(&runtime->InternedStrings, str->Value, str->Length, (uintptr_t)newStr, newStr->Hash))
+    {
+        totem_CacheFree(newStr, toAllocate);
+        return NULL;
+    }
+    
+    return newStr;
+}
+
+totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *indexOut)
+{
+    totemScript *script = NULL;
     totemHashMapEntry *existing = totemHashMap_Find(&runtime->ScriptLookup, name->Value, name->Length);
     if(existing == NULL)
     {
         *indexOut = totemMemoryBuffer_GetNumObjects(&runtime->Scripts);
         if(!totemHashMap_Insert(&runtime->ScriptLookup, name->Value, name->Length, *indexOut))
         {
-            return totemBool_False;
+            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }
         
-        if(!totemMemoryBuffer_Secure(&runtime->Scripts, 1))
+        script = totemMemoryBuffer_Secure(&runtime->Scripts, 1);
+        if(!script)
         {
-            return totemBool_False;
+            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }
     }
     else
     {
         *indexOut = existing->Value;
+        script = totemMemoryBuffer_Get(&runtime->Scripts, *indexOut);
     }
     
-    totemScript *script = totemMemoryBuffer_Get(&runtime->Scripts, *indexOut);
     totemScript_Reset(script);
+    
+    // 1. intern strings
+    for(size_t i = 0; i < totemMemoryBuffer_GetNumObjects(&build->GlobalRegisters.GlobalRegisterStrings); i++)
+    {
+        totemRegisterIndex index = *((totemRegisterIndex*)totemMemoryBuffer_Get(&build->GlobalRegisters.GlobalRegisterStrings, i));
+        totemRegister *reg = totemMemoryBuffer_Get(&build->GlobalRegisters.Registers, index);
+        
+        totemString *str = (totemString*)reg->Value.InternedString;
+        totemInternedStringHeader *internedStr = totemRuntime_InternString(runtime, str);
+        if(!internedStr)
+        {
+            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
+        }
+        
+        reg->Value.InternedString = internedStr;
+    }
+    
+    // 2. check script function names
+    for(size_t i = 0; i < totemMemoryBuffer_GetNumObjects(&build->Functions); i++)
+    {
+        size_t dummyAddr;
+        totemFunction *func = totemMemoryBuffer_Get(&build->Functions, i);
+        
+        if(totemRuntime_GetNativeFunctionAddress(runtime, &func->Name, &dummyAddr))
+        {
+            build->ErrorContext = func;
+            return totemLinkStatus_Break(totemLinkStatus_FunctionAlreadyDeclared);
+        }
+    }
+    
+    // 3. link native functions
+    for(size_t i = 0; i < totemMemoryBuffer_GetNumObjects(&build->NativeFunctionCallInstructions); i++)
+    {
+        size_t *instructionAddr = totemMemoryBuffer_Get(&build->NativeFunctionCallInstructions, i);
+        totemInstruction *instruction = totemMemoryBuffer_Get(&build->Instructions, *instructionAddr);
+        
+        totemOperandXUnsigned functionAddr = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*instruction);
+        
+        totemString *funcName = totemMemoryBuffer_Get(&build->NativeFunctionNames, functionAddr);
+        if(!funcName)
+        {
+            return totemLinkStatus_Break(totemLinkStatus_InvalidNativeFunctionName);
+        }
+        
+        size_t funcAddr = 0;
+        if(!totemRuntime_GetNativeFunctionAddress(runtime, funcName, &funcAddr))
+        {
+            build->ErrorContext = funcName;
+            return totemLinkStatus_Break(totemLinkStatus_FunctionNotDeclared);
+        }
+        
+        totemOperandXUnsigned realFuncAddr = (totemOperandXUnsigned)funcAddr;
+        if(totemInstruction_SetBxUnsigned(instruction, realFuncAddr) != totemEvalStatus_Success)
+        {
+            return totemLinkStatus_Break(totemLinkStatus_InvalidNativeFunctionAddress);
+        }
+    }
     
     // TODO: No real need to copy this data, replace all of this with a single pointer swap...
     memcpy(&script->Instructions, &build->Instructions, sizeof(totemMemoryBuffer));
     memcpy(&script->FunctionNameLookup, &build->FunctionLookup, sizeof(totemHashMap));
-    memcpy(&script->GlobalData, &build->GlobalRegisters.StringData, sizeof(totemMemoryBuffer));
     memcpy(&script->GlobalRegisters, &build->GlobalRegisters.Registers, sizeof(totemMemoryBuffer));
     memcpy(&script->Functions, &build->Functions, sizeof(totemMemoryBuffer));
     
-    return totemBool_True;
+    return totemLinkStatus_Success;
 }
 
-totemBool totemRuntime_RegisterNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut)
+totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut)
 {
     totemHashMapEntry *result = totemHashMap_Find(&runtime->NativeFunctionsLookup, name->Value, name->Length);
     totemNativeFunction *addr = NULL;;
@@ -208,20 +315,20 @@ totemBool totemRuntime_RegisterNativeFunction(totemRuntime *runtime, totemNative
     else
     {
         *addressOut = totemMemoryBuffer_GetNumObjects(&runtime->NativeFunctions);
-        if(!totemMemoryBuffer_Secure(&runtime->NativeFunctions, 1))
+        addr = totemMemoryBuffer_Secure(&runtime->NativeFunctions, 1);
+        if(!addr)
         {
-            return totemBool_False;
+            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }
         
-        addr = totemMemoryBuffer_Get(&runtime->NativeFunctions, *addressOut);
         if(!totemHashMap_Insert(&runtime->NativeFunctionsLookup, name->Value, name->Length, *addressOut))
         {
-            return totemBool_False;
+            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }
     }
     
     *addr = func;
-    return totemBool_True;
+    return totemLinkStatus_Success;
 }
 
 totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, size_t *addressOut)
@@ -1093,6 +1200,21 @@ const char *totemExecStatus_Describe(totemExecStatus status)
         TOTEM_STRINGIFY_CASE(totemExecStatus_Stop);
         TOTEM_STRINGIFY_CASE(totemExecStatus_IndexOutOfBounds);
         TOTEM_STRINGIFY_CASE(totemExecStatus_RefCountOverflow);
+    }
+    
+    return "UNKNOWN";
+}
+
+const char *totemLinkStatus_Describe(totemLinkStatus status)
+{
+    switch(status)
+    {
+        TOTEM_STRINGIFY_CASE(totemLinkStatus_FunctionAlreadyDeclared);
+        TOTEM_STRINGIFY_CASE(totemLinkStatus_FunctionNotDeclared);
+        TOTEM_STRINGIFY_CASE(totemLinkStatus_InvalidNativeFunctionAddress);
+        TOTEM_STRINGIFY_CASE(totemLinkStatus_InvalidNativeFunctionName);
+        TOTEM_STRINGIFY_CASE(totemLinkStatus_OutOfMemory);
+        TOTEM_STRINGIFY_CASE(totemLinkStatus_Success);
     }
     
     return "UNKNOWN";

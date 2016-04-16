@@ -35,6 +35,19 @@ extern "C" {
     totemExecStatus;
     
     const char *totemExecStatus_Describe(totemExecStatus status);
+    
+    typedef enum
+    {
+        totemLinkStatus_Success,
+        totemLinkStatus_OutOfMemory,
+        totemLinkStatus_FunctionAlreadyDeclared,
+        totemLinkStatus_FunctionNotDeclared,
+        totemLinkStatus_InvalidNativeFunctionAddress,
+        totemLinkStatus_InvalidNativeFunctionName
+    }
+    totemLinkStatus;
+    
+    const char *totemLinkStatus_Describe(totemLinkStatus status);
 
     typedef struct
     {
@@ -62,11 +75,13 @@ extern "C" {
     totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress);
     void totemActor_Cleanup(totemActor *actor);
     
+    void totemRuntime_Init(totemRuntime *runtime);
     void totemRuntime_Reset(totemRuntime *runtime);
     void totemRuntime_Cleanup(totemRuntime *runtime);
-    totemBool totemRuntime_RegisterScript(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
-    totemBool totemRuntime_RegisterNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut);
+    totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
+    totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, size_t *addressOut);
+    totemInternedStringHeader *totemRuntime_InternString(totemRuntime *runtime, totemString *str);
 
     void totemRuntimeArray_DefRefCount(totemRuntimeArray *arr);
     totemExecStatus totemRuntimeArray_IncRefCount(totemRuntimeArray *arr);

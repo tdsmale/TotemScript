@@ -130,26 +130,16 @@ extern "C" {
     typedef double totemFloat;
     typedef int64_t totemInt;
     typedef size_t totemReference;
+    typedef uint32_t totemHash;
+    typedef uintptr_t totemHashValue;
+    typedef uint32_t totemStringLength;
     
     totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t numBits);
 
-    enum
-    {
-        totemStringSize_Length = 32,
-        totemStringSize_Index = 32
-    };
-
-    typedef struct
-    {
-        uint32_t Length;
-        uint32_t Index;
-    }
-    totemRuntimeString;
-    
     typedef struct
     {
         const char *Value;
-        uint32_t Length;
+        totemStringLength Length;
     }
     totemString;
     
@@ -165,13 +155,21 @@ extern "C" {
         uint32_t NumRegisters;
     }
     totemRuntimeArray;
+    
+    typedef struct
+    {
+        totemHash Hash;
+        totemStringLength Length;
+    }
+    totemInternedStringHeader;
+    const char *totemInternedStringHeader_GetString(totemInternedStringHeader *hdr);
 
     typedef union
     {
         totemFloat Float;
         totemInt Int;
         totemReference Reference;
-        totemRuntimeString String;
+        totemInternedStringHeader *InternedString;
         totemRuntimeArray *Array;
         uint64_t Data;
     }
@@ -182,7 +180,7 @@ extern "C" {
         totemDataType_Null = 0,
         totemDataType_Int = 1,
         totemDataType_Float = 2,
-        totemDataType_String = 3,
+        totemDataType_InternedString = 3,
         totemDataType_Reference = 4,
         totemDataType_Array = 5
     };
@@ -374,7 +372,8 @@ extern "C" {
     }
     totemMemoryBuffer;
     
-    totemBool totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount);
+    void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount);
+    void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t amount);
     void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index);
     size_t totemMemoryBuffer_GetNumObjects(totemMemoryBuffer *buffer);
     size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer);
@@ -398,8 +397,8 @@ extern "C" {
     {
         const char *Key;
         size_t KeyLen;
-        size_t Value;
-        size_t Hash;
+        totemHash Hash;
+        totemHashValue Value;
         struct totemHashMapEntry *Next;
     }
     totemHashMapEntry;
@@ -413,7 +412,8 @@ extern "C" {
     }
     totemHashMap;
     
-    totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *Key, size_t KeyLen, size_t Value);
+    totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *Key, size_t KeyLen, totemHashValue Value);
+    totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const char *key, size_t keyLen, totemHashValue value, totemHash hash);
     totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *Key, size_t keyLen);
     void totemHashMap_Reset(totemHashMap *hashmap);
     void totemHashMap_Cleanup(totemHashMap *hashmap);
@@ -421,7 +421,7 @@ extern "C" {
     typedef struct
     {
         totemMemoryBuffer Registers;
-        totemMemoryBuffer StringData;
+        totemMemoryBuffer GlobalRegisterStrings;
         totemHashMap Variables;
         totemHashMap Strings;
         totemHashMap Numbers;
@@ -434,7 +434,6 @@ extern "C" {
     typedef struct
     {
         size_t ScriptHandle;
-        totemMemoryBuffer GlobalData;
         totemMemoryBuffer GlobalRegisters;
     }
     totemActor;
@@ -457,10 +456,11 @@ extern "C" {
         totemMemoryBuffer NativeFunctions;
         totemMemoryBuffer Scripts;
 
+        // todo: persistent memory for these
         totemHashMap ScriptLookup;
         totemHashMap NativeFunctionsLookup;
+        totemHashMap InternedStrings;
         
-        totemMemoryBlock *LastMemBlock;
         totemFunctionCall *FunctionCallFreeList;
     }
     totemRuntime;
@@ -469,10 +469,12 @@ extern "C" {
     {
         totemRegisterListPrototype GlobalRegisters;
         totemHashMap FunctionLookup;
+        totemHashMap NativeFunctionNamesLookup;
         totemMemoryBuffer Functions;
         totemMemoryBuffer Instructions;
+        totemMemoryBuffer NativeFunctionCallInstructions;
+        totemMemoryBuffer NativeFunctionNames;
         void *ErrorContext;
-        totemRuntime *Runtime;
     }
     totemBuildPrototype;
     

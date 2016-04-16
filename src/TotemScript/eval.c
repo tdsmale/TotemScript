@@ -246,13 +246,13 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
     {
         return totemEvalStatus_Break(totemEvalStatus_TooManyRegisters);
     }
+
+    totemRegisterPrototype *reg = totemMemoryBuffer_Secure(&list->Registers, 1);
     
-    if(totemMemoryBuffer_Secure(&list->Registers, 1) != totemBool_True)
+    if(!reg)
     {
         return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
-
-    totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, index);
     
     reg->Value.Data = 0;
     reg->DataType = totemDataType_Null;
@@ -353,22 +353,23 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
         }
         
         reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
-        reg->DataType = totemDataType_String;
+        reg->DataType = totemDataType_InternedString;
+        reg->Value.InternedString = (void*)str;
         TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
-        reg->Value.String.Index = (uint32_t)list->StringData.Length;
-        reg->Value.String.Length = str->Length;
         
         if(!totemHashMap_Insert(&list->Strings, str->Value, str->Length, operand->RegisterIndex))
         {
             return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
         
-        if(!totemMemoryBuffer_Secure(&list->StringData, str->Length))
+        // add to global string register list for later linking
+        size_t *globalRegisterStrIndex = totemMemoryBuffer_Secure(&list->GlobalRegisterStrings, 1);
+        if(!globalRegisterStrIndex)
         {
             return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
         
-        memcpy(totemMemoryBuffer_Get(&list->StringData, reg->Value.String.Index), str->Value, str->Length);
+        *globalRegisterStrIndex = operand->RegisterIndex;
     }
     
     return totemEvalStatus_Success;
@@ -473,7 +474,7 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list, totemReg
     totemHashMap_Reset(&list->Strings);
     totemHashMap_Reset(&list->Variables);
     totemMemoryBuffer_Reset(&list->Registers, sizeof(totemRegisterPrototype));
-    totemMemoryBuffer_Reset(&list->StringData, sizeof(char));
+    totemMemoryBuffer_Reset(&list->GlobalRegisterStrings, sizeof(totemRegisterIndex));
     list->Scope = scope;
     list->NullIndex = 0;
     list->HasNull = totemBool_False;
@@ -485,41 +486,34 @@ void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
     totemHashMap_Cleanup(&list->Strings);
     totemHashMap_Cleanup(&list->Variables);
     totemMemoryBuffer_Cleanup(&list->Registers);
-    totemMemoryBuffer_Cleanup(&list->StringData);
 }
 
-void totemBuildPrototype_Init(totemBuildPrototype *build, totemRuntime *runtime)
+void totemBuildPrototype_Init(totemBuildPrototype *build)
 {
-    build->Functions.ObjectSize = sizeof(totemFunction);
-    build->Instructions.ObjectSize = sizeof(totemInstruction);
+    totemBuildPrototype_Reset(build);
+}
+
+void totemBuildPrototype_Reset(totemBuildPrototype *build)
+{
+    totemHashMap_Reset(&build->FunctionLookup);
+    totemHashMap_Reset(&build->NativeFunctionNamesLookup);
+    totemMemoryBuffer_Reset(&build->Functions, sizeof(totemFunction));
     totemRegisterListPrototype_Reset(&build->GlobalRegisters, totemRegisterScopeType_Global);
-    build->Runtime = runtime;
+    totemMemoryBuffer_Reset(&build->Instructions, sizeof(totemInstruction));
+    totemMemoryBuffer_Reset(&build->NativeFunctionCallInstructions, sizeof(size_t));
+    totemMemoryBuffer_Reset(&build->NativeFunctionNames, sizeof(totemString));
 }
 
 void totemBuildPrototype_Cleanup(totemBuildPrototype *build)
 {
     totemHashMap_Cleanup(&build->FunctionLookup);
+    totemHashMap_Cleanup(&build->NativeFunctionNamesLookup);
     totemMemoryBuffer_Cleanup(&build->Functions);
     totemRegisterListPrototype_Cleanup(&build->GlobalRegisters);
     totemMemoryBuffer_Cleanup(&build->Instructions);
+    totemMemoryBuffer_Cleanup(&build->NativeFunctionCallInstructions);
+    totemMemoryBuffer_Cleanup(&build->NativeFunctionNames);
 }
-
-/*
-    1. Build instruction prototypes for each function (treat global statements as a function called when script is first loaded into environment)
-    2. Allocate registers for all variables
-    3. Resolve function calls (how do we store functions?? one big lookup table, index -> index of script instruction block & instruction offset)
-    4. Create actual instructions
-
-  - save global values into global register / stack
-  - global instructions - placed into "init" function & ran once after build
- 
-  - foreach function
-    - save entry point in table (instruction offset)
-    - resolve constants into global register / stack
-    - assign variables to either local or global register
-    - resolve function calls
-    - build instructions
- */
 
 totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseTree *prototype)
 {
@@ -565,10 +559,9 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
 
 totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemFunction **functionOut)
 {
-    size_t index = totemMemoryBuffer_GetNumObjects(&build->Functions);
-    if(totemMemoryBuffer_Secure(&build->Functions, 1) == totemBool_True)
+    *functionOut = totemMemoryBuffer_Secure(&build->Functions, 1);
+    if(*functionOut)
     {
-        *functionOut = totemMemoryBuffer_Get(&build->Functions, index);
         return totemEvalStatus_Success;
     }
     
@@ -577,10 +570,9 @@ totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, to
 
 totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build, totemInstruction **instructionOut)
 {
-    size_t index = totemMemoryBuffer_GetNumObjects(&build->Instructions);
-    if(totemMemoryBuffer_Secure(&build->Instructions, 1) == totemBool_True)
+    *instructionOut = totemMemoryBuffer_Secure(&build->Instructions, 1);
+    if(*instructionOut)
     {
-        *instructionOut = totemMemoryBuffer_Get(&build->Instructions, index);
         return totemEvalStatus_Success;
     }
     
@@ -593,12 +585,9 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
     memset(&localRegisters, 0, sizeof(totemRegisterListPrototype));
     totemRegisterListPrototype_Reset(&localRegisters, totemRegisterScopeType_Local);
     
-    // TODO: Move function linking to runtime to better separate runtime from evaluation
-    size_t addr = 0;
-    if(totemRuntime_GetNativeFunctionAddress(build->Runtime, function->Identifier, &addr))
+    if(totemMemoryBuffer_GetNumObjects(&build->Functions) == TOTEM_MAX_SCRIPTFUNCTIONS)
     {
-        build->ErrorContext = function;
-        return totemEvalStatus_NativeFunctionAlreadyDefined;
+        return totemEvalStatus_Break(totemEvalStatus_TooManyScriptFunctions);
     }
     
     for(size_t i = 0; i < totemMemoryBuffer_GetNumObjects(&build->Functions); i++)
@@ -607,7 +596,7 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
         if(existingFunc != NULL && totemString_Equals(&existingFunc->Name, function->Identifier))
         {
             build->ErrorContext = function;
-            return totemEvalStatus_ScriptFunctionAlreadyDefined;
+            return totemEvalStatus_Break(totemEvalStatus_ScriptFunctionAlreadyDefined);
         }
     }
     
@@ -1342,26 +1331,49 @@ totemEvalStatus totemBuildPrototype_EvalReturn(totemBuildPrototype *build, totem
 
 totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemBuildPrototype *build, totemRegisterListPrototype *scope, totemRegisterListPrototype *globals, totemOperandRegisterPrototype *result)
 {
-    size_t address;
-    totemOperationType opType;
+    size_t address = 0;
+    totemOperationType opType = totemOperationType_NativeFunction;
 
-    // check for native function
-    if(totemRuntime_GetNativeFunctionAddress(build->Runtime, &functionCall->Identifier, &address))
+    // did we define this function in the script?
+    totemHashMapEntry *searchResult = totemHashMap_Find(&build->FunctionLookup, functionCall->Identifier.Value, functionCall->Identifier.Length);
+    if(searchResult)
     {
-        opType = totemOperationType_NativeFunction;
+        address = searchResult->Value;
+        opType = totemOperationType_ScriptFunction;
     }
     else
     {
-        totemHashMapEntry *searchResult = totemHashMap_Find(&build->FunctionLookup, functionCall->Identifier.Value, functionCall->Identifier.Length);
-        if(searchResult)
+        // add native function name
+        totemHashMapEntry *result = totemHashMap_Find(&build->NativeFunctionNamesLookup, functionCall->Identifier.Value, functionCall->Identifier.Length);
+        if(result)
         {
-            address = searchResult->Value;
-            opType = totemOperationType_ScriptFunction;
+            address = result->Value;
         }
         else
         {
-            build->ErrorContext = functionCall;
-            return totemEvalStatus_Break(totemEvalStatus_FunctionNotDefined);
+            size_t index = totemMemoryBuffer_GetNumObjects(&build->NativeFunctionNames);
+            
+            if(index >= TOTEM_MAX_NATIVEFUNCTIONS)
+            {
+                return totemEvalStatus_Break(totemEvalStatus_TooManyNativeFunctions);
+            }
+            
+            if(totemMemoryBuffer_Insert(&build->NativeFunctionNames, &functionCall->Identifier, 1) == NULL)
+            {
+                return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+            }
+            
+            if(!totemHashMap_Insert(&build->NativeFunctionNamesLookup, functionCall->Identifier.Value, functionCall->Identifier.Length, index))
+            {
+                return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+            }
+        }
+        
+        // add to native function list for later linking
+        size_t instructionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
+        if(!totemMemoryBuffer_Insert(&build->NativeFunctionCallInstructions, &instructionIndex, 1))
+        {
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
     }
     
@@ -1394,5 +1406,7 @@ const char *totemEvalStatus_Describe(totemEvalStatus status)
         TOTEM_STRINGIFY_CASE(totemEvalStatus_AssignmentLValueCannotBeConst);
         TOTEM_STRINGIFY_CASE(totemEvalStatus_AssignmentLValueNotMutable);
         TOTEM_STRINGIFY_CASE(totemEvalStatus_VariableAlreadyAssigned);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_TooManyNativeFunctions);
+        TOTEM_STRINGIFY_CASE(totemEvalStatus_TooManyScriptFunctions);
     }
 }

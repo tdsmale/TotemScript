@@ -69,7 +69,7 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_Const, "const" }
 };
 
-#define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return status;
+#define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
 
 typedef enum
 {
@@ -274,8 +274,8 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
         *tree = restore;
     }
     
-    size_t start = totemMemoryBuffer_GetNumObjects(dst);
-    if(totemMemoryBuffer_Secure(dst, fSize + 1) == totemBool_False)
+    char *buffer = totemMemoryBuffer_Secure(dst, fSize + 1);
+    if(!buffer)
     {
         fclose(file);
         totemScriptName_Pop(tree);
@@ -284,7 +284,6 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
         return totemBool_False;
     }
     
-    char *buffer = totemMemoryBuffer_Get(dst, start);
     fread(buffer, 1, fSize, file);
 
     fclose(file);
@@ -305,7 +304,11 @@ totemBool totemMemoryBuffer_LoadScriptFromFile(totemMemoryBuffer *dst, const cha
         size_t bufferSize = totemMemoryBuffer_GetNumObjects(dst);
         if(bufferSize > 0)
         {
-            totemMemoryBuffer_Secure(dst, 1);
+            if(!totemMemoryBuffer_Secure(dst, 1))
+            {
+                return totemBool_False;
+            }
+            
             dst->Data[bufferSize] = 0;
         }
     }
@@ -313,6 +316,11 @@ totemBool totemMemoryBuffer_LoadScriptFromFile(totemMemoryBuffer *dst, const cha
     chdir(currentDir);
     totem_freecwd(currentDir);
     return result;
+}
+
+totemLexStatus totemLexStatus_Break(totemLexStatus status)
+{
+    return status;
 }
 
 /**
@@ -457,7 +465,7 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
 totemToken *totemTokenList_Alloc(totemTokenList *list)
 {
     size_t index = totemMemoryBuffer_GetNumObjects(&list->Tokens);
-    if(totemMemoryBuffer_Secure(&list->Tokens, 1) == totemBool_True)
+    if(totemMemoryBuffer_Secure(&list->Tokens, 1) != NULL)
     {
         totemToken *currentToken = totemMemoryBuffer_Get(&list->Tokens, index);
         memset(currentToken, 0, sizeof(totemToken));
@@ -562,6 +570,16 @@ void totemParseTree_Cleanup(totemParseTree *tree)
     totemMemoryBlock_Cleanup(&tree->LastMemBlock);    
     tree->FirstBlock = NULL;
     tree->CurrentToken = NULL;
+}
+
+void totemParseTree_Reset(totemParseTree *tree)
+{
+    totemParseTree_Cleanup(tree);
+}
+
+void totemParseTree_Init(totemParseTree *tree)
+{
+    totemParseTree_Reset(tree);
 }
 
 totemParseStatus totemParseStatus_Break(totemParseStatus status)
