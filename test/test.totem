@@ -99,7 +99,8 @@ function nullTest()
 
 function test()
 {
-    arrayTest();
+    stringTest();   
+    //arrayTest();
     //constTest();
     //includeTest($x);
     /*

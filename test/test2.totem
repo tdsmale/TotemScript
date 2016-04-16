@@ -35,3 +35,9 @@ function arrayTest()
     print($b);
     print($c);
 }
+
+function stringTest()
+{
+    $a = "This is an interned string!";
+    print($a);
+}
