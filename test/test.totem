@@ -100,7 +100,7 @@ function nullTest()
 function test()
 {
     stringTest();   
-    //arrayTest();
+    arrayTest();
     //constTest();
     //includeTest($x);
     /*

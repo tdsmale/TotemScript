@@ -30,10 +30,12 @@ function arrayTest()
 
     $b = $a[3];
     $c = $a[4][15];
+    $d = $a[0];
 
     print($a);
     print($b);
     print($c);
+    print($d);
 }
 
 function stringTest()

@@ -1,6 +1,6 @@
 A parser & virtual machine for a custom scripting language written in C.
 
-### todo:
+### backlog
 
 #### new language features
 * ref-counting cycle detection
@@ -24,15 +24,12 @@ A parser & virtual machine for a custom scripting language written in C.
  * "loose" functions eval to normal functions with $this corresponding to record value, e.g. record a { function whatever() { print($this); } }
 
 #### runtime improvements
-* line/char numbers for eval errors
+* line/char numbers for eval & link errors
 * move-to-global and move-to-local instructions, to expand potential number of global vars from 255 to TOTEM_OPERANDX_UNSIGNED_MAX
 * two string types behind-the-scenes: the default interned strings, and a mutable string type that is created when a string is modified (which is then interned when needed e.g. equality check, hash check etc.)
 * local const vars should eval to global vars wherever possible
 * unroll determinant loops
 * register-allocation improvement
  * track how many times a variable is referenced
- * recycle temp registers
-* remove unneccessary move instructions
- * will need to differentiate between "strong" array access and "weak" array access, to ensure ref counts aren't mangled
 * escape analysis for arrays & records
 * JIT

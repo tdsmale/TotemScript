@@ -231,6 +231,37 @@ void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer)
     }
 }
 
+void *totemMemoryBuffer_Top(totemMemoryBuffer *buffer)
+{
+    if(buffer->Length)
+    {
+        return buffer->Data + ((buffer->Length - 1) * buffer->ObjectSize);
+    }
+    
+    return NULL;
+}
+
+void *totemMemoryBuffer_Bottom(totemMemoryBuffer *buffer)
+{
+    if(buffer->Length)
+    {
+        return buffer->Data;
+    }
+    
+    return NULL;
+}
+
+size_t totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount)
+{
+    if(amount > buffer->Length)
+    {
+        amount = buffer->Length;
+    }
+    
+    buffer->Length -= amount;
+    return amount;
+}
+
 void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t numObjects)
 {
     void *ptr = totemMemoryBuffer_Secure(buffer, numObjects);

@@ -43,14 +43,19 @@ void totemRuntimeArray_Destroy(totemRuntimeArray *arr)
 
 void totemRuntimeArray_DefRefCount(totemRuntimeArray *arr)
 {
-    if(arr->RefCount <= 1)
+    switch(arr->RefCount)
     {
-        arr->RefCount = 0;
-        totemRuntimeArray_Destroy(arr);
-    }
-    else
-    {
-        arr->RefCount--;
+        case 0:
+            break;
+            
+        case 1:
+            arr->RefCount = 0;
+            totemRuntimeArray_Destroy(arr);
+            break;
+            
+        default:
+            arr->RefCount--;
+            break;
     }
 }
 
@@ -62,17 +67,6 @@ totemExecStatus totemRuntimeArray_IncRefCount(totemRuntimeArray *arr)
     }
     
     arr->RefCount++;
-    return totemExecStatus_Continue;
-}
-
-totemExecStatus totemRegister_AssignWeak(totemRegister *dst, totemRegister *src)
-{
-    if(dst->DataType == totemDataType_Array)
-    {
-        totemRuntimeArray_DefRefCount(dst->Value.Array);
-    }
-    
-    memcpy(dst, src, sizeof(totemRegister));
     
     return totemExecStatus_Continue;
 }
@@ -513,18 +507,16 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
     while(status == totemExecStatus_Continue);
     
     state->UsedLocalRegisters -= function->RegistersNeeded;
+    size_t regToClear = function->RegistersNeeded;
     
     // clean up any remaining arrays
-    for(size_t i = 0; i < function->RegistersNeeded; i++)
+    while(regToClear--)
     {
-        totemRegister *reg = &state->Registers[totemRegisterScopeType_Local][state->UsedLocalRegisters + i];
+        totemRegister *reg = &state->Registers[totemRegisterScopeType_Local][regToClear];
         
         if(reg->DataType == totemDataType_Array)
         {
-            if(reg->Value.Array->RefCount > 0)
-            {
-                totemRuntimeArray_DefRefCount(reg->Value.Array);
-            }
+            totemRuntimeArray_DefRefCount(reg->Value.Array);
         }
     }
     
@@ -1103,7 +1095,7 @@ totemExecStatus totemExecState_ExecNewArray(totemExecState *state)
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
     
-    totemExecStatus status = totemRegister_AssignWeak(dst, &src);
+    totemExecStatus status = totemRegister_Assign(dst, &src);
     if(status == totemExecStatus_Continue)
     {
         state->CurrentInstruction++;
@@ -1136,7 +1128,7 @@ totemExecStatus totemExecState_ExecArrayGet(totemExecState *state)
         return totemExecStatus_Break(totemExecStatus_IndexOutOfBounds);
     }
     
-    totemExecStatus status = totemRegister_AssignWeak(dst, &src->Value.Array->Registers[index]);
+    totemExecStatus status = totemRegister_Assign(dst, &src->Value.Array->Registers[index]);
     if(status == totemExecStatus_Continue)
     {
         state->CurrentInstruction++;
@@ -1174,7 +1166,7 @@ totemExecStatus totemExecState_ExecArraySet(totemExecState *state)
         return totemExecStatus_Break(totemExecStatus_IndexOutOfBounds);
     }
     
-    totemExecStatus status = totemRegister_AssignWeak(&dst->Value.Array->Registers[index], src);
+    totemExecStatus status = totemRegister_Assign(&dst->Value.Array->Registers[index], src);
     if(status == totemExecStatus_Continue)
     {
         state->CurrentInstruction++;

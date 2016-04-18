@@ -102,8 +102,10 @@ extern "C" {
 #define TOTEM_HASBITS(i, mask) (((i) & (mask)) == (mask))
 #define TOTEM_GETBITS(i, mask) ((i) & (mask))
 #define TOTEM_SETBITS(i, mask) ((i) |= (mask))
+#define TOTEM_UNSETBITS(i, mask) ((i) &= (~(mask)))
 #define TOTEM_GETBITS_OFFSET(i, mask, offset) (TOTEM_GETBITS((i), (mask)) >> (offset))
 #define TOTEM_SETBITS_OFFSET(i, mask, offset) (TOTEM_SETBITS((i), ((mask) << (offset))))
+#define TOTEM_UNSETBITS_OFFSET(i, mask, offset) (TOTEM_UNSETBITS((i), ((mask) << (offset))))
 #define TOTEM_MAXVAL_UNSIGNED(numBits) ((1 << (numBits)) - 1)
 #define TOTEM_MINVAL_UNSIGNED(numBits) (0)
 #define TOTEM_MAXVAL_SIGNED(numBits) ((totemOperandXSigned)TOTEM_MAXVAL_UNSIGNED((numBits) - 1))
@@ -181,10 +183,9 @@ extern "C" {
         totemDataType_Int = 1,
         totemDataType_Float = 2,
         totemDataType_InternedString = 3,
-        totemDataType_Reference = 4,
-        totemDataType_Array = 5
+        totemDataType_Array = 4
     };
-    typedef int8_t totemDataType;
+    typedef uint8_t totemDataType;
     const char *totemDataType_Describe(totemDataType type);
 #define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
     
@@ -231,6 +232,8 @@ extern "C" {
         totemOperationType_NewArray = 21,           // A = array of size B
         totemOperationType_ArrayGet = 22,           // A = B[C]
         totemOperationType_ArraySet = 23,           // A[B] = C
+        totemOperationType_MoveToLocal = 24,        // A = Bx
+        totemOperationType_MoveToGlobal = 25,       // Bx = A
         
         totemOperationType_Max = 31
     };
@@ -374,6 +377,9 @@ extern "C" {
     
     void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount);
     void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t amount);
+    size_t totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount);
+    void *totemMemoryBuffer_Top(totemMemoryBuffer *buffer);
+    void *totemMemoryBuffer_Bottom(totemMemoryBuffer *buffer);
     void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index);
     size_t totemMemoryBuffer_GetNumObjects(totemMemoryBuffer *buffer);
     size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer);
@@ -421,6 +427,7 @@ extern "C" {
     typedef struct
     {
         totemMemoryBuffer Registers;
+        totemMemoryBuffer RegisterFreeList;
         totemMemoryBuffer GlobalRegisterStrings;
         totemHashMap Variables;
         totemHashMap Strings;
