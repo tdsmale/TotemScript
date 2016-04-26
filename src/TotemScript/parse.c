@@ -10,7 +10,6 @@
 #include <TotemScript/base.h>
 #include <string.h>
 #include <ctype.h>
-#include <unistd.h>
 
 #define TOTEM_PARSE_SKIPWHITESPACE(token) while((*token)->Type == totemTokenType_Whitespace) { (*token)++; }
 #define TOTEM_PARSE_COPYPOSITION(token, dest) memcpy(&dest->Position, &(*token)->Position, sizeof(totemBufferPositionInfo))
@@ -90,7 +89,11 @@ totemScriptName;
 
 void totemToken_Print(FILE *target, totemToken *token)
 {
+#if _WIN32
+    fprintf(target, "%s %.*s at %Iu:%Iu\n", totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value, token->Position.LineNumber, token->Position.CharNumber);
+#else
     fprintf(target, "%s %.*s at %zu:%zu\n", totemTokenType_Describe(token->Type), (int)token->Value.Length, token->Value.Value, token->Position.LineNumber, token->Position.CharNumber);
+#endif
 }
 
 void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)
@@ -102,9 +105,15 @@ void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)
     }
 }
 
+void totemTokenList_Init(totemTokenList *list)
+{
+    memset(list, 0, sizeof(totemTokenList));
+    totemMemoryBuffer_Init(&list->Tokens, sizeof(totemToken));
+}
+
 void totemTokenList_Reset(totemTokenList *list)
 {
-    totemMemoryBuffer_Reset(&list->Tokens, sizeof(totemToken));
+    totemMemoryBuffer_Reset(&list->Tokens);
     list->CurrentChar = 0;
     list->CurrentLine = 0;
     list->NextTokenStart = 0;
@@ -119,10 +128,10 @@ const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status)
 {
     switch(status)
     {
-        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_OutOfMemory);
-        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_FileNotFound);
-        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Recursion);
-        TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Success);
+            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_OutOfMemory);
+            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_FileNotFound);
+            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Recursion);
+            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Success);
     }
     
     return "UNKNOWN";
@@ -175,9 +184,24 @@ const char *totemScriptName_Pop(totemScriptName **tree)
     return NULL;
 }
 
-totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, const char *srcPath, totemLoadScriptError *err, totemScriptName **tree)
+void totemScriptFile_Init(totemScriptFile *script)
 {
-    FILE *file = fopen(srcPath, "r");
+    totemMemoryBuffer_Init(&script->Buffer, 1);
+}
+
+void totemScriptFile_Reset(totemScriptFile *script)
+{
+    totemMemoryBuffer_Reset(&script->Buffer);
+}
+
+void totemScriptFile_Cleanup(totemScriptFile *script)
+{
+    totemMemoryBuffer_Cleanup(&script->Buffer);
+}
+
+totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPath, totemLoadScriptError *err, totemScriptName **tree)
+{
+    FILE *file = totem_fopen(srcPath, "r");
     if(!file)
     {
         err->Status = totemLoadScriptStatus_FileNotFound;
@@ -189,7 +213,10 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
     long fSize = ftell(file);
     fseek(file, 0, SEEK_SET);
     
-    fchdir(fileno(file));
+    if (!totem_fchdir(file))
+    {
+        return totemBool_False;
+    }
     
     // add to tree
     if(totemScriptName_Push(tree, srcPath) == totemBool_False)
@@ -200,14 +227,18 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
     }
     
     // look for include statements
-    for(char cha = fgetc(file); totemBool_True; /* nada */)
+    while(totemBool_True)
     {
+        long resetPos = ftell(file);
+        char cha = fgetc(file);
+        
         while((cha == ' ' || cha == '\n' || cha == '\t' || cha == '\r') && cha != EOF)
         {
+            resetPos = ftell(file);
             cha = fgetc(file);
         }
         
-        fseek(file, -1, SEEK_CUR);
+        fseek(file, resetPos, SEEK_SET);
         
         // any include statements?
         char include[8];
@@ -215,26 +246,33 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
         size_t numRead = fread(include, 1, 7, file);
         if(numRead != 7)
         {
-            fseek(file, -numRead, SEEK_CUR);
+            fseek(file, resetPos, SEEK_SET);
             break;
         }
         
         if(strncmp("include", include, 7) != 0)
         {
-            fseek(file, -numRead, SEEK_CUR);
+            fseek(file, resetPos, SEEK_SET);
             break;
         }
         
+        resetPos = ftell(file);
         for(cha = fgetc(file); cha == ' ' && cha != EOF; /* nada */)
         {
+            resetPos = ftell(file);
             cha = fgetc(file);
         }
         
-        fseek(file, -1, SEEK_CUR);
+        fseek(file, resetPos, SEEK_SET);
         
-        size_t filenameSize = 0;
+        int filenameSize = 0;
         for(cha = fgetc(file); cha != ';' && cha != EOF; /* nada */)
         {
+            if (filenameSize + 1 < 0)
+            {
+                break;
+            }
+            
             filenameSize++;
             cha = fgetc(file);
         }
@@ -248,7 +286,7 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
             return totemBool_False;
         }
         
-        fseek(file, -(filenameSize + 1), SEEK_CUR);
+        fseek(file, resetPos, SEEK_SET);
         fread(filename, 1, filenameSize, file);
         filename[filenameSize] = 0;
         fseek(file, 2, SEEK_CUR);
@@ -261,7 +299,7 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
         
         totemScriptName *restore = *tree;
         
-        totemBool result = totemMemoryBuffer_LoadScriptFromFileRecursive(dst, filename, err, tree);
+        totemBool result = totemScriptFile_LoadRecursive(dst, filename, err, tree);
         totem_CacheFree(filename, filenameSize + 1);
         if(!result)
         {
@@ -270,11 +308,15 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
             return totemBool_False;
         }
         
-        fchdir(fileno(file));
+        if (!totem_fchdir(file))
+        {
+            return totemBool_False;
+        }
+        
         *tree = restore;
     }
     
-    char *buffer = totemMemoryBuffer_Secure(dst, fSize + 1);
+    char *buffer = totemMemoryBuffer_Secure(&dst->Buffer, fSize);
     if(!buffer)
     {
         fclose(file);
@@ -285,35 +327,35 @@ totemBool totemMemoryBuffer_LoadScriptFromFileRecursive(totemMemoryBuffer *dst, 
     }
     
     fread(buffer, 1, fSize, file);
-
+    
     fclose(file);
     totemScriptName_Pop(tree);
     return totemBool_True;
 }
 
-totemBool totemMemoryBuffer_LoadScriptFromFile(totemMemoryBuffer *dst, const char *srcPath, totemLoadScriptError *err)
+totemBool totemScriptFile_Load(totemScriptFile *dst, const char *srcPath, totemLoadScriptError *err)
 {
-    totemMemoryBuffer_Reset(dst, 1);
+    totemScriptFile_Reset(dst);
     totemScriptName *nameTree = NULL;
     const char *currentDir = totem_getcwd();
     
-    totemBool result = totemMemoryBuffer_LoadScriptFromFileRecursive(dst, srcPath, err, &nameTree);
+    totemBool result = totemScriptFile_LoadRecursive(dst, srcPath, err, &nameTree);
     
     if(result == totemBool_True)
     {
-        size_t bufferSize = totemMemoryBuffer_GetNumObjects(dst);
+        size_t bufferSize = totemMemoryBuffer_GetNumObjects(&dst->Buffer);
         if(bufferSize > 0)
         {
-            if(!totemMemoryBuffer_Secure(dst, 1))
+            if(!totemMemoryBuffer_Secure(&dst->Buffer, 1))
             {
                 return totemBool_False;
             }
             
-            dst->Data[bufferSize] = 0;
+            dst->Buffer.Data[bufferSize] = 0;
         }
     }
     
-    chdir(currentDir);
+    totem_chdir(currentDir);
     totem_freecwd(currentDir);
     return result;
 }
@@ -412,7 +454,7 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
         }
         
         ++currentTokenLength;
-    
+        
         // do we have a one-char symbol?
         if(currentTokenLength == 1)
         {
@@ -424,7 +466,7 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
             
             continue;
         }
-
+        
         // we now have to presume that more than one token are sat right next to each other
         // let's look for our first one-char symbol, then split it from whatever it was sat after
         for(size_t j = 1; j < currentTokenLength; ++j)
@@ -567,7 +609,7 @@ void *totemParseTree_Alloc(totemParseTree *tree, size_t objectSize)
 
 void totemParseTree_Cleanup(totemParseTree *tree)
 {
-    totemMemoryBlock_Cleanup(&tree->LastMemBlock);    
+    totemMemoryBlock_Cleanup(&tree->LastMemBlock);
     tree->FirstBlock = NULL;
     tree->CurrentToken = NULL;
 }
@@ -579,6 +621,7 @@ void totemParseTree_Reset(totemParseTree *tree)
 
 void totemParseTree_Init(totemParseTree *tree)
 {
+    memset(tree, 0, sizeof(totemParseTree));
     totemParseTree_Reset(tree);
 }
 
@@ -736,7 +779,7 @@ totemParseStatus totemStatementPrototype_ParseSet(totemStatementPrototype **firs
     TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_LCBracket);
     TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
     
-	while((*token)->Type != totemTokenType_RCBracket)
+    while((*token)->Type != totemTokenType_RCBracket)
     {
         TOTEM_PARSE_CHECKRETURN(totemStatementPrototype_ParseInSet(first, last, token, tree));
     }
@@ -1009,7 +1052,7 @@ totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expres
 {
     TOTEM_PARSE_SKIPWHITESPACE(token);
     TOTEM_PARSE_COPYPOSITION(token, expression);
-
+    
     // pre-unary operators
     for(totemPreUnaryOperatorPrototype **preUnaryType = &expression->PreUnaryOperators; totemBool_True; /* nada */)
     {
@@ -1173,16 +1216,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
             switch((*token)->Type)
-            {
-                case totemTokenType_Assign:
-                    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-                    *type = totemBinaryOperatorType_Equals;
-                    break;
-                    
-                default:
-                    *type = totemBinaryOperatorType_Assign;
-                    break;
-            }
+        {
+            case totemTokenType_Assign:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+                *type = totemBinaryOperatorType_Equals;
+                break;
+                
+            default:
+                *type = totemBinaryOperatorType_Assign;
+                break;
+        }
             
             return totemParseStatus_Success;
             
@@ -1190,16 +1233,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
             switch((*token)->Type)
-            {
-                case totemTokenType_Assign:
-                    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-                    *type = totemBinaryOperatorType_MoreThanEquals;
-                    break;
-                    
-                default:
-                    *type = totemBinaryOperatorType_MoreThan;
-                    break;
-            }
+        {
+            case totemTokenType_Assign:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+                *type = totemBinaryOperatorType_MoreThanEquals;
+                break;
+                
+            default:
+                *type = totemBinaryOperatorType_MoreThan;
+                break;
+        }
             
             return totemParseStatus_Success;
             
@@ -1207,16 +1250,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
             switch((*token)->Type)
-            {
-                case totemTokenType_Assign:
-                    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-                    *type = totemBinaryOperatorType_LessThanEquals;
-                    break;
-                    
-                default:
-                    *type = totemBinaryOperatorType_LessThan;
-                    break;
-            }
+        {
+            case totemTokenType_Assign:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+                *type = totemBinaryOperatorType_LessThanEquals;
+                break;
+                
+            default:
+                *type = totemBinaryOperatorType_LessThan;
+                break;
+        }
             
             return totemParseStatus_Success;
             
@@ -1224,16 +1267,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
             switch((*token)->Type)
-            {
-                case totemTokenType_Assign:
-                    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-                    *type = totemBinaryOperatorType_DivideAssign;
-                    break;
-                    
-                default:
-                    *type = totemBinaryOperatorType_Divide;
-                    break;
-            }
+        {
+            case totemTokenType_Assign:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+                *type = totemBinaryOperatorType_DivideAssign;
+                break;
+                
+            default:
+                *type = totemBinaryOperatorType_Divide;
+                break;
+        }
             
             return totemParseStatus_Success;
             
@@ -1241,16 +1284,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
             switch((*token)->Type)
-            {
-                case totemTokenType_Assign:
-                    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-                    *type = totemBinaryOperatorType_MinusAssign;
-                    break;
-                    
-                default:
-                    *type = totemBinaryOperatorType_Minus;
-                    break;
-            }
+        {
+            case totemTokenType_Assign:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+                *type = totemBinaryOperatorType_MinusAssign;
+                break;
+                
+            default:
+                *type = totemBinaryOperatorType_Minus;
+                break;
+        }
             
             return totemParseStatus_Success;
             
@@ -1258,16 +1301,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
             switch((*token)->Type)
-            {
-                case totemTokenType_Assign:
-                    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-                    *type = totemBinaryOperatorType_MultiplyAssign;
-                    break;
-                    
-                default:
-                    *type = totemBinaryOperatorType_Multiply;
-                    break;
-            }
+        {
+            case totemTokenType_Assign:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+                *type = totemBinaryOperatorType_MultiplyAssign;
+                break;
+                
+            default:
+                *type = totemBinaryOperatorType_Multiply;
+                break;
+        }
             
             return totemParseStatus_Success;
             
@@ -1275,16 +1318,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
             switch((*token)->Type)
-            {
-                case totemTokenType_Assign:
-                    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-                    *type = totemBinaryOperatorType_PlusAssign;
-                    break;
-                    
-                default:
-                    *type = totemBinaryOperatorType_Plus;
-                    break;
-            }
+        {
+            case totemTokenType_Assign:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+                *type = totemBinaryOperatorType_PlusAssign;
+                break;
+                
+            default:
+                *type = totemBinaryOperatorType_Plus;
+                break;
+        }
             
             return totemParseStatus_Success;
             
@@ -1368,14 +1411,14 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     
     switch((*token)->Type)
     {
-        // new array
+            // new array
         case totemTokenType_LSBracket:
             argument->Type = totemArgumentType_NewArray;
             TOTEM_PARSE_ALLOC(argument->NewArray, totemNewArrayPrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemNewArrayPrototype_Parse(argument->NewArray, token, tree));
             break;
             
-        // variable
+            // variable
         case totemTokenType_Variable:
         case totemTokenType_Const:
             argument->Type = totemArgumentType_Variable;
@@ -1383,20 +1426,20 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_CHECKRETURN(totemVariablePrototype_Parse(argument->Variable, token, tree));
             break;
             
-        // null
+            // null
         case totemTokenType_Null:
             argument->Type = totemArgumentType_Null;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
             
-        // number
+            // number
         case totemTokenType_Number:
             argument->Type = totemArgumentType_Number;
             TOTEM_PARSE_ALLOC(argument->Number, totemString, tree);
             TOTEM_PARSE_CHECKRETURN(totemString_ParseNumber(argument->Number, token, tree));
             break;
             
-        // string
+            // string
         case totemTokenType_DoubleQuote:
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             
@@ -1431,14 +1474,14 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
             
-        // function call
+            // function call
         case totemTokenType_Identifier:
             argument->Type = totemArgumentType_FunctionCall;
             TOTEM_PARSE_ALLOC(argument->FunctionCall, totemFunctionCallPrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemFunctionCallPrototype_Parse(argument->FunctionCall, token, tree));
             break;
             
-        // boolean
+            // boolean
         case totemTokenType_True:
         case totemTokenType_False:
             argument->Type = totemArgumentType_Number;
@@ -1502,10 +1545,10 @@ const char *totemParseStatus_Describe(totemParseStatus status)
 {
     switch (status)
     {
-        TOTEM_STRINGIFY_CASE(totemParseStatus_OutOfMemory);
-        TOTEM_STRINGIFY_CASE(totemParseStatus_Success);
-        TOTEM_STRINGIFY_CASE(totemParseStatus_UnexpectedToken);
-        TOTEM_STRINGIFY_CASE(totemParseStatus_ValueTooLarge);
+            TOTEM_STRINGIFY_CASE(totemParseStatus_OutOfMemory);
+            TOTEM_STRINGIFY_CASE(totemParseStatus_Success);
+            TOTEM_STRINGIFY_CASE(totemParseStatus_UnexpectedToken);
+            TOTEM_STRINGIFY_CASE(totemParseStatus_ValueTooLarge);
     }
     
     return "UNKNOWN";
@@ -1515,9 +1558,9 @@ const char *totemLexStatus_Describe(totemLexStatus status)
 {
     switch(status)
     {
-        TOTEM_STRINGIFY_CASE(totemLexStatus_OutOfMemory);
-        TOTEM_STRINGIFY_CASE(totemLexStatus_Success);
-        TOTEM_STRINGIFY_CASE(totemLexStatus_Failure);
+            TOTEM_STRINGIFY_CASE(totemLexStatus_OutOfMemory);
+            TOTEM_STRINGIFY_CASE(totemLexStatus_Success);
+            TOTEM_STRINGIFY_CASE(totemLexStatus_Failure);
     }
     
     return "UNKNOWN";
@@ -1527,52 +1570,52 @@ const char *totemTokenType_Describe(totemTokenType type)
 {
     switch(type)
     {
-        TOTEM_STRINGIFY_CASE(totemTokenType_Null);
-        TOTEM_STRINGIFY_CASE(totemTokenType_And);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Assign);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Backslash);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Break);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Case);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Colon);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Comma);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Const);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Default);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Divide);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Do);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Dot);
-        TOTEM_STRINGIFY_CASE(totemTokenType_DoubleQuote);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Else);
-        TOTEM_STRINGIFY_CASE(totemTokenType_EndScript);
-        TOTEM_STRINGIFY_CASE(totemTokenType_False);
-        TOTEM_STRINGIFY_CASE(totemTokenType_For);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Function);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Identifier);
-        TOTEM_STRINGIFY_CASE(totemTokenType_If);
-        TOTEM_STRINGIFY_CASE(totemTokenType_LBracket);
-        TOTEM_STRINGIFY_CASE(totemTokenType_LCBracket);
-        TOTEM_STRINGIFY_CASE(totemTokenType_LessThan);
-        TOTEM_STRINGIFY_CASE(totemTokenType_LSBracket);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Max);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Minus);
-        TOTEM_STRINGIFY_CASE(totemTokenType_MoreThan);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Multiply);
-        TOTEM_STRINGIFY_CASE(totemTokenType_None);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Not);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Number);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Or);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Plus);
-        TOTEM_STRINGIFY_CASE(totemTokenType_PowerTo);
-        TOTEM_STRINGIFY_CASE(totemTokenType_RBracket);
-        TOTEM_STRINGIFY_CASE(totemTokenType_RCBracket);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Return);
-        TOTEM_STRINGIFY_CASE(totemTokenType_RSBracket);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Semicolon);
-        TOTEM_STRINGIFY_CASE(totemTokenType_SingleQuote);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Slash);
-        TOTEM_STRINGIFY_CASE(totemTokenType_True);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Variable);
-        TOTEM_STRINGIFY_CASE(totemTokenType_While);
-        TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Null);
+            TOTEM_STRINGIFY_CASE(totemTokenType_And);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Assign);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Backslash);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Break);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Case);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Colon);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Comma);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Const);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Default);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Divide);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Do);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Dot);
+            TOTEM_STRINGIFY_CASE(totemTokenType_DoubleQuote);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Else);
+            TOTEM_STRINGIFY_CASE(totemTokenType_EndScript);
+            TOTEM_STRINGIFY_CASE(totemTokenType_False);
+            TOTEM_STRINGIFY_CASE(totemTokenType_For);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Function);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Identifier);
+            TOTEM_STRINGIFY_CASE(totemTokenType_If);
+            TOTEM_STRINGIFY_CASE(totemTokenType_LBracket);
+            TOTEM_STRINGIFY_CASE(totemTokenType_LCBracket);
+            TOTEM_STRINGIFY_CASE(totemTokenType_LessThan);
+            TOTEM_STRINGIFY_CASE(totemTokenType_LSBracket);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Max);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Minus);
+            TOTEM_STRINGIFY_CASE(totemTokenType_MoreThan);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Multiply);
+            TOTEM_STRINGIFY_CASE(totemTokenType_None);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Not);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Number);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Or);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Plus);
+            TOTEM_STRINGIFY_CASE(totemTokenType_PowerTo);
+            TOTEM_STRINGIFY_CASE(totemTokenType_RBracket);
+            TOTEM_STRINGIFY_CASE(totemTokenType_RCBracket);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Return);
+            TOTEM_STRINGIFY_CASE(totemTokenType_RSBracket);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Semicolon);
+            TOTEM_STRINGIFY_CASE(totemTokenType_SingleQuote);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Slash);
+            TOTEM_STRINGIFY_CASE(totemTokenType_True);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Variable);
+            TOTEM_STRINGIFY_CASE(totemTokenType_While);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
     }
     
     return "UNKNOWN";

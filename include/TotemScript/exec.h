@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 #include <TotemScript/base.h>
+#include <TotemScript/eval.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,7 +49,7 @@ extern "C" {
     totemLinkStatus;
     
     const char *totemLinkStatus_Describe(totemLinkStatus status);
-
+    
     typedef struct
     {
         totemHashMap FunctionNameLookup;
@@ -58,20 +59,34 @@ extern "C" {
         totemMemoryBuffer Instructions;
     }
     totemScript;
-
+    
+    typedef struct
+    {
+        totemMemoryBuffer NativeFunctions;
+        totemMemoryBuffer Scripts;
+        
+        totemHashMap ScriptLookup;
+        totemHashMap NativeFunctionsLookup;
+        totemHashMap InternedStrings;
+        
+        totemFunctionCall *FunctionCallFreeList;
+    }
+    totemRuntime;
+    
     typedef struct
     {
         totemFunctionCall *CallStack;
         totemInstruction *CurrentInstruction;
+        totemActor *CurrentActor;
         totemRuntime *Runtime;
         totemRegister *Registers[2];
         size_t MaxLocalRegisters;
         size_t UsedLocalRegisters;
     }
     totemExecState;
-
+    
     typedef totemExecStatus(*totemNativeFunction)(totemExecState*);
-
+    
     totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress);
     void totemActor_Cleanup(totemActor *actor);
     
@@ -82,7 +97,7 @@ extern "C" {
     totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, size_t *addressOut);
     totemInternedStringHeader *totemRuntime_InternString(totemRuntime *runtime, totemString *str);
-
+    
     void totemRuntimeArray_DefRefCount(totemRuntimeArray *arr);
     totemExecStatus totemRuntimeArray_IncRefCount(totemRuntimeArray *arr);
     totemExecStatus totemRegister_Assign(totemRegister *dst, totemRegister *src);
@@ -95,6 +110,8 @@ extern "C" {
     totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, size_t functionAddress, totemRegister *returnRegister);
     totemExecStatus totemExecState_ExecInstruction(totemExecState *state);
     totemExecStatus totemExecState_ExecMove(totemExecState *state);
+    totemExecStatus totemExecState_ExecMoveToGlobal(totemExecState *state);
+    totemExecStatus totemExecState_ExecMoveToLocal(totemExecState *state);
     totemExecStatus totemExecState_ExecAdd(totemExecState *state);
     totemExecStatus totemExecState_ExecSubtract(totemExecState *state);
     totemExecStatus totemExecState_ExecMultiply(totemExecState *state);
@@ -114,7 +131,10 @@ extern "C" {
     totemExecStatus totemExecState_ExecNewArray(totemExecState *state);
     totemExecStatus totemExecState_ExecArrayGet(totemExecState *state);
     totemExecStatus totemExecState_ExecArraySet(totemExecState *state);
-            
+    
+    void totemRegister_Print(FILE *file, totemRegister *reg);
+    void totemRegister_PrintList(FILE *file, totemRegister *regs, size_t numRegisters);
+    
 #ifdef __cplusplus
 }
 #endif

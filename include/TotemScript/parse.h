@@ -16,43 +16,34 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    /*
-    got to do:
-        -- array set & array get (should eval appropiately)
-        -- garbage collection
-            1. when an array is created, it gets put on a list associated with current function scope
-            2. when function scope is exited, if ref count is <= 1, release
-            3. otherwise, escalate to exec state list
-            4. garbage collection traverses the list, looks for arrays that are either only circularly referenced or not at all, and eliminiates them
-    */
     
-/*
- grammatically parses a given string buffer and creates a tree structure that can then be eval()'d
- 
- variable = [ const-token ] variable-start-token [ colon-token identifier-token ] identifier-token
- string = double-quote-token { * } double-quote-token
- function-call = function-token identifier-token lbracket-token { expression } rbracket-token
- 
- new-array = lbracket array-accessor rbracket
- array-source = variable | function-call | new-array | array-member
- array-member = array-source lbracket expression rbracket
- 
- argument = variable | number-token | string | function-call | new-array
- 
- expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
- 
- while-loop = while-token expression lcbracket { statement } rcbracket-token
- for-loop = for-token lbracket statement statement statement rbracket rbracket lcbracket { statement } rcbracket-token
- do-while-loop = do-token lcbracket { statement } rcbracket while-token statement
- if-loop = if-token expression lcbracket { statement } rcbracket
- simple-statement = expression end-statement
- 
- statement = while-loop | for-loop | do-while-loop | if-loop | return | simple-statement
- function-declaration = identifier-token lbracket-token { variable } rbracket-token lcbracket-token { statement } rcbracket-token
-  
- block = function-declaration | statement
- script = { block } end-script-token
-*/
+    /*
+     grammatically parses a given string buffer and creates a tree structure that can then be eval()'d
+     
+     variable = [ const-token ] variable-start-token [ colon-token identifier-token ] identifier-token
+     string = double-quote-token { * } double-quote-token
+     function-call = function-token identifier-token lbracket-token { expression } rbracket-token
+     
+     new-array = lbracket array-accessor rbracket
+     array-source = variable | function-call | new-array | array-member
+     array-member = array-source lbracket expression rbracket
+     
+     argument = variable | number-token | string | function-call | new-array
+     
+     expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
+     
+     while-loop = while-token expression lcbracket { statement } rcbracket-token
+     for-loop = for-token lbracket statement statement statement rbracket rbracket lcbracket { statement } rcbracket-token
+     do-while-loop = do-token lcbracket { statement } rcbracket while-token statement
+     if-loop = if-token expression lcbracket { statement } rcbracket
+     simple-statement = expression end-statement
+     
+     statement = while-loop | for-loop | do-while-loop | if-loop | return | simple-statement
+     function-declaration = identifier-token lbracket-token { variable } rbracket-token lcbracket-token { statement } rcbracket-token
+     
+     block = function-declaration | statement
+     script = { block } end-script-token
+     */
     
     typedef enum
     {
@@ -92,7 +83,7 @@ extern "C" {
     totemParseStatus;
     
     const char *totemParseStatus_Describe(totemParseStatus status);
-        
+    
     typedef enum
     {
         totemArgumentType_Variable = 1,
@@ -103,7 +94,7 @@ extern "C" {
         totemArgumentType_NewArray
     }
     totemArgumentType;
-
+    
     typedef enum
     {
         totemPreUnaryOperatorType_None = 0,
@@ -113,7 +104,7 @@ extern "C" {
         totemPreUnaryOperatorType_LogicalNegate
     }
     totemPreUnaryOperatorType;
-
+    
     typedef enum
     {
         totemPostUnaryOperatorType_None = 0,
@@ -122,7 +113,7 @@ extern "C" {
         totemPostUnaryOperatorType_ArrayAccess
     }
     totemPostUnaryOperatorType;
-
+    
     typedef enum
     {
         totemBinaryOperatorType_None = 0,
@@ -144,7 +135,7 @@ extern "C" {
         totemBinaryOperatorType_LogicalOr
     }
     totemBinaryOperatorType;
-
+    
     typedef enum
     {
         totemStatementType_WhileLoop = 1,
@@ -155,21 +146,21 @@ extern "C" {
         totemStatementType_Simple
     }
     totemStatementType;
-
+    
     typedef enum
     {
         totemBlockType_FunctionDeclaration = 1,
         totemBlockType_Statement
     }
     totemBlockType;
-
+    
     typedef enum
     {
         totemLValueType_Expression = 1,
         totemLValueType_Argument
     }
     totemLValueType;
-
+    
     typedef enum
     {
         totemIfElseBlockType_None = 0,
@@ -177,7 +168,7 @@ extern "C" {
         totemIfElseBlockType_Else
     }
     totemIfElseBlockType;
-
+    
     typedef enum
     {
         totemTokenType_None = 0,
@@ -230,21 +221,21 @@ extern "C" {
     totemTokenType;
     
     const char *totemTokenType_Describe(totemTokenType type);
-
+    
     typedef struct
     {
         totemTokenType Type;
         const char *Value;
     }
     totemTokenDesc;
-
+    
     typedef struct
     {
         size_t LineNumber;
         size_t CharNumber;
     }
     totemBufferPositionInfo;
-
+    
     typedef struct
     {
         totemString Value;
@@ -252,7 +243,7 @@ extern "C" {
         totemTokenType Type;
     }
     totemToken;
-
+    
     typedef struct totemVariablePrototype
     {
         totemString Identifier;
@@ -261,9 +252,9 @@ extern "C" {
         totemBool IsConst;
     }
     totemVariablePrototype;
-        
+    
     struct totemExpressionPrototype;
-
+    
     typedef struct totemFunctionCallPrototype
     {
         struct totemExpressionPrototype *ParametersStart;
@@ -310,7 +301,7 @@ extern "C" {
         totemPostUnaryOperatorType Type;
     }
     totemPostUnaryOperatorPrototype;
-
+    
     typedef struct totemExpressionPrototype
     {
         union
@@ -330,9 +321,9 @@ extern "C" {
         totemBufferPositionInfo Position;
     }
     totemExpressionPrototype;
-        
+    
     struct totemStatementPrototype;
-
+    
     typedef struct
     {
         struct totemStatementPrototype *StatementsStart;
@@ -340,7 +331,7 @@ extern "C" {
         totemBufferPositionInfo Position;
     }
     totemWhileLoopPrototype;
-
+    
     typedef struct
     {
         struct totemStatementPrototype *StatementsStart;
@@ -350,14 +341,14 @@ extern "C" {
         totemBufferPositionInfo Position;
     }
     totemForLoopPrototype;
-
+    
     typedef struct
     {
         struct totemStatementPrototype *StatementsStart;
         totemBufferPositionInfo Position;
     }
     totemElseBlockPrototype;
-
+    
     typedef struct totemIfBlockPrototype
     {
         struct totemStatementPrototype *StatementsStart;
@@ -371,7 +362,7 @@ extern "C" {
         totemIfElseBlockType ElseType;
     }
     totemIfBlockPrototype;
-
+    
     typedef struct
     {
         struct totemStatementPrototype *StatementsStart;
@@ -379,7 +370,7 @@ extern "C" {
         totemBufferPositionInfo Position;
     }
     totemDoWhileLoopPrototype;
-
+    
     typedef struct
     {
         totemVariablePrototype *ParametersStart;
@@ -388,7 +379,7 @@ extern "C" {
         totemBufferPositionInfo Position;
     }
     totemFunctionDeclarationPrototype;
-
+    
     typedef struct totemStatementPrototype
     {
         union
@@ -405,7 +396,7 @@ extern "C" {
         totemStatementType Type;
     }
     totemStatementPrototype;
-
+    
     typedef struct totemBlockPrototype
     {
         union
@@ -418,7 +409,7 @@ extern "C" {
         totemBlockType Type;
     }
     totemBlockPrototype;
-
+    
     typedef struct
     {
         totemMemoryBuffer Tokens;
@@ -436,14 +427,24 @@ extern "C" {
     }
     totemParseTree;
     
+    typedef struct
+    {
+        totemMemoryBuffer Buffer;
+    }
+    totemScriptFile;
+    
     /**
      * Load script contents
      */
-    totemBool totemMemoryBuffer_LoadScriptFromFile(totemMemoryBuffer *dst, const char *srcPath, totemLoadScriptError *err);
+    void totemScriptFile_Init(totemScriptFile *file);
+    void totemScriptFile_Reset(totemScriptFile *file);
+    void totemScriptFile_Cleanup(totemScriptFile *file);
+    totemBool totemScriptFile_Load(totemScriptFile *dst, const char *srcPath, totemLoadScriptError *err);
     
     /**
      * Lex script into tokens
      */
+    void totemTokenList_Init(totemTokenList *list);
     void totemTokenList_Reset(totemTokenList *list);
     void totemTokenList_Cleanup(totemTokenList *list);
     
@@ -452,7 +453,7 @@ extern "C" {
     totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *token, const char *buffer);
     totemLexStatus totemTokenList_LexReservedWordToken(totemTokenList *list, const char *buffer, size_t length);
     totemLexStatus totemTokenList_LexNumberOrIdentifierToken(totemTokenList *list, const char *toCheck, size_t length);
-
+    
 #define TOTEM_LEX_ALLOC(dest, list) dest = totemTokenList_Alloc(list); if(!dest) return totemLexStatus_OutOfMemory;
     
     /**
@@ -491,7 +492,7 @@ extern "C" {
     
     void totemToken_Print(FILE *target, totemToken *token);
     void totemToken_PrintList(FILE *target, totemToken *token, size_t num);
-        
+    
 #ifdef __cplusplus
 }
 #endif

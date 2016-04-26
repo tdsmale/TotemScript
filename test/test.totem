@@ -1,20 +1,19 @@
 include test2.totem;
 
-/*
 function whileLoop()
 {
     print("While Loop");
     print("---");
 
-    $a = 10;
+    $c = 10;
 
-    while($a)
+    while($c)
     {
-        print($a);
-        $a--;
+        print($c);
+        $c--;
     }
 
-    print($a);
+    print($c);
     print("---");
 }
 
@@ -74,10 +73,10 @@ function intFloat()
 {
     print("Int Float Test");
     print("---");
-    $a = 1;
-    print($a);
+    $f = 1;
+    print($f);
 
-    $b = $a + 0.5;
+    $b = $f + 0.5;
     print($b);
 
     $c = 12.4;
@@ -92,24 +91,23 @@ function nullTest()
 {
     print("Null Test");
     print("---");
-    $a = null;
-    print($a);
+    $g = null;
+    print($g);
     print("---");
-}*/
+}
 
 function test()
 {
-    stringTest();   
+    moveToLocalTest();
+
+    includeTest(1 + 2);
+    constTest();
     arrayTest();
-    //constTest();
-    //includeTest($x);
-    /*
-    print("Hello, World!");
+    stringTest();
     whileLoop();
     doWhileLoop();
     forLoop();
+    ifBlock();
     intFloat();
     nullTest();
-    ifBlock();
-    */
 }

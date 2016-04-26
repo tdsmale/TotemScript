@@ -18,82 +18,81 @@
 extern "C" {
 #endif
     
-/**
- * Register-based
- * There is a global stack for global variables & constants (strings mainly) that is unique to each instantiation of a compiled script
- *
- * Registers are 64-bit & can store:
- *  - 64-bit floating point number
- *  - 64-bit int
- *  - reference to immutable string, stored in global lookup table
- *  - reference to fixed-sized, garbage-collected, bounds-checked array
- *  - function pointer
- *  - null
- * 
- * Basic arithmetic can only be applied to numbers
- * 
- * String constants are stored as normal C strings, but are immutable, and are accessed via reference
- * Registers are passed by value
- *
- * 32-bit instruction size
- * 
- -----------------------------------------------------------------------
- |0    4|5                 13|14                22|23                31|
- -----------------------------------------------------------------------
- |OPTYPE|OPERANDA            |OPERANDB            |OPERANDC            | ABCInstruction
- -----------------------------------------------------------------------
- |5     |9                   |9                   |9                   |
- -----------------------------------------------------------------------
- 
- Operands can have two formats:
- 
- 1. Registers:
- ---------------------------
- |0        1|2            9|
- ---------------------------
- |IS GLOBAL?|REGISTER INDEX|
- ---------------------------
- |1         |8             |
- ---------------------------
-  first bit indicates if it is a global register or not
-  next eight bits are the register index
- 
- 2. Values:
- ---------------------------
- |0                       9|
- ---------------------------
- |VALUE                    |
- ---------------------------
- |9                        |
- ---------------------------
-  some operations prefer to utilise the entire 9 bit value
-  
-  
- Register Headers
- -------------------------------
- |0      3|4                 15|
- -------------------------------
- |DATATYPE|STACKSIZE           |
- -------------------------------
- |4       |12                  |
- -------------------------------
- 
- -----------------------------------------------------------------------
- |0    4|5                                                           31|
- -----------------------------------------------------------------------
- |OPTYPE|OPERANDAxx                                                    | AxxInstruction
- -----------------------------------------------------------------------
- |5     |27                                                            |
- -----------------------------------------------------------------------
- 
- -----------------------------------------------------------------------
- |0    4|5                 13|14                                     31|
- -----------------------------------------------------------------------
- |OPTYPE|OPERANDA            |OPERANDBx                                | ABxInstruction
- -----------------------------------------------------------------------
- |5     |9                   |18                                       |
- -----------------------------------------------------------------------
-*/
+    /**
+     * Register-based
+     
+     * Registers are 64-bit & can store:
+     *  - 64-bit floating point number
+     *  - 64-bit int
+     *  - reference to immutable string, stored in global lookup table
+     *  - reference to fixed-sized, garbage-collected, bounds-checked array
+     *  - function pointer
+     *  - null
+     *
+     * Basic arithmetic can only be applied to numbers
+     *
+     * String constants are stored as normal C strings, but are immutable, and are accessed via reference
+     * Registers are passed by value
+     *
+     * 32-bit instruction size
+     *
+     -----------------------------------------------------------------------
+     |0    4|5                 13|14                22|23                31|
+     -----------------------------------------------------------------------
+     |OPTYPE|OPERANDA            |OPERANDB            |OPERANDC            | ABCInstruction
+     -----------------------------------------------------------------------
+     |5     |9                   |9                   |9                   |
+     -----------------------------------------------------------------------
+     
+     Operands can have two formats:
+     
+     1. Registers:
+     ---------------------------
+     |0        1|2            9|
+     ---------------------------
+     |IS GLOBAL?|REGISTER INDEX|
+     ---------------------------
+     |1         |8             |
+     ---------------------------
+     first bit indicates if it is a global register or not
+     next eight bits are the register index
+     
+     2. Values:
+     ---------------------------
+     |0                       9|
+     ---------------------------
+     |VALUE                    |
+     ---------------------------
+     |9                        |
+     ---------------------------
+     some operations prefer to utilise the entire 9 bit value
+     
+     
+     Register Headers
+     -------------------------------
+     |0      3|4                 15|
+     -------------------------------
+     |DATATYPE|STACKSIZE           |
+     -------------------------------
+     |4       |12                  |
+     -------------------------------
+     
+     -----------------------------------------------------------------------
+     |0    4|5                                                           31|
+     -----------------------------------------------------------------------
+     |OPTYPE|OPERANDAxx                                                    | AxxInstruction
+     -----------------------------------------------------------------------
+     |5     |27                                                            |
+     -----------------------------------------------------------------------
+     
+     -----------------------------------------------------------------------
+     |0    4|5                 13|14                                     31|
+     -----------------------------------------------------------------------
+     |OPTYPE|OPERANDA            |OPERANDBx                                | ABxInstruction
+     -----------------------------------------------------------------------
+     |5     |9                   |18                                       |
+     -----------------------------------------------------------------------
+     */
     
 #define TOTEM_ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 #define TOTEM_STRINGIFY_CASE(x) case x: return #x
@@ -111,7 +110,7 @@ extern "C" {
 #define TOTEM_MAXVAL_SIGNED(numBits) ((totemOperandXSigned)TOTEM_MAXVAL_UNSIGNED((numBits) - 1))
 #define TOTEM_MINVAL_SIGNED(numBits) (-(TOTEM_MAXVAL_SIGNED(numBits)) - 1)
 #define TOTEM_NUMBITS(type) (sizeof(type) * CHAR_BIT)
-
+    
     typedef enum
     {
         totemBool_True = 1,
@@ -126,7 +125,7 @@ extern "C" {
     }
     totemReturnOption;
     
-    typedef uint8_t totemRegisterIndex;
+    typedef uint8_t totemLocalRegisterIndex;
     typedef int32_t totemOperandXSigned;
     typedef uint32_t totemOperandXUnsigned;
     typedef double totemFloat;
@@ -137,7 +136,7 @@ extern "C" {
     typedef uint32_t totemStringLength;
     
     totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t numBits);
-
+    
     typedef struct
     {
         const char *Value;
@@ -165,7 +164,7 @@ extern "C" {
     }
     totemInternedStringHeader;
     const char *totemInternedStringHeader_GetString(totemInternedStringHeader *hdr);
-
+    
     typedef union
     {
         totemFloat Float;
@@ -176,7 +175,7 @@ extern "C" {
         uint64_t Data;
     }
     totemRegisterValue;
-
+    
     enum
     {
         totemDataType_Null = 0,
@@ -195,7 +194,7 @@ extern "C" {
         totemDataType DataType;
     }
     totemRegister;
-
+    
     typedef enum
     {
         totemFunctionType_Script,
@@ -239,7 +238,7 @@ extern "C" {
     };
     typedef uint8_t totemOperationType;
     const char *totemOperationType_Describe(totemOperationType op);
-
+    
     /**
      * Instruction Format
      */
@@ -251,7 +250,7 @@ extern "C" {
     }
     totemInstructionType;
     totemInstructionType totemOperationType_GetInstructionType(totemOperationType op);
-
+    
     enum
     {
         totemInstructionSize_Op = 5,
@@ -270,40 +269,32 @@ extern "C" {
         totemInstructionStart_B = 14,
         totemInstructionStart_C = 23
     };
-
+    
 #define TOTEM_OPERANDX_SIGNED_MAX TOTEM_MAXVAL_SIGNED(totemInstructionSize_Bx)
 #define TOTEM_OPERANDX_SIGNED_MIN TOTEM_MINVAL_SIGNED(totemInstructionSize_Bx)
 #define TOTEM_OPERANDX_UNSIGNED_MAX TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Bx)
 #define TOTEM_OPERANDX_UNSIGNED_MIN TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Bx)
-
+    
 #define TOTEM_MAX_NATIVEFUNCTIONS TOTEM_OPERANDX_UNSIGNED_MAX
 #define TOTEM_MAX_SCRIPTFUNCTIONS TOTEM_OPERANDX_UNSIGNED_MAX
-#define TOTEM_MAX_REGISTERS TOTEM_MAXVAL_UNSIGNED(totemOperandSize_RegisterIndex)
+#define TOTEM_MAX_LOCAL_REGISTERS TOTEM_MAXVAL_UNSIGNED(totemOperandSize_RegisterIndex)
+#define TOTEM_MAX_GLOBAL_REGISTERS TOTEM_OPERANDX_UNSIGNED_MAX
     
-    enum
+    typedef enum
     {
         totemOperandType_LocalRegister = 0,
         totemOperandType_GlobalRegister = 1
     }
     totemOperandType;
-        
-    enum
+    
+    typedef enum
     {
         totemOperandSize_RegisterType = 1,
         totemOperandSize_RegisterIndex = 8
     }
     totemOperandSize;
     
-    enum
-    {
-        totemRegisterScopeType_Local = 0,
-        totemRegisterScopeType_Global = 1
-    };
-    typedef uint8_t totemRegisterScopeType;
-    const char *totemRegisterScopeType_GetOperandTypeCode(totemRegisterScopeType type);
-    
     typedef uint32_t totemInstruction;
-    
     void totemInstruction_PrintBits(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAbcBits(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAbxBits(FILE *file, totemInstruction instruction);
@@ -352,17 +343,16 @@ extern "C" {
     
     typedef void *(*totemMallocCb)(size_t);
     typedef void (*totemFreeCb)(void*);
-    typedef uint32_t (*totemHashCb)(const char*, size_t);
-
+    typedef uint32_t (*totemHashCb)(const void*, size_t);
+    
     void *totem_CacheMalloc(size_t len);
     void totem_CacheFree(void *ptr, size_t len);
-
-    void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start);
-    void totem_Exit(int code);
-    const char *totem_getcwd();
-    void totem_freecwd(const char* cwd);
     
-    uint32_t totem_Hash(const char *data, size_t len);
+    void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start);
+    const char *totem_getcwd();
+    void totem_freecwd(const char *cwd);
+    
+    uint32_t totem_Hash(const void *data, size_t len);
     void totem_SetMemoryCallbacks(totemMallocCb malloc, totemFreeCb free);
     void totem_SetHashCallback(totemHashCb hash);
     
@@ -375,16 +365,18 @@ extern "C" {
     }
     totemMemoryBuffer;
     
+    void totemMemoryBuffer_Init(totemMemoryBuffer *buffer, size_t objectSize);
+    void totemMemoryBuffer_Reset(totemMemoryBuffer *buffer);
+    void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer);
     void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount);
     void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t amount);
+    void *totemMemoryBuffer_TakeFrom(totemMemoryBuffer *buffer, totemMemoryBuffer *from);
     size_t totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount);
     void *totemMemoryBuffer_Top(totemMemoryBuffer *buffer);
     void *totemMemoryBuffer_Bottom(totemMemoryBuffer *buffer);
     void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index);
     size_t totemMemoryBuffer_GetNumObjects(totemMemoryBuffer *buffer);
     size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer);
-    void totemMemoryBuffer_Reset(totemMemoryBuffer *buffer, size_t objectSize);
-    void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer);
     
 #define TOTEM_MEMORYBLOCK_DATASIZE (512)
     
@@ -401,7 +393,7 @@ extern "C" {
     
     typedef struct totemHashMapEntry
     {
-        const char *Key;
+        const void *Key;
         size_t KeyLen;
         totemHash Hash;
         totemHashValue Value;
@@ -418,25 +410,14 @@ extern "C" {
     }
     totemHashMap;
     
-    totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *Key, size_t KeyLen, totemHashValue Value);
-    totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const char *key, size_t keyLen, totemHashValue value, totemHash hash);
-    totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *Key, size_t keyLen);
+    void totemHashMap_Init(totemHashMap *hashmap);
     void totemHashMap_Reset(totemHashMap *hashmap);
     void totemHashMap_Cleanup(totemHashMap *hashmap);
-    
-    typedef struct
-    {
-        totemMemoryBuffer Registers;
-        totemMemoryBuffer RegisterFreeList;
-        totemMemoryBuffer GlobalRegisterStrings;
-        totemHashMap Variables;
-        totemHashMap Strings;
-        totemHashMap Numbers;
-        totemRegisterIndex NullIndex;
-        totemBool HasNull;
-        totemRegisterScopeType Scope;
-    }
-    totemRegisterListPrototype;
+    totemBool totemHashMap_TakeFrom(totemHashMap *hashmap, totemHashMap *from);
+    totemBool totemHashMap_Insert(totemHashMap *hashmap, const void *Key, size_t KeyLen, totemHashValue Value);
+    totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash);
+    totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *Key, size_t KeyLen);
+    totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *Key, size_t keyLen);
     
     typedef struct
     {
@@ -448,53 +429,37 @@ extern "C" {
     typedef struct totemFunctionCall
     {
         struct totemFunctionCall *Prev;
-        totemActor *Actor;
         totemRegister *ReturnRegister;
-        totemRegister *RegisterFrameStart;
+        totemRegister *PreviousFrameStart;
+        totemRegister *FrameStart;
         totemInstruction *ResumeAt;
         size_t FunctionHandle;
         totemFunctionType Type;
+        uint8_t NumRegisters;
         uint8_t NumArguments;
     }
     totemFunctionCall;
     
     typedef struct
     {
-        totemMemoryBuffer NativeFunctions;
-        totemMemoryBuffer Scripts;
-
-        // todo: persistent memory for these
-        totemHashMap ScriptLookup;
-        totemHashMap NativeFunctionsLookup;
-        totemHashMap InternedStrings;
-        
-        totemFunctionCall *FunctionCallFreeList;
-    }
-    totemRuntime;
-    
-    typedef struct
-    {
-        totemRegisterListPrototype GlobalRegisters;
-        totemHashMap FunctionLookup;
-        totemHashMap NativeFunctionNamesLookup;
-        totemMemoryBuffer Functions;
-        totemMemoryBuffer Instructions;
-        totemMemoryBuffer NativeFunctionCallInstructions;
-        totemMemoryBuffer NativeFunctionNames;
-        void *ErrorContext;
-    }
-    totemBuildPrototype;
-    
-    typedef struct
-    {
         size_t InstructionsStart;
-        size_t RegistersNeeded;
+        uint8_t RegistersNeeded;
         totemString Name;
     }
     totemFunction;
-
+    
+    void totem_Init();
+    void totem_InitMemory();
+    
+    void totem_Cleanup();
+    void totem_CleanupMemory();
+    
+    FILE *totem_fopen(const char *str, const char *mode);
+    totemBool totem_fchdir(FILE *file);
+    totemBool totem_chdir(const char *str);
+    
 #ifdef __cplusplus
 }
 #endif
-    
+
 #endif

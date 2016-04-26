@@ -10,78 +10,40 @@
 #include <string.h>
 #include <TotemScript/totem.h>
 
-void totemPrintRegister(totemRegister *reg, totemExecState *state, size_t indent)
-{
-    switch(reg->DataType)
-    {
-        case totemDataType_InternedString:
-            printf("%s %.*s (%i) \n", totemDataType_Describe(reg->DataType), reg->Value.InternedString->Length, totemInternedStringHeader_GetString(reg->Value.InternedString), reg->Value.InternedString->Length);
-            break;
-            
-        case totemDataType_Array:
-        {
-            indent += 5;
-            totemRuntimeArray *arr = reg->Value.Array;
-            printf("array[%u] {\n", arr->NumRegisters);
-            
-            for(totemInt i = 0; i < arr->NumRegisters; ++i)
-            {
-                for(size_t i = 0; i < indent; i++)
-                {
-                    printf(" ");
-                }
-                
-                printf("%lld: ", i);
-                
-                totemRegister *val = &arr->Registers[i];
-                totemPrintRegister(val, state, indent);
-            }
-            
-            indent -= 5;
-            
-            for(size_t i = 0; i < indent; i++)
-            {
-                printf(" ");
-            }
-            
-            printf("}\n");
-            break;
-        }
-            
-        default:
-            printf("%s %f %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Float, reg->Value.Int);
-            break;
-    }
-}
-
 totemExecStatus totemPrint(totemExecState *state)
 {
-    totemRegister *reg = &state->CallStack->RegisterFrameStart[0];
-    totemPrintRegister(reg, state, 0);
+    totemRegister *reg = &state->Registers[totemOperandType_LocalRegister][0];
+    totemRegister_Print(stdout, reg);
     return totemExecStatus_Continue;
 }
 
 int main(int argc, const char * argv[])
 {
+    totem_Init();
+    
     // load file
-    totemMemoryBuffer scriptContents;
+    totemScriptFile scriptContents;
+    totemScriptFile_Init(&scriptContents);
+    
     totemLoadScriptError err;
-    if(totemMemoryBuffer_LoadScriptFromFile(&scriptContents, "test.totem", &err) != totemBool_True)
+    if(totemScriptFile_Load(&scriptContents, "test.totem", &err) != totemBool_True)
     {
         printf("Load script error: %s: %.*s\n", totemLoadScriptStatus_Describe(err.Status), err.Description.Length, err.Description.Value);
-        return 1;
+        return EXIT_FAILURE;
     }
     
-    for(uint32_t i = 0; i < scriptContents.Length; i++)
+    printf("******\n");
+    printf("Script:\n");
+    printf("******\n");
+    for(size_t i = 0; i < scriptContents.Buffer.Length; i++)
     {
-        printf("%c", scriptContents.Data[i]);
+        printf("%c", scriptContents.Buffer.Data[i]);
     }
     
     printf("\n");
     
     // init runtime
     totemRuntime runtime;
-    memset(&runtime, 0, sizeof(totemRuntime));
     totemRuntime_Init(&runtime);
     
     // link print function
@@ -92,50 +54,47 @@ int main(int argc, const char * argv[])
     if(linkStatus != totemLinkStatus_Success)
     {
         printf("Could not register print: %s\n", totemLinkStatus_Describe(linkStatus));
-        return 1;
+        return EXIT_FAILURE;
     }
     
     // lex
     totemTokenList tokens;
-    memset(&tokens, 0, sizeof(totemTokenList));
-    totemTokenList_Reset(&tokens);
+    totemTokenList_Init(&tokens);
     
-    totemLexStatus lexStatus = totemTokenList_Lex(&tokens, scriptContents.Data, scriptContents.Length);
+    totemLexStatus lexStatus = totemTokenList_Lex(&tokens, scriptContents.Buffer.Data, scriptContents.Buffer.Length);
     if(lexStatus != totemLexStatus_Success)
     {
         printf("Lex error: %s\n", totemLexStatus_Describe(lexStatus));
         return 1;
     }
     
+    printf("******\n");
+    printf("Tokens:\n");
+    printf("******\n");
     totemToken_PrintList(stdout, (totemToken*)tokens.Tokens.Data, totemMemoryBuffer_GetNumObjects(&tokens.Tokens));
     
     // parse
     totemParseTree parseTree;
-    memset(&parseTree, 0, sizeof(totemParseTree));
     totemParseTree_Init(&parseTree);
     
     totemParseStatus parseStatus = totemParseTree_Parse(&parseTree, &tokens);
     if(parseStatus != totemParseStatus_Success)
     {
         printf("Parse error %s (%s) at %.*s \n", totemParseStatus_Describe(parseStatus), totemTokenType_Describe(parseTree.CurrentToken->Type), 50, parseTree.CurrentToken->Value.Value);
-        return 1;
+        return EXIT_FAILURE;
     }
     
     // eval
     totemBuildPrototype build;
-    memset(&build, 0, sizeof(totemBuildPrototype));
     totemBuildPrototype_Init(&build);
     
     totemEvalStatus evalStatus = totemBuildPrototype_Eval(&build, &parseTree);
     if(evalStatus != totemEvalStatus_Success)
     {
         printf("Eval error %s\n", totemEvalStatus_Describe(evalStatus));
-        return 1;
+        return EXIT_FAILURE;
     }
     
-    totemInstruction_PrintList(stdout, totemMemoryBuffer_Get(&build.Instructions, 0), totemMemoryBuffer_GetNumObjects(&build.Instructions));
-    printf("\n");
-
     // link
     totemString scriptName;
     totemString_FromLiteral(&scriptName, "TotemTest");
@@ -144,38 +103,52 @@ int main(int argc, const char * argv[])
     if(linkStatus != totemLinkStatus_Success)
     {
         printf("Could not register script: %s\n", totemLinkStatus_Describe(linkStatus));
-        return 1;
+        return EXIT_FAILURE;
     }
+    
+    printf("******\n");
+    printf("Instructions:\n");
+    printf("******\n");
+    totemInstruction_PrintList(stdout, totemMemoryBuffer_Get(&build.Instructions, 0), totemMemoryBuffer_GetNumObjects(&build.Instructions));
+    printf("\n");
     
     // init
     totemActor actor;
-    memset(&actor, 0, sizeof(totemActor));
     if(totemActor_Init(&actor, &runtime, scriptAddr) != totemExecStatus_Continue)
     {
         printf("Could not create actor\n");
-        return 1;
+        return EXIT_FAILURE;
     }
     
+    printf("******\n");
+    printf("Globals:\n");
+    printf("******\n");
+    totemRegister_PrintList(stdout, totemMemoryBuffer_Get(&actor.GlobalRegisters, 0), totemMemoryBuffer_GetNumObjects(&actor.GlobalRegisters));
+    printf("\n");
+    
     totemExecState execState;
-    memset(&execState, 0, sizeof(totemExecState));
     if(!totemExecState_Init(&execState, &runtime, 4096))
     {
         printf("Could not create exec state\n");
-        return 1;
+        return EXIT_FAILURE;
     }
     
     totemScript *script = totemMemoryBuffer_Get(&runtime.Scripts, scriptAddr);
     totemHashMapEntry *function = totemHashMap_Find(&script->FunctionNameLookup, "test", 4);
-
+    
     totemRegister returnRegister;
     memset(&returnRegister, 0, sizeof(totemRegister));
+    
+    printf("******\n");
+    printf("Run:\n");
+    printf("******\n");
     
     // init global vars
     totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, 0, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));
-        return 1;
+        return EXIT_FAILURE;
     }
     
     // run test
@@ -183,7 +156,7 @@ int main(int argc, const char * argv[])
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));
-        return 1;
+        return EXIT_FAILURE;
     }
     
     // free
@@ -195,7 +168,9 @@ int main(int argc, const char * argv[])
     totemTokenList_Cleanup(&tokens);
     
     totemRuntime_Cleanup(&runtime);
-    totemMemoryBuffer_Cleanup(&scriptContents);
+    totemScriptFile_Cleanup(&scriptContents);
+    
+    totem_Cleanup();
     
     return 0;
 }

@@ -8,9 +8,32 @@
 
 #include <TotemScript/base.h>
 #include <TotemScript/parse.h>
+#include <TotemScript/exec.h>
 #include <string.h>
-#include <unistd.h>
 #include <errno.h>
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <direct.h>
+#include <io.h>
+#include <Shlwapi.h>
+
+#define getcwd _getcwd
+#define PATH_MAX ((_MAX_PATH) * sizeof(WCHAR))
+#define TOTEM_FCHDIR_TOALLOCATE (PATH_MAX + sizeof(FILE_NAME_INFO) + (sizeof(WCHAR) * 3))
+
+#endif
+
+#ifdef __APPLE__
+#include <unistd.h>
+#include <sys/syslimits.h>
+#include <fcntl.h>
+#include <sys/param.h>
+#include <dirent.h>
+
+#endif
+
+#define TOTEM_SCOPE_CHAR(x) (x) == totemOperandType_GlobalRegister ? 'g' : 'l'
 
 static totemHashCb hashCb = NULL;
 
@@ -19,17 +42,19 @@ void totem_SetGlobalCallbacks(totemHashCb newHashCb)
     hashCb = newHashCb;
 }
 
-uint32_t totem_Hash(const char *data, size_t len)
+uint32_t totem_Hash(const void *data, size_t len)
 {
     if(hashCb)
     {
         return hashCb(data, len);
     }
     
+    const char *ptr = data;
+    
     uint32_t hash = 5831;
     for(uint32_t i = 0; i < len; ++i)
     {
-        hash = 33 * hash + data[i];
+        hash = 33 * hash + ptr[i];
     }
     
     return hash;
@@ -55,30 +80,32 @@ const char *totemOperationType_Describe(totemOperationType op)
 {
     switch (op)
     {
-        TOTEM_STRINGIFY_CASE(totemOperationType_Add);
-        TOTEM_STRINGIFY_CASE(totemOperationType_ConditionalGoto);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Divide);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Equals);
-        TOTEM_STRINGIFY_CASE(totemOperationType_FunctionArg);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Goto);
-        TOTEM_STRINGIFY_CASE(totemOperationType_LessThan);
-        TOTEM_STRINGIFY_CASE(totemOperationType_LessThanEquals);
-        TOTEM_STRINGIFY_CASE(totemOperationType_LogicalAnd);
-        TOTEM_STRINGIFY_CASE(totemOperationType_LogicalOr);
-        TOTEM_STRINGIFY_CASE(totemOperationType_MoreThan);
-        TOTEM_STRINGIFY_CASE(totemOperationType_MoreThanEquals);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Move);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Multiply);
-        TOTEM_STRINGIFY_CASE(totemOperationType_NativeFunction);
-        TOTEM_STRINGIFY_CASE(totemOperationType_None);
-        TOTEM_STRINGIFY_CASE(totemOperationType_NotEquals);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Power);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Return);
-        TOTEM_STRINGIFY_CASE(totemOperationType_ScriptFunction);
-        TOTEM_STRINGIFY_CASE(totemOperationType_Subtract);
-        TOTEM_STRINGIFY_CASE(totemOperationType_ArrayGet);
-        TOTEM_STRINGIFY_CASE(totemOperationType_ArraySet);
-        TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Add);
+            TOTEM_STRINGIFY_CASE(totemOperationType_ConditionalGoto);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Divide);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Equals);
+            TOTEM_STRINGIFY_CASE(totemOperationType_FunctionArg);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Goto);
+            TOTEM_STRINGIFY_CASE(totemOperationType_LessThan);
+            TOTEM_STRINGIFY_CASE(totemOperationType_LessThanEquals);
+            TOTEM_STRINGIFY_CASE(totemOperationType_LogicalAnd);
+            TOTEM_STRINGIFY_CASE(totemOperationType_LogicalOr);
+            TOTEM_STRINGIFY_CASE(totemOperationType_MoreThan);
+            TOTEM_STRINGIFY_CASE(totemOperationType_MoreThanEquals);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Move);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Multiply);
+            TOTEM_STRINGIFY_CASE(totemOperationType_NativeFunction);
+            TOTEM_STRINGIFY_CASE(totemOperationType_None);
+            TOTEM_STRINGIFY_CASE(totemOperationType_NotEquals);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Power);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Return);
+            TOTEM_STRINGIFY_CASE(totemOperationType_ScriptFunction);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Subtract);
+            TOTEM_STRINGIFY_CASE(totemOperationType_ArrayGet);
+            TOTEM_STRINGIFY_CASE(totemOperationType_ArraySet);
+            TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
+            TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
+            TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
     }
     
     return "UNKNOWN";
@@ -88,10 +115,11 @@ const char *totemDataType_Describe(totemDataType type)
 {
     switch(type)
     {
-        TOTEM_STRINGIFY_CASE(totemDataType_Null);
-        TOTEM_STRINGIFY_CASE(totemDataType_Float);
-        TOTEM_STRINGIFY_CASE(totemDataType_Int);
-        TOTEM_STRINGIFY_CASE(totemDataType_InternedString);
+            TOTEM_STRINGIFY_CASE(totemDataType_Null);
+            TOTEM_STRINGIFY_CASE(totemDataType_Float);
+            TOTEM_STRINGIFY_CASE(totemDataType_Int);
+            TOTEM_STRINGIFY_CASE(totemDataType_InternedString);
+            TOTEM_STRINGIFY_CASE(totemDataType_Array);
     }
     
     return "UNKNOWN";
@@ -106,6 +134,8 @@ totemInstructionType totemOperationType_GetInstructionType(totemOperationType op
         case totemOperationType_NativeFunction:
         case totemOperationType_ScriptFunction:
         case totemOperationType_Return:
+        case totemOperationType_MoveToGlobal:
+        case totemOperationType_MoveToLocal:
             return totemInstructionType_Abx;
             
         case totemOperationType_Goto:
@@ -147,23 +177,23 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
 
 void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instruction)
 {
-    fprintf(file, "%08x %s a:%s%d b:%s%d c:%s%d\n",
+    fprintf(file, "%08x %s a:%c%d b:%c%d c:%c%d\n",
             instruction,
             totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
-            totemRegisterScopeType_GetOperandTypeCode(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
-            totemRegisterScopeType_GetOperandTypeCode(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
+            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction),
-            totemRegisterScopeType_GetOperandTypeCode(TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)),
+            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction));
 }
 
 void totemInstruction_PrintAbxInstruction(FILE *file, totemInstruction instruction)
 {
-    fprintf(file, "%08x %s a:%s%d bx:%08x\n",
+    fprintf(file, "%08x %s a:%c%d bx:%08x\n",
             instruction,
             totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
-            totemRegisterScopeType_GetOperandTypeCode(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
             TOTEM_INSTRUCTION_GET_BX_UNSIGNED(instruction));
 }
@@ -227,18 +257,76 @@ void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction)
     fprintf(file, "\n");
 }
 
-const char *totemRegisterScopeType_GetOperandTypeCode(totemRegisterScopeType type)
+void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
 {
-    switch(type)
+    switch(reg->DataType)
     {
-        case totemRegisterScopeType_Global:
-            return "g";
+        case totemDataType_InternedString:
+            fprintf(file, "%s \"%.*s\" (%i) \n",
+                    totemDataType_Describe(reg->DataType),
+                    reg->Value.InternedString->Length,
+                    totemInternedStringHeader_GetString(reg->Value.InternedString),
+                    reg->Value.InternedString->Length);
+            break;
             
-        case totemRegisterScopeType_Local:
-            return "l";
+        case totemDataType_Array:
+        {
+            indent += 5;
+            totemRuntimeArray *arr = reg->Value.Array;
+            fprintf(file, "array[%u] {\n", arr->NumRegisters);
+            
+            for(totemInt i = 0; i < arr->NumRegisters; ++i)
+            {
+                for(size_t i = 0; i < indent; i++)
+                {
+                    fprintf(file, " ");
+                }
+                
+                fprintf(file, "%lld: ", i);
+                
+                totemRegister *val = &arr->Registers[i];
+                totemRegister_PrintRecursive(file, val, indent);
+            }
+            
+            indent -= 5;
+            
+            for(size_t i = 0; i < indent; i++)
+            {
+                fprintf(file, " ");
+            }
+            
+            fprintf(file, "}\n");
+            break;
+        }
+            
+        case totemDataType_Float:
+            fprintf(file, "%s %f\n", totemDataType_Describe(reg->DataType), reg->Value.Float);
+            break;
+            
+        case totemDataType_Int:
+            fprintf(file, "%s %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Int);
+            break;
+            
+        case totemDataType_Null:
+            fprintf(file, "%s\n", totemDataType_Describe(reg->DataType));
+            break;
             
         default:
-            return "x";
+            fprintf(file, "%s %d %f %lli %p\n", totemDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.Array);
+            break;
+    }
+}
+
+void totemRegister_Print(FILE *file, totemRegister *reg)
+{
+    totemRegister_PrintRecursive(file, reg, 0);
+}
+
+void totemRegister_PrintList(FILE *file, totemRegister *regs, size_t numRegs)
+{
+    for(size_t i = 0; i < numRegs; i++)
+    {
+        totemRegister_Print(file, &regs[i]);
     }
 }
 
@@ -249,11 +337,6 @@ void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start
     {
         fprintf(file, "%i", TOTEM_GETBITS_OFFSET(data, TOTEM_BITMASK(i, 1), i));
     }
-}
-
-void totem_Exit(int code)
-{
-    exit(code);
 }
 
 totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t numBits)
@@ -277,7 +360,7 @@ void totem_freecwd(const char *cwd)
 const char *totem_getcwd()
 {
     size_t size = PATH_MAX + 1;
-
+    
     char *buffer = totem_CacheMalloc(size);
     if(getcwd(buffer, size) == buffer)
     {
@@ -285,4 +368,107 @@ const char *totem_getcwd()
     }
     
     return NULL;
+}
+
+void totem_Init()
+{
+    totem_InitMemory();
+}
+
+void totem_Cleanup()
+{
+    totem_CleanupMemory();
+}
+
+FILE *totem_fopen(const char *path, const char *mode)
+{
+#ifdef _WIN32
+    FILE *result = NULL;
+    if(fopen_s(&result, path, mode) == 0)
+    {
+        return result;
+    }
+    
+    return NULL;
+#else
+    return fopen(path, mode);
+#endif
+}
+
+totemBool totem_chdir(const char *str)
+{
+#ifdef _WIN32
+    return _chdir(str) == 0;
+#else
+    return chdir(str) == 0;
+#endif
+}
+
+totemBool totem_fchdir(FILE *file)
+{
+#ifdef _WIN32
+    HANDLE handle = (HANDLE)_get_osfhandle(_fileno(file));
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        return totemBool_False;
+    }
+    
+    WCHAR buffer[PATH_MAX];
+    LPWSTR filename = buffer;
+    
+    DWORD length = GetFinalPathNameByHandle(handle, filename, TOTEM_ARRAYSIZE(buffer), VOLUME_NAME_DOS | FILE_NAME_NORMALIZED);
+    if (length < TOTEM_ARRAYSIZE(buffer))
+    {
+        // skip \\?\ prefix
+        LPWSTR toSkip = L"\\\\?\\";
+        size_t toSkipLen = wcslen(toSkip);
+        if (wcsstr(filename, toSkip) == filename)
+        {
+            filename += toSkipLen;
+        }
+        
+        size_t len = wcslen(filename);
+        
+        for(WCHAR *c = filename + len - 1; c >= filename; c--)
+        {
+            if(c[0] == '/' || c[0] == '\\')
+            {
+                *c = 0;
+                break;
+            }
+        }
+        
+        if(_wchdir(filename) == 0)
+        {
+            return totemBool_True;
+        }
+    }
+    
+    return totemBool_False;
+#endif
+#ifdef __APPLE__
+    int no = fileno(file);
+    
+    char filePath[MAXPATHLEN];
+    if (fcntl(no, F_GETPATH, filePath) != -1)
+    {
+        size_t len = strnlen(filePath, MAXPATHLEN);
+        
+        for(char *c = filePath + len - 1; c >= filePath; c--)
+        {
+            if(c[0] == '/' || c[0] == '\\')
+            {
+                *c = 0;
+                break;
+            }
+        }
+        
+        if(chdir(filePath) == 0)
+        {
+            return totemBool_True;
+        }
+    }
+    
+    return totemBool_False;
+#endif
 }

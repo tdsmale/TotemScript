@@ -1,45 +1,80 @@
-/*$x = "It Works! YAY";
+$x = "It Works! YAY";
 
 $y = 0;
 
 for($y = 0; $y < 10; $y++)
 {
-
+    print($y);
 }
 
 function includeTest($z)
 {
+    print("INCLUDE TEST");
+    print("---");
     print($z);
     print($y);
+    print("---");
 }
 
 function constTest()
 {
+    print("CONST TEST");
+    print("---");
     const $xw = 123;
     print($xw);
-}*/
+    print("---");
+}
 
 function arrayTest()
 {
-    $a = [10];
-    $a[3] = 12;
-    $a[0] = 1 * 2 + $a[3] * 4;
+    print("ARRAY TEST");
+    print("---");
+    $r = [10];
+    print("1");
+    $r[3] = 12;
+    print("2");
+    $r[0] = 1 * 2 + $r[3] * 4;
+    print("3");
 
-    $a[4] = [20];
-    $a[4][15] = 12345;
+    $r[4] = [20];
+    print("4");
+    $r[4][15] = 12345;
+    print("5");
 
-    $b = $a[3];
-    $c = $a[4][15];
-    $d = $a[0];
+    $b = $r[3];
+    print("6");
+    $a = $r[4][15];
+    print("7");
+    $d = $r[0];
+    print("8");
 
-    print($a);
+    print($r);
     print($b);
-    print($c);
+    print($a);
     print($d);
+    print("---");
 }
 
 function stringTest()
 {
-    $a = "This is an interned string!";
-    print($a);
+    print("STRING TEST");
+    print("---");
+    $d = "This is an interned string!";
+    print($d);
+    print("---");
+}
+
+$y = 123;
+
+function moveToLocalTest()
+{
+    print("MOVE TO LOCAL TEST");
+    print("---");
+    $e = $y;
+    print($y);
+    $e = 0;
+    $y = $e;
+    print($y);
+    print($e);
+    print("---");
 }

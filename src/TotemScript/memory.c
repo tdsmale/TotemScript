@@ -33,6 +33,7 @@ typedef struct
 {
     totemMemoryPage *HeadPage;
     totemMemoryPageObject *HeadObject;
+    size_t ObjectSize;
 }
 totemMemoryFreeList;
 
@@ -41,15 +42,19 @@ static totemMemoryFreeList s_FreeLists[TOTEM_MEM_NUM_FREELISTS];
 static totemMallocCb mallocCb = NULL;
 static totemFreeCb freeCb = NULL;
 
-void totem_SetMemoryCallbacks(totemMallocCb newMallocCb, totemFreeCb newFreeCb)
+void totem_InitMemory()
 {
-    mallocCb = newMallocCb;
-    freeCb = newFreeCb;
+    memset(&s_FreeLists, 0, sizeof(s_FreeLists));
+    
+    mallocCb = NULL;
+    freeCb = NULL;
 }
+
+//size_t allocs = 0;
 
 void *totem_Malloc(size_t len)
 {
-    //printf("allocating %zu\n", len);
+    //printf("allocating %zu %zu\n", allocs++, len);
     if(mallocCb)
     {
         return mallocCb(len);
@@ -60,15 +65,36 @@ void *totem_Malloc(size_t len)
 
 void totem_Free(void *mem)
 {
+    //printf("freeing %zu\n", --allocs);
     if(freeCb)
     {
-        return freeCb(mem);
+        freeCb(mem);
     }
-    
-    return free(mem);
+    else
+    {
+        free(mem);
+    }
 }
 
-totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount, size_t *actualAmount)
+void totem_CleanupMemory()
+{
+    for(size_t i = 0; i < TOTEM_MEM_NUM_FREELISTS; i++)
+    {
+        totemMemoryFreeList *freeList = &s_FreeLists[i];
+        for(totemMemoryPage *page = freeList->HeadPage; page != NULL; page = page->Next)
+        {
+            totem_Free(page);
+        }
+    }
+}
+
+void totem_SetMemoryCallbacks(totemMallocCb newMallocCb, totemFreeCb newFreeCb)
+{
+    mallocCb = newMallocCb;
+    freeCb = newFreeCb;
+}
+
+totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount)
 {
     if(amount > TOTEM_MEM_PAGESIZE)
     {
@@ -86,8 +112,11 @@ totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount, size_t *actualAmount
         index++;
     }
     
-    *actualAmount = index * TOTEM_MEM_FREELIST_DIVISOR;
+    size_t actualAmount = index * TOTEM_MEM_FREELIST_DIVISOR;
     index -= (sizeof(totemMemoryPageObject) / TOTEM_MEM_FREELIST_DIVISOR);
+    
+    totemMemoryFreeList *list = &s_FreeLists[index];
+    list->ObjectSize = actualAmount;
     
     return &s_FreeLists[index];
 }
@@ -99,40 +128,43 @@ void *totem_CacheMalloc(size_t amount)
         return totem_Malloc(amount);
     }
     
-    size_t actualAmount = amount;
-    totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount, &actualAmount);
-    totemMemoryPageObject *head = freeList->HeadObject;
-    
-    //printf("cache alloc %zu, actual %zu\n", amount, actualAmount);
-    
-    // check freelist first
-    if(head != NULL)
+    totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount);
+    if(freeList)
     {
-        totemMemoryPageObject *obj = head;
-        freeList->HeadObject = obj->Next;
-        return obj;
-    }
-    else
-    {
-        // look for a new allocation in cached pages
-        for(totemMemoryPage *page = freeList->HeadPage; page != NULL; page = page->Next)
-        {
-            if(page->NumAllocated < page->NumTotal)
-            {
-                totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * actualAmount));
-                page->NumAllocated++;
-                return obj;
-            }
-        }
+        totemMemoryPageObject *head = freeList->HeadObject;
         
-        // grab a new page & allocate from that
-        totemMemoryPage *newPage = totem_Malloc(sizeof(totemMemoryPage));
-        if(newPage != NULL)
+        //printf("cache alloc %zu, actual %zu\n", amount, actualAmount);
+        
+        // check freelist first
+        if(head != NULL)
         {
-            newPage->Next = freeList->HeadPage;
-            freeList->HeadPage = newPage;
-            newPage->NumAllocated = 1;
-            return newPage->Data;
+            totemMemoryPageObject *obj = head;
+            freeList->HeadObject = obj->Next;
+            return obj;
+        }
+        else
+        {
+            // look for a new allocation in cached pages
+            for(totemMemoryPage *page = freeList->HeadPage; page != NULL; page = page->Next)
+            {
+                if(page->NumAllocated < page->NumTotal)
+                {
+                    totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
+                    page->NumAllocated++;
+                    return obj;
+                }
+            }
+            
+            // grab a new page & allocate from that
+            totemMemoryPage *newPage = totem_Malloc(sizeof(totemMemoryPage));
+            if(newPage != NULL)
+            {
+                newPage->NumTotal = TOTEM_MEM_PAGESIZE / freeList->ObjectSize;
+                newPage->Next = freeList->HeadPage;
+                freeList->HeadPage = newPage;
+                newPage->NumAllocated = 1;
+                return newPage->Data;
+            }
         }
     }
     
@@ -153,8 +185,7 @@ void totem_CacheFree(void *ptr, size_t amount)
         return;
     }
     
-    size_t actualAmount = amount;
-    totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount, &actualAmount);
+    totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount);
     totemMemoryPageObject *obj = ptr;
     
     obj->Next = freeList->HeadObject;
@@ -212,10 +243,17 @@ void *totemMemoryBlock_Alloc(totemMemoryBlock **blockHead, size_t objectSize)
     return ptr;
 }
 
-void totemMemoryBuffer_Reset(totemMemoryBuffer *buffer, size_t objectSize)
+void totemMemoryBuffer_Init(totemMemoryBuffer *buffer, size_t objectSize)
+{
+    buffer->ObjectSize = objectSize;
+    buffer->Data = NULL;
+    buffer->Length = 0;
+    buffer->MaxLength = 0;
+}
+
+void totemMemoryBuffer_Reset(totemMemoryBuffer *buffer)
 {
     buffer->Length = 0;
-    buffer->ObjectSize = objectSize;
 }
 
 void totemMemoryBuffer_Cleanup(totemMemoryBuffer *buffer)
@@ -235,7 +273,8 @@ void *totemMemoryBuffer_Top(totemMemoryBuffer *buffer)
 {
     if(buffer->Length)
     {
-        return buffer->Data + ((buffer->Length - 1) * buffer->ObjectSize);
+        size_t index = buffer->Length - buffer->ObjectSize;
+        return &buffer->Data[index];
     }
     
     return NULL;
@@ -258,7 +297,7 @@ size_t totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount)
         amount = buffer->Length;
     }
     
-    buffer->Length -= amount;
+    buffer->Length -= (amount * buffer->ObjectSize);
     return amount;
 }
 
@@ -274,14 +313,12 @@ void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t num
     return ptr;
 }
 
-void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
+void *totemMemoryBuffer_SecureDirect(totemMemoryBuffer *buffer, size_t amount)
 {
     char *memEnd = buffer->Data + buffer->MaxLength;
     char *memCurrent = buffer->Data + buffer->Length;
     
-    amount *= buffer->ObjectSize;
-    
-    if(memCurrent + amount > memEnd)
+    if(memCurrent + amount >= memEnd)
     {
         size_t toAlloc = buffer->MaxLength;
         
@@ -291,12 +328,12 @@ void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
         }
         else
         {
-            toAlloc *= 1.5;
+            toAlloc *= 2;
         }
         
-        if(amount > toAlloc)
+        if(amount + buffer->Length > toAlloc)
         {
-            toAlloc += amount;
+            toAlloc = amount + buffer->Length;
         }
         
         char *newMem = totem_CacheMalloc(toAlloc);
@@ -310,13 +347,31 @@ void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
         memset(newMem + buffer->MaxLength, 0, toAlloc - buffer->MaxLength);
         
         totem_CacheFree(buffer->Data, buffer->MaxLength);
-
+        
         buffer->MaxLength = toAlloc;
         buffer->Data = newMem;
     }
     
     void *ptr = buffer->Data + buffer->Length;
     buffer->Length += amount;
+    return ptr;
+}
+
+void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
+{
+    amount *= buffer->ObjectSize;
+    return totemMemoryBuffer_SecureDirect(buffer, amount);
+}
+
+void *totemMemoryBuffer_TakeFrom(totemMemoryBuffer *buffer, totemMemoryBuffer *takeFrom)
+{
+    void *ptr = totemMemoryBuffer_SecureDirect(buffer, takeFrom->Length);
+    if(!ptr)
+    {
+        return NULL;
+    }
+    
+    memcpy(ptr, takeFrom->Data, takeFrom->Length);
     return ptr;
 }
 
@@ -341,6 +396,44 @@ size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer)
     return buffer->MaxLength / buffer->ObjectSize;
 }
 
+void totemHashMap_Init(totemHashMap *hashmap)
+{
+    memset(hashmap, 0, sizeof(totemHashMap));
+}
+
+void totemHashMap_FreeEntry(totemHashMap *hashmap, totemHashMapEntry *entry)
+{
+    entry->Next = hashmap->FreeList;
+    hashmap->FreeList = entry;
+}
+
+totemHashMapEntry *totemHashMap_SecureEntry(totemHashMap *hashmap)
+{
+    if (hashmap->FreeList)
+    {
+        totemHashMapEntry *entry = hashmap->FreeList;
+        hashmap->FreeList = entry->Next;
+        return entry;
+    }
+    else
+    {
+        return totem_CacheMalloc(sizeof(totemHashMapEntry));
+    }
+}
+
+void totemHashMap_MoveKeysToFreeList(totemHashMap *hashmap)
+{
+    for(size_t i = 0; i < hashmap->NumBuckets; i++)
+    {
+        while(hashmap->Buckets[i])
+        {
+            totemHashMapEntry *entry = hashmap->Buckets[i];
+            hashmap->Buckets[i] = entry->Next;
+            totemHashMap_FreeEntry(hashmap, entry);
+        }
+    }
+}
+
 void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, totemHashMapEntry *entry)
 {
     size_t index = entry->Hash % numBuckets;
@@ -361,7 +454,7 @@ void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, t
     }
 }
 
-totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const char *key, size_t keyLen, totemHashValue value, totemHash hash)
+totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash)
 {
     totemHashMapEntry *existingEntry = totemHashMap_Find(hashmap, key, keyLen);
     if(existingEntry)
@@ -381,7 +474,7 @@ totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const char *key,
             }
             else
             {
-                newNumBuckets = hashmap->NumKeys * 1.5;
+                newNumBuckets = hashmap->NumKeys * 2;
             }
             
             totemHashMapEntry **newBuckets = totem_CacheMalloc(sizeof(totemHashMapEntry**) * newNumBuckets);
@@ -409,25 +502,23 @@ totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const char *key,
             hashmap->NumBuckets = newNumBuckets;
         }
         
-        // hashmap insert
-        totemHashMapEntry *entry = NULL;
-        if (hashmap->FreeList)
+        totemHashMapEntry *entry = totemHashMap_SecureEntry(hashmap);
+        if(!entry)
         {
-            entry = hashmap->FreeList;
-            hashmap->FreeList = entry->Next;
+            return totemBool_False;
         }
-        else
+        
+        void *persistKey = totem_CacheMalloc(keyLen);
+        if(!persistKey)
         {
-            entry = totem_CacheMalloc(sizeof(totemHashMapEntry));
-            if(entry == NULL)
-            {
-                return totemBool_False;
-            }
+            return totemBool_False;
         }
+        
+        memcpy(persistKey, key, keyLen);
         
         entry->Next = NULL;
         entry->Value = value;
-        entry->Key = key;
+        entry->Key = persistKey;
         entry->KeyLen = keyLen;
         entry->Hash = hash == 0 ? totem_Hash(key, keyLen) : hash;
         totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
@@ -435,22 +526,49 @@ totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const char *key,
     }
 }
 
-totemBool totemHashMap_Insert(totemHashMap *hashmap, const char *key, size_t keyLen, totemHashValue value)
+totemBool totemHashMap_Insert(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value)
 {
     return totemHashMap_InsertPrecomputed(hashmap, key, keyLen, value, 0);
 }
 
-totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, size_t keyLen)
+totemBool totemHashMap_TakeFrom(totemHashMap *hashmap, totemHashMap *from)
+{
+    // todo: if this fails half-way through the list, free previously allocated entries
+    for(size_t i = 0; i < from->NumBuckets; i++)
+    {
+        for(totemHashMapEntry *entry = from->Buckets[i]; entry != NULL; entry = entry->Next)
+        {
+            if(!totemHashMap_InsertPrecomputed(hashmap, entry->Key, entry->KeyLen, entry->Value, entry->Hash))
+            {
+                return totemBool_False;
+            }
+        }
+    }
+    
+    return totemBool_True;
+}
+
+totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, size_t keyLen)
 {
     if(hashmap->NumBuckets > 0)
     {
-        uint32_t hash = totem_Hash((char*)key, keyLen);
+        uint32_t hash = totem_Hash(key, keyLen);
         int index = hash % hashmap->NumBuckets;
         
-        for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
+        for(totemHashMapEntry *entry = hashmap->Buckets[index], *prev = NULL; entry != NULL; prev = entry, entry = entry->Next)
         {
-            if(strncmp(entry->Key, key, entry->KeyLen) == 0)
+            if(entry->Hash == hash && memcmp(entry->Key, key, keyLen) == 0)
             {
+                if(prev)
+                {
+                    prev->Next = entry->Next;
+                }
+                else
+                {
+                    hashmap->Buckets[index] = entry->Next;
+                }
+                
+                totemHashMap_FreeEntry(hashmap, entry);
                 return entry;
             }
         }
@@ -459,18 +577,23 @@ totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const char *key, siz
     return NULL;
 }
 
-void totemHashMap_MoveKeysToFreeList(totemHashMap *hashmap)
+totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *key, size_t keyLen)
 {
-    for(size_t i = 0; i < hashmap->NumBuckets; i++)
+    if(hashmap->NumBuckets > 0)
     {
-        while(hashmap->Buckets[i])
+        uint32_t hash = totem_Hash(key, keyLen);
+        int index = hash % hashmap->NumBuckets;
+        
+        for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
         {
-            totemHashMapEntry *entry = hashmap->Buckets[i];
-            hashmap->Buckets[i] = entry->Next;
-            entry->Next = hashmap->FreeList;
-            hashmap->FreeList = entry;
+            if(entry->Hash == hash && memcmp(entry->Key, key, entry->KeyLen) == 0)
+            {
+                return entry;
+            }
         }
     }
+    
+    return NULL;
 }
 
 void totemHashMap_Reset(totemHashMap *hashmap)
