@@ -121,7 +121,8 @@ extern "C" {
     typedef enum
     {
         totemReturnOption_Implicit = 0,
-        totemReturnOption_Register = 1
+        totemReturnOption_Register = 1,
+		totemReturnOption_Yield = 2
     }
     totemReturnOption;
     
@@ -165,6 +166,20 @@ extern "C" {
     totemInternedStringHeader;
     const char *totemInternedStringHeader_GetString(totemInternedStringHeader *hdr);
     
+    enum
+    {
+        totemDataType_Null = 0,
+        totemDataType_Int = 1,
+        totemDataType_Float = 2,
+        totemDataType_String = 3,
+        totemDataType_Array = 4,
+        totemDataType_Type = 5,
+        totemDataType_Max = 6
+    };
+    typedef uint8_t totemDataType;
+    const char *totemDataType_Describe(totemDataType type);
+#define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
+    
     typedef union
     {
         totemFloat Float;
@@ -173,20 +188,9 @@ extern "C" {
         totemInternedStringHeader *InternedString;
         totemRuntimeArray *Array;
         uint64_t Data;
+        totemDataType DataType;
     }
     totemRegisterValue;
-    
-    enum
-    {
-        totemDataType_Null = 0,
-        totemDataType_Int = 1,
-        totemDataType_Float = 2,
-        totemDataType_InternedString = 3,
-        totemDataType_Array = 4
-    };
-    typedef uint8_t totemDataType;
-    const char *totemDataType_Describe(totemDataType type);
-#define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
     
     typedef struct totemRegister
     {
@@ -233,7 +237,13 @@ extern "C" {
         totemOperationType_ArraySet = 23,           // A[B] = C
         totemOperationType_MoveToLocal = 24,        // A = Bx
         totemOperationType_MoveToGlobal = 25,       // Bx = A
-        
+		totemOperationType_Is = 26,					// A = B is C
+        /*
+		totemOperationType_As = 27,					// A = B as C
+		totemOperationType_FunctionPointer = 28,	// A = @Bx
+		totemOperationType_Throw = 29,				// throw A
+		*/
+
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;

@@ -78,3 +78,16 @@ function moveToLocalTest()
     print($e);
     print("---");
 }
+
+function dataTypeTest()
+{
+    print("DATA TYPE TEST");
+    print("---");
+    $a = float;
+    $b = 0.5;
+    print($a);
+    print($b);
+    print($b is $a);
+    print($b is int);
+    print("---");
+}

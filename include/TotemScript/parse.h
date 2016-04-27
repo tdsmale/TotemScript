@@ -23,12 +23,13 @@ extern "C" {
      variable = [ const-token ] variable-start-token [ colon-token identifier-token ] identifier-token
      string = double-quote-token { * } double-quote-token
      function-call = function-token identifier-token lbracket-token { expression } rbracket-token
+     type = array-token | string-token | int-token | float-token | type-token
      
      new-array = lbracket array-accessor rbracket
      array-source = variable | function-call | new-array | array-member
      array-member = array-source lbracket expression rbracket
      
-     argument = variable | number-token | string | function-call | new-array
+     argument = variable | number-token | string | function-call | new-array | type
      
      expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
      
@@ -91,7 +92,8 @@ extern "C" {
         totemArgumentType_String,
         totemArgumentType_Number,
         totemArgumentType_FunctionCall,
-        totemArgumentType_NewArray
+        totemArgumentType_NewArray,
+        totemArgumentType_Type
     }
     totemArgumentType;
     
@@ -132,7 +134,8 @@ extern "C" {
         totemBinaryOperatorType_MoreThanEquals,
         totemBinaryOperatorType_LessThanEquals,
         totemBinaryOperatorType_LogicalAnd,
-        totemBinaryOperatorType_LogicalOr
+        totemBinaryOperatorType_LogicalOr,
+        totemBinaryOperatorType_IsType
     }
     totemBinaryOperatorType;
     
@@ -216,6 +219,12 @@ extern "C" {
         totemTokenType_Backslash,
         totemTokenType_Slash,
         totemTokenType_Const,
+        totemTokenType_Is,
+        totemTokenType_Int,
+        totemTokenType_Float,
+        totemTokenType_Array,
+        totemTokenType_String,
+        totemTokenType_Type,
         totemTokenType_Max
     }
     totemTokenType;
@@ -281,6 +290,7 @@ extern "C" {
             totemString *Number;
             totemFunctionCallPrototype *FunctionCall;
             totemNewArrayPrototype *NewArray;
+            totemDataType DataType;
         };
         totemBufferPositionInfo Position;
         totemArgumentType Type;

@@ -19,8 +19,7 @@
 #include <Shlwapi.h>
 
 #define getcwd _getcwd
-#define PATH_MAX ((_MAX_PATH) * sizeof(WCHAR))
-#define TOTEM_FCHDIR_TOALLOCATE (PATH_MAX + sizeof(FILE_NAME_INFO) + (sizeof(WCHAR) * 3))
+#define PATH_MAX (_MAX_PATH)
 
 #endif
 
@@ -118,8 +117,9 @@ const char *totemDataType_Describe(totemDataType type)
             TOTEM_STRINGIFY_CASE(totemDataType_Null);
             TOTEM_STRINGIFY_CASE(totemDataType_Float);
             TOTEM_STRINGIFY_CASE(totemDataType_Int);
-            TOTEM_STRINGIFY_CASE(totemDataType_InternedString);
+            TOTEM_STRINGIFY_CASE(totemDataType_String);
             TOTEM_STRINGIFY_CASE(totemDataType_Array);
+            TOTEM_STRINGIFY_CASE(totemDataType_Type);
     }
     
     return "UNKNOWN";
@@ -261,7 +261,11 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
 {
     switch(reg->DataType)
     {
-        case totemDataType_InternedString:
+        case totemDataType_Type:
+            fprintf(file, "%s: %s\n", totemDataType_Describe(reg->DataType), totemDataType_Describe(reg->Value.DataType));
+            break;
+            
+        case totemDataType_String:
             fprintf(file, "%s \"%.*s\" (%i) \n",
                     totemDataType_Describe(reg->DataType),
                     reg->Value.InternedString->Length,
@@ -354,20 +358,23 @@ totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, 
 
 void totem_freecwd(const char *cwd)
 {
-    totem_CacheFree((void*)cwd, PATH_MAX + 1);
+    totem_CacheFree((void*)cwd, PATH_MAX);
 }
 
 const char *totem_getcwd()
 {
-    size_t size = PATH_MAX + 1;
+    size_t size = PATH_MAX;
     
     char *buffer = totem_CacheMalloc(size);
     if(getcwd(buffer, size) == buffer)
     {
         return buffer;
     }
-    
-    return NULL;
+	else
+	{
+		totem_CacheFree(buffer, size);
+		return NULL;
+	}
 }
 
 void totem_Init()

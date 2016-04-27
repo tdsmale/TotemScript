@@ -131,6 +131,7 @@ extern "C" {
     totemExecStatus totemExecState_ExecNewArray(totemExecState *state);
     totemExecStatus totemExecState_ExecArrayGet(totemExecState *state);
     totemExecStatus totemExecState_ExecArraySet(totemExecState *state);
+    totemExecStatus totemExecState_ExecIs(totemExecState *state);
     
     void totemRegister_Print(FILE *file, totemRegister *reg);
     void totemRegister_PrintList(FILE *file, totemRegister *regs, size_t numRegisters);

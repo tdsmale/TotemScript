@@ -65,7 +65,13 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_True, "true" },
     { totemTokenType_False, "false" },
     { totemTokenType_Null, "null" },
-    { totemTokenType_Const, "const" }
+    { totemTokenType_Const, "const" },
+    { totemTokenType_Is, "is" },
+    { totemTokenType_Float, "float" },
+    { totemTokenType_Int, "int" },
+    { totemTokenType_Array, "array" },
+    { totemTokenType_String, "string" },
+    { totemTokenType_Type, "type" }
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -1345,6 +1351,11 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             *type = totemBinaryOperatorType_LogicalOr;
             return totemParseStatus_Success;
             
+        case totemTokenType_Is:
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            *type = totemBinaryOperatorType_IsType;
+            return totemParseStatus_Success;
+            
         default:
             *type = totemBinaryOperatorType_None;
             return totemParseStatus_Success;
@@ -1411,6 +1422,37 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     
     switch((*token)->Type)
     {
+            // types
+        case totemTokenType_Array:
+            argument->DataType = totemDataType_Array;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            break;
+            
+        case totemTokenType_Int:
+            argument->DataType = totemDataType_Int;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            break;
+            
+        case totemTokenType_Float:
+            argument->DataType = totemDataType_Float;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            break;
+            
+        case totemTokenType_String:
+            argument->DataType = totemDataType_String;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            break;
+            
+        case totemTokenType_Type:
+            argument->DataType = totemDataType_Type;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            break;
+            
             // new array
         case totemTokenType_LSBracket:
             argument->Type = totemArgumentType_NewArray;
@@ -1570,6 +1612,11 @@ const char *totemTokenType_Describe(totemTokenType type)
 {
     switch(type)
     {
+            TOTEM_STRINGIFY_CASE(totemTokenType_Array);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Int);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Float);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Type);
+            TOTEM_STRINGIFY_CASE(totemTokenType_String);
             TOTEM_STRINGIFY_CASE(totemTokenType_Null);
             TOTEM_STRINGIFY_CASE(totemTokenType_And);
             TOTEM_STRINGIFY_CASE(totemTokenType_Assign);
@@ -1591,6 +1638,7 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_Function);
             TOTEM_STRINGIFY_CASE(totemTokenType_Identifier);
             TOTEM_STRINGIFY_CASE(totemTokenType_If);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Is);
             TOTEM_STRINGIFY_CASE(totemTokenType_LBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_LCBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_LessThan);

@@ -81,9 +81,11 @@ void totem_CleanupMemory()
     for(size_t i = 0; i < TOTEM_MEM_NUM_FREELISTS; i++)
     {
         totemMemoryFreeList *freeList = &s_FreeLists[i];
-        for(totemMemoryPage *page = freeList->HeadPage; page != NULL; page = page->Next)
+        for(totemMemoryPage *page = freeList->HeadPage; page != NULL; /* nada */)
         {
+            totemMemoryPage *next = page->Next;
             totem_Free(page);
+            page = next;
         }
     }
 }
@@ -145,15 +147,16 @@ void *totem_CacheMalloc(size_t amount)
         else
         {
             // look for a new allocation in cached pages
-            for(totemMemoryPage *page = freeList->HeadPage; page != NULL; page = page->Next)
-            {
-                if(page->NumAllocated < page->NumTotal)
-                {
-                    totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
-                    page->NumAllocated++;
-                    return obj;
-                }
-            }
+			if (freeList->HeadPage)
+			{
+				totemMemoryPage *page = freeList->HeadPage;
+				if (page->NumAllocated < page->NumTotal)
+				{
+					totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
+					page->NumAllocated++;
+					return obj;
+				}
+			}
             
             // grab a new page & allocate from that
             totemMemoryPage *newPage = totem_Malloc(sizeof(totemMemoryPage));

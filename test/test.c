@@ -65,7 +65,7 @@ int main(int argc, const char * argv[])
     if(lexStatus != totemLexStatus_Success)
     {
         printf("Lex error: %s\n", totemLexStatus_Describe(lexStatus));
-        return 1;
+        return EXIT_FAILURE;
     }
     
     printf("******\n");

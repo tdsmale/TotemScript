@@ -32,7 +32,8 @@ extern "C" {
         totemEvalStatus_AssignmentLValueCannotBeConst,
         totemEvalStatus_TooManyNativeFunctions,
         totemEvalStatus_TooManyScriptFunctions,
-        totemEvalStatus_TooManyFunctionArguments
+        totemEvalStatus_TooManyFunctionArguments,
+        totemEvalStatus_InvalidDataType
     }
     totemEvalStatus;
     
@@ -86,6 +87,8 @@ extern "C" {
     
     typedef struct
     {
+        totemOperandXUnsigned DataTypes[totemDataType_Max];
+        totemBool HasDataType[totemDataType_Max];
         totemMemoryBuffer Registers;
         totemMemoryBuffer RegisterFreeList;
         totemMemoryBuffer GlobalRegisterStrings;

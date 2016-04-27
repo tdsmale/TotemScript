@@ -438,6 +438,7 @@ totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size
         return totemBool_False;
     }
     
+    memset(state->Registers[totemOperandType_LocalRegister], 0, sizeof(totemRegister) * state->MaxLocalRegisters);
     state->MaxLocalRegisters = numRegisters;
     state->UsedLocalRegisters = 0;
     return totemBool_True;
@@ -468,7 +469,7 @@ totemExecStatus totemExecState_PushFunctionCall(totemExecState *state, totemFunc
     call->ResumeAt = NULL;
     call->Prev = NULL;
     call->NumArguments = 0;
-    call->NumRegisters = funcType == totemFunctionType_Script ? numRegisters : 0;
+    call->NumRegisters = numRegisters;
     call->FrameStart = state->Registers[totemOperandType_LocalRegister] + (state->CallStack ? state->CallStack->NumRegisters : 0);
     
     // reset registers to be used
@@ -481,16 +482,6 @@ totemExecStatus totemExecState_PushFunctionCall(totemExecState *state, totemFunc
         if(type == totemOperationType_FunctionArg)
         {
             totemOperandXUnsigned numArgs = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*state->CurrentInstruction);
-            
-            if(funcType == totemFunctionType_Native)
-            {
-                call->NumRegisters = numArgs;
-                
-                if((state->MaxLocalRegisters - state->UsedLocalRegisters) < call->NumRegisters)
-                {
-                    return totemExecStatus_Break(totemExecStatus_RegisterOverflow);
-                }
-            }
             
             if(numArgs > call->NumRegisters)
             {
@@ -531,6 +522,17 @@ void totemExecState_PopFunctionCall(totemExecState *state)
 {
     if(state->CallStack)
     {
+        // clean up any remaining arrays
+        for(size_t i = 0; i < state->CallStack->NumRegisters; i++)
+        {
+            totemRegister *reg = &state->Registers[totemOperandType_LocalRegister][i];
+            
+            if(reg->DataType == totemDataType_Array)
+            {
+                totemRuntimeArray_DefRefCount(reg->Value.Array);
+            }
+        }
+        
         state->CurrentInstruction = state->CallStack->ResumeAt;
         state->UsedLocalRegisters -= state->CallStack->NumRegisters;
         state->Registers[totemOperandType_LocalRegister] = state->CallStack->PreviousFrameStart;
@@ -583,27 +585,15 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
     }
     while(status == totemExecStatus_Continue);
     
-    state->UsedLocalRegisters -= function->RegistersNeeded;
+    totemExecState_PopFunctionCall(state);
     
     if(actor)
     {
         state->CurrentActor = prevActor;
     }
     
-    // clean up any remaining arrays
-    for(size_t i = 0; i < function->RegistersNeeded; i++)
-    {
-        totemRegister *reg = &state->Registers[totemOperandType_LocalRegister][i];
-        
-        if(reg->DataType == totemDataType_Array)
-        {
-            totemRuntimeArray_DefRefCount(reg->Value.Array);
-        }
-    }
-    
     if(status == totemExecStatus_Return)
     {
-        totemExecState_PopFunctionCall(state);
         if(state->CallStack)
         {
             return totemExecStatus_Continue;
@@ -718,9 +708,31 @@ totemExecStatus totemExecState_ExecInstruction(totemExecState *state)
         case totemOperationType_MoveToLocal:
             return totemExecState_ExecMoveToLocal(state);
             
+        case totemOperationType_Is:
+            return totemExecState_ExecIs(state);
+            
         default:
             return totemExecStatus_Break(totemExecStatus_UnrecognisedOperation);
     }
+}
+
+totemExecStatus totemExecState_ExecIs(totemExecState *state)
+{
+    totemInstruction instruction = *state->CurrentInstruction;
+    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
+    totemRegister *type = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
+    
+    if(type->DataType != totemDataType_Type)
+    {
+        return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
+    }
+    
+    dst->Value.Int = src->DataType == type->Value.DataType;
+    dst->DataType = totemDataType_Int;
+    
+    state->CurrentInstruction++;
+    return totemExecStatus_Continue;
 }
 
 totemExecStatus totemExecState_ExecMove(totemExecState *state)
@@ -1177,7 +1189,15 @@ totemExecStatus totemExecState_ExecNativeFunction(totemExecState *state)
     }
     
     state->CurrentInstruction++;
-    totemExecStatus status = totemExecState_PushFunctionCall(state, totemFunctionType_Native, functionHandle, returnRegister, 0);
+    
+    // num args
+    uint8_t numArgs = 0;
+    if(TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction) == totemOperationType_FunctionArg)
+    {
+        numArgs = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*state->CurrentInstruction);
+    }
+    
+    totemExecStatus status = totemExecState_PushFunctionCall(state, totemFunctionType_Native, functionHandle, returnRegister, numArgs);
     if(status != totemExecStatus_Continue)
     {
         return status;
@@ -1238,6 +1258,8 @@ totemExecStatus totemExecState_ExecNewArray(totemExecState *state)
         totem_CacheFree(src.Value.Array, sizeof(totemRuntimeArray));
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
+    
+    memset(src.Value.Array->Registers, 0, sizeof(totemRegister) * numRegisters);
     
     totemExecStatus status = totemRegister_Assign(dst, &src);
     if(status == totemExecStatus_Continue)
