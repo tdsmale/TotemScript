@@ -84,10 +84,17 @@ function dataTypeTest()
     print("DATA TYPE TEST");
     print("---");
     $a = float;
-    $b = 0.5;
+    $b = 3.75;
     print($a);
     print($b);
     print($b is $a);
     print($b is int);
+
+    $d = int;
+    $c = $b as $d;
+    print($d);
+    print($c);
+    print($b);
+
     print("---");
 }

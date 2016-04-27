@@ -71,7 +71,8 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_Int, "int" },
     { totemTokenType_Array, "array" },
     { totemTokenType_String, "string" },
-    { totemTokenType_Type, "type" }
+    { totemTokenType_Type, "type" },
+    { totemTokenType_As, "as" }
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -1356,6 +1357,11 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             *type = totemBinaryOperatorType_IsType;
             return totemParseStatus_Success;
             
+        case totemTokenType_As:
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            *type = totemBinaryOperatorType_AsType;
+            return totemParseStatus_Success;
+            
         default:
             *type = totemBinaryOperatorType_None;
             return totemParseStatus_Success;
@@ -1612,6 +1618,7 @@ const char *totemTokenType_Describe(totemTokenType type)
 {
     switch(type)
     {
+            TOTEM_STRINGIFY_CASE(totemTokenType_As);
             TOTEM_STRINGIFY_CASE(totemTokenType_Array);
             TOTEM_STRINGIFY_CASE(totemTokenType_Int);
             TOTEM_STRINGIFY_CASE(totemTokenType_Float);

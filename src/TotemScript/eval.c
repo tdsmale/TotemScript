@@ -1643,6 +1643,12 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                     recycleLValue = totemBool_True;
                     break;
                     
+                case totemBinaryOperatorType_AsType:
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, result, &lValue, &rValue, totemOperationType_As));
+                    recycleLValue = totemBool_True;
+                    break;
+                    
                 case totemBinaryOperatorType_None:
                     break;
             }

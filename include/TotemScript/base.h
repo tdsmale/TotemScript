@@ -238,8 +238,8 @@ extern "C" {
         totemOperationType_MoveToLocal = 24,        // A = Bx
         totemOperationType_MoveToGlobal = 25,       // Bx = A
 		totemOperationType_Is = 26,					// A = B is C
-        /*
 		totemOperationType_As = 27,					// A = B as C
+        /*
 		totemOperationType_FunctionPointer = 28,	// A = @Bx
 		totemOperationType_Throw = 29,				// throw A
 		*/

@@ -711,9 +711,52 @@ totemExecStatus totemExecState_ExecInstruction(totemExecState *state)
         case totemOperationType_Is:
             return totemExecState_ExecIs(state);
             
+        case totemOperationType_As:
+            return totemExecState_ExecAs(state);
+            
         default:
             return totemExecStatus_Break(totemExecStatus_UnrecognisedOperation);
     }
+}
+
+totemExecStatus totemExecState_ExecAs(totemExecState *state)
+{
+    totemInstruction instruction = *state->CurrentInstruction;
+    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
+    totemRegister *typeSrc = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
+    
+    totemDataType type = typeSrc->Value.DataType;
+    
+    if(typeSrc->DataType != totemDataType_Type)
+    {
+        type = typeSrc->DataType;
+    }
+    
+    switch(TOTEM_TYPEPAIR(src->DataType, type))
+    {
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Int):
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Float):
+            dst->Value.Data = src->Value.Data;
+            dst->DataType = src->DataType;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Int, totemDataType_Float):
+            dst->Value.Float = (totemFloat)src->Value.Int;
+            dst->DataType = totemDataType_Float;
+            break;
+            
+        case TOTEM_TYPEPAIR(totemDataType_Float, totemDataType_Int):
+            dst->Value.Int = (totemInt)src->Value.Float;
+            dst->DataType = totemDataType_Int;
+            break;
+            
+        default:
+            return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
+    }
+    
+    state->CurrentInstruction++;
+    return totemExecStatus_Continue;
 }
 
 totemExecStatus totemExecState_ExecIs(totemExecState *state)
@@ -721,14 +764,16 @@ totemExecStatus totemExecState_ExecIs(totemExecState *state)
     totemInstruction instruction = *state->CurrentInstruction;
     totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
-    totemRegister *type = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
+    totemRegister *typeSrc = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
     
-    if(type->DataType != totemDataType_Type)
+    totemDataType type = typeSrc->Value.DataType;
+    
+    if(typeSrc->DataType != totemDataType_Type)
     {
-        return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
+        type = typeSrc->DataType;
     }
     
-    dst->Value.Int = src->DataType == type->Value.DataType;
+    dst->Value.Int = src->DataType == type;
     dst->DataType = totemDataType_Int;
     
     state->CurrentInstruction++;

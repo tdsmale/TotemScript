@@ -10,7 +10,6 @@ A parser & virtual machine for a custom scripting language written in C.
 * loop scope for vars
 * yield - stores this function's call stack in a local var, allowing it to be resumed later as a function pointer (e.g. $x = callFunc(); $x();)
 * operator precedence reordering
-* "as" operator, e.g. "$x = $y as int"
 * exceptions - try, catch & throw
  * both user & system-generated exceptions
 * "finally" block, can be used at the end of any control blocks - only invoked if the loop is actually entered at least once

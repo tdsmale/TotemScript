@@ -135,7 +135,8 @@ extern "C" {
         totemBinaryOperatorType_LessThanEquals,
         totemBinaryOperatorType_LogicalAnd,
         totemBinaryOperatorType_LogicalOr,
-        totemBinaryOperatorType_IsType
+        totemBinaryOperatorType_IsType,
+        totemBinaryOperatorType_AsType
     }
     totemBinaryOperatorType;
     
@@ -225,6 +226,7 @@ extern "C" {
         totemTokenType_Array,
         totemTokenType_String,
         totemTokenType_Type,
+        totemTokenType_As,
         totemTokenType_Max
     }
     totemTokenType;
