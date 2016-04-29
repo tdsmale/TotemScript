@@ -6,7 +6,6 @@ A parser & virtual machine for a custom scripting language written in C.
 * ref-counting cycle detection
 * array operators
 * string operators
-* function pointers, e.g. $x = @funcName; $x($y, $z);
 * loop scope for vars
 * yield - stores this function's call stack in a local var, allowing it to be resumed later as a function pointer (e.g. $x = callFunc(); $x();)
 * operator precedence reordering
