@@ -24,6 +24,7 @@ extern "C" {
      string = double-quote-token { * } double-quote-token
      function-call = function-token identifier-token lbracket-token { expression } rbracket-token
      type = array-token | string-token | int-token | float-token | type-token
+     function-pointer = at-token identifier
      
      new-array = lbracket array-accessor rbracket
      array-source = variable | function-call | new-array | array-member
@@ -37,6 +38,7 @@ extern "C" {
      for-loop = for-token lbracket statement statement statement rbracket rbracket lcbracket { statement } rcbracket-token
      do-while-loop = do-token lcbracket { statement } rcbracket while-token statement
      if-loop = if-token expression lcbracket { statement } rcbracket
+     assert = assert-token expression end-statement
      simple-statement = expression end-statement
      
      statement = while-loop | for-loop | do-while-loop | if-loop | return | simple-statement
@@ -93,7 +95,8 @@ extern "C" {
         totemArgumentType_Number,
         totemArgumentType_FunctionCall,
         totemArgumentType_NewArray,
-        totemArgumentType_Type
+        totemArgumentType_Type,
+        totemArgumentType_FunctionPointer
     }
     totemArgumentType;
     
@@ -112,7 +115,8 @@ extern "C" {
         totemPostUnaryOperatorType_None = 0,
         totemPostUnaryOperatorType_Dec,
         totemPostUnaryOperatorType_Inc,
-        totemPostUnaryOperatorType_ArrayAccess
+        totemPostUnaryOperatorType_ArrayAccess,
+        totemPostUnaryOperatorType_Invocation
     }
     totemPostUnaryOperatorType;
     
@@ -147,6 +151,7 @@ extern "C" {
         totemStatementType_IfBlock,
         totemStatementType_DoWhileLoop,
         totemStatementType_Return,
+        totemStatementType_Assert,
         totemStatementType_Simple
     }
     totemStatementType;
@@ -227,6 +232,8 @@ extern "C" {
         totemTokenType_String,
         totemTokenType_Type,
         totemTokenType_As,
+        totemTokenType_At,
+        totemTokenType_Assert,
         totemTokenType_Max
     }
     totemTokenType;
@@ -290,6 +297,7 @@ extern "C" {
             totemVariablePrototype *Variable;
             totemString *String;
             totemString *Number;
+            totemString *FunctionPointer;
             totemFunctionCallPrototype *FunctionCall;
             totemNewArrayPrototype *NewArray;
             totemDataType DataType;
@@ -309,7 +317,13 @@ extern "C" {
     typedef struct totemPostUnaryOperatorPrototype
     {
         struct totemPostUnaryOperatorPrototype *Next;
-        struct totemExpressionPrototype *ArrayAccess;
+        
+        union
+        {
+            struct totemExpressionPrototype *ArrayAccess;
+            struct totemExpressionPrototype *InvocationParametersStart;
+        };
+        
         totemPostUnaryOperatorType Type;
     }
     totemPostUnaryOperatorPrototype;
@@ -401,7 +415,8 @@ extern "C" {
             totemIfBlockPrototype *IfBlock;
             totemDoWhileLoopPrototype *DoWhileLoop;
             totemExpressionPrototype *Return;
-            totemExpressionPrototype *Expression;
+            totemExpressionPrototype *Simple;
+            totemExpressionPrototype *Assert;
         };
         struct totemStatementPrototype *Next;
         totemBufferPositionInfo Position;

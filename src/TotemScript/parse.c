@@ -48,6 +48,7 @@ const static totemTokenDesc s_symbolTokenValues[] =
     { totemTokenType_Colon, ":" },
     { totemTokenType_Backslash, "\\" },
     { totemTokenType_Slash, "/" },
+    { totemTokenType_At, "@" }
 };
 
 const static totemTokenDesc s_reservedWordValues[] =
@@ -72,7 +73,8 @@ const static totemTokenDesc s_reservedWordValues[] =
     { totemTokenType_Array, "array" },
     { totemTokenType_String, "string" },
     { totemTokenType_Type, "type" },
-    { totemTokenType_As, "as" }
+    { totemTokenType_As, "as" },
+    { totemTokenType_Assert, "assert" }
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -745,11 +747,26 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             return totemParseStatus_Success;
         }
             
+        case totemTokenType_Assert:
+        {
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            TOTEM_PARSE_SKIPWHITESPACE(token);
+            
+            statement->Type = totemStatementType_Assert;
+            TOTEM_PARSE_ALLOC(statement->Assert, totemExpressionPrototype, tree);
+            TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(statement->Assert, token, tree));
+            
+            TOTEM_PARSE_SKIPWHITESPACE(token);
+            TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Semicolon);
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            return totemParseStatus_Success;
+        }
+    
         default:
         {
             statement->Type = totemStatementType_Simple;
-            TOTEM_PARSE_ALLOC(statement->Expression, totemExpressionPrototype, tree);
-            TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(statement->Expression, token, tree));
+            TOTEM_PARSE_ALLOC(statement->Simple, totemExpressionPrototype, tree);
+            TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(statement->Simple, token, tree));
             
             TOTEM_PARSE_SKIPWHITESPACE(token);
             TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Semicolon);
@@ -1189,6 +1206,17 @@ totemParseStatus totemPostUnaryOperatorPrototype_Parse(totemPostUnaryOperatorPro
             }
             
             return totemParseStatus_Success;
+         
+        case totemTokenType_LBracket:
+            TOTEM_PARSE_ALLOC(*type, totemPostUnaryOperatorPrototype, tree);
+            (*type)->Type = totemPostUnaryOperatorType_Invocation;
+            
+            // parse parameters
+            totemExpressionPrototype *first = NULL, *last = NULL;
+            TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_ParseParameterList(&first, &last, token, tree));
+            (*type)->InvocationParametersStart = first;
+            
+            return totemParseStatus_Success;
             
         case totemTokenType_LSBracket:
         {
@@ -1428,6 +1456,14 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     
     switch((*token)->Type)
     {
+            // function pointer
+        case totemTokenType_At:
+            argument->Type = totemArgumentType_FunctionPointer;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            TOTEM_PARSE_ALLOC(argument->FunctionPointer, totemString, tree);
+            TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(argument->FunctionPointer, token, tree));
+            break;
+            
             // types
         case totemTokenType_Array:
             argument->DataType = totemDataType_Array;
@@ -1455,6 +1491,12 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             
         case totemTokenType_Type:
             argument->DataType = totemDataType_Type;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            break;
+            
+        case totemTokenType_Function:
+            argument->DataType = totemDataType_Function;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
@@ -1618,6 +1660,8 @@ const char *totemTokenType_Describe(totemTokenType type)
 {
     switch(type)
     {
+            TOTEM_STRINGIFY_CASE(totemTokenType_Assert);
+            TOTEM_STRINGIFY_CASE(totemTokenType_At);
             TOTEM_STRINGIFY_CASE(totemTokenType_As);
             TOTEM_STRINGIFY_CASE(totemTokenType_Array);
             TOTEM_STRINGIFY_CASE(totemTokenType_Int);

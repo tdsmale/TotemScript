@@ -316,6 +316,39 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
         }
     }
     
+    // 4. link native function pointers
+    for(size_t i = 0; i < build->GlobalRegisters.FunctionPointers.NumBuckets; i++)
+    {
+        for(totemHashMapEntry *entry = build->GlobalRegisters.FunctionPointers.Buckets[i]; entry != NULL; entry = entry->Next)
+        {
+            totemOperandXUnsigned registerIndex = (totemOperandXUnsigned)entry->Value;
+            totemRegisterPrototype *reg = totemMemoryBuffer_Get(&build->GlobalRegisters.Registers, registerIndex);
+            
+            if(reg == NULL || reg->DataType != totemDataType_Function)
+            {
+                return totemLinkStatus_Break(totemLinkStatus_InvalidNativeFunctionAddress);
+            }
+            
+            if(reg->Value.FunctionPointer.Type == totemFunctionType_Native)
+            {
+                totemString *funcName = totemMemoryBuffer_Get(&build->NativeFunctionNames, reg->Value.FunctionPointer.Address);
+                if(!funcName)
+                {
+                    return totemLinkStatus_Break(totemLinkStatus_InvalidNativeFunctionName);
+                }
+                
+                size_t funcAddr = 0;
+                if(!totemRuntime_GetNativeFunctionAddress(runtime, funcName, &funcAddr))
+                {
+                    build->ErrorContext = funcName;
+                    return totemLinkStatus_Break(totemLinkStatus_FunctionNotDeclared);
+                }
+                
+                reg->Value.FunctionPointer.Address = (totemOperandXUnsigned)funcAddr;
+            }
+        }
+    }
+    
     // TODO: No real need to copy this data, replace all of this with a single pointer swap...
     
     // 4. global register values
@@ -544,7 +577,7 @@ void totemExecState_PopFunctionCall(totemExecState *state)
     }
 }
 
-totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, size_t functionAddress, totemRegister *returnRegister)
+totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionAddress, totemRegister *returnRegister)
 {
     totemActor *prevActor = state->CurrentActor;
     
@@ -603,120 +636,231 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, si
     return status;
 }
 
+totemExecStatus totemExecState_ExecNative(totemExecState *state, totemRegister *returnRegister, totemOperandXUnsigned functionHandle)
+{
+    totemNativeFunction *function = totemMemoryBuffer_Get(&state->Runtime->NativeFunctions, functionHandle);
+    if(function == NULL)
+    {
+        return totemExecStatus_Break(totemExecStatus_NativeFunctionNotFound);
+    }
+    
+    // num args
+    uint8_t numArgs = 0;
+    if(TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction) == totemOperationType_FunctionArg)
+    {
+        numArgs = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*state->CurrentInstruction);
+    }
+    
+    totemExecStatus status = totemExecState_PushFunctionCall(state, totemFunctionType_Native, functionHandle, returnRegister, numArgs);
+    if(status != totemExecStatus_Continue)
+    {
+        return status;
+    }
+    
+    status = (*function)(state);
+    totemExecState_PopFunctionCall(state);
+    return status;
+}
+
 totemExecStatus totemExecState_ExecInstruction(totemExecState *state)
 {
-    totemOperationType op = TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction);
+    totemInstruction instruction = *state->CurrentInstruction;
     
-    // debug
-    //totemInstruction_Print(stdout, *state->CurrentInstruction);
-    
-    /*
-     totemInstructionType type = totemOperationType_GetInstructionType(op);
-     switch(type)
-     {
-     case totemInstructionType_Abc:
-     {
-     totemRegister *a = TOTEM_GET_OPERANDA_REGISTER(state, *state->CurrentInstruction);
-     totemRegister *b = TOTEM_GET_OPERANDB_REGISTER(state, *state->CurrentInstruction);
-     totemRegister *c = TOTEM_GET_OPERANDC_REGISTER(state, *state->CurrentInstruction);
-     totemRegister_Print(stdout, a);
-     totemRegister_Print(stdout, b);
-     totemRegister_Print(stdout, c);
-     break;
-     }
-     
-     case totemInstructionType_Abx:
-     {
-     totemRegister *a = TOTEM_GET_OPERANDA_REGISTER(state, *state->CurrentInstruction);
-     totemRegister_Print(stdout, a);
-     break;
-     }
-     
-     case totemInstructionType_Axx:
-     break;
-     }*/
-    
+    totemOperationType op = TOTEM_INSTRUCTION_GET_OP(instruction);
+    totemExecStatus status = totemExecStatus_Continue;
+
     switch(op)
     {
         case totemOperationType_None:
             state->CurrentInstruction++;
-            return totemExecStatus_Continue;
+            status = totemExecStatus_Continue;
+            break;
             
         case totemOperationType_Move:
-            return totemExecState_ExecMove(state);
+            status = totemExecState_ExecMove(state);
+            break;
             
         case totemOperationType_Add:
-            return totemExecState_ExecAdd(state);
+            status = totemExecState_ExecAdd(state);
+            break;
             
         case totemOperationType_Subtract:
-            return totemExecState_ExecSubtract(state);
+            status = totemExecState_ExecSubtract(state);
+            break;
             
         case totemOperationType_Multiply:
-            return totemExecState_ExecMultiply(state);
+            status = totemExecState_ExecMultiply(state);
+            break;
             
         case totemOperationType_Divide:
-            return totemExecState_ExecDivide(state);
+            status = totemExecState_ExecDivide(state);
+            break;
             
         case totemOperationType_Power:
-            return totemExecState_ExecPower(state);
+            status = totemExecState_ExecPower(state);
+            break;
             
         case totemOperationType_Equals:
-            return totemExecState_ExecEquals(state);
+            status = totemExecState_ExecEquals(state);
+            break;
             
         case totemOperationType_NotEquals:
-            return totemExecState_ExecNotEquals(state);
+            status = totemExecState_ExecNotEquals(state);
+            break;
             
         case totemOperationType_LessThan:
-            return totemExecState_ExecLessThan(state);
+            status = totemExecState_ExecLessThan(state);
+            break;
             
         case totemOperationType_LessThanEquals:
-            return totemExecState_ExecLessThanEquals(state);
+            status = totemExecState_ExecLessThanEquals(state);
+            break;
             
         case totemOperationType_MoreThan:
-            return totemExecState_ExecMoreThan(state);
+            status = totemExecState_ExecMoreThan(state);
+            break;
             
         case totemOperationType_MoreThanEquals:
-            return totemExecState_ExecMoreThanEquals(state);
+            status = totemExecState_ExecMoreThanEquals(state);
+            break;
             
         case totemOperationType_ConditionalGoto:
-            return totemExecState_ExecConditionalGoto(state);
+            status = totemExecState_ExecConditionalGoto(state);
+            break;
             
         case totemOperationType_Goto:
-            return totemExecState_ExecGoto(state);
+            status = totemExecState_ExecGoto(state);
+            break;
             
         case totemOperationType_NativeFunction:
-            return totemExecState_ExecNativeFunction(state);
+            status = totemExecState_ExecNativeFunction(state);
+            break;
             
         case totemOperationType_ScriptFunction:
-            return totemExecState_ExecScriptFunction(state);
+            status = totemExecState_ExecScriptFunction(state);
+            break;
             
         case totemOperationType_Return:
-            return totemExecState_ExecReturn(state);
+            status = totemExecState_ExecReturn(state);
+            break;
             
         case totemOperationType_NewArray:
-            return totemExecState_ExecNewArray(state);
+            status = totemExecState_ExecNewArray(state);
+            break;
             
         case totemOperationType_ArrayGet:
-            return totemExecState_ExecArrayGet(state);
+            status = totemExecState_ExecArrayGet(state);
+            break;
             
         case totemOperationType_ArraySet:
-            return totemExecState_ExecArraySet(state);
+            status = totemExecState_ExecArraySet(state);
+            break;
             
         case totemOperationType_MoveToGlobal:
-            return totemExecState_ExecMoveToGlobal(state);
+            status = totemExecState_ExecMoveToGlobal(state);
+            break;
             
         case totemOperationType_MoveToLocal:
-            return totemExecState_ExecMoveToLocal(state);
+            status = totemExecState_ExecMoveToLocal(state);
+            break;
             
         case totemOperationType_Is:
-            return totemExecState_ExecIs(state);
+            status = totemExecState_ExecIs(state);
+            break;
             
         case totemOperationType_As:
-            return totemExecState_ExecAs(state);
+            status = totemExecState_ExecAs(state);
+            break;
+            
+        case totemOperationType_FunctionPointer:
+            status = totemExecState_ExecFunctionPointer(state);
+            break;
+            
+        case totemOperationType_Assert:
+            status = totemExecState_ExecAssert(state);
+            break;
             
         default:
             return totemExecStatus_Break(totemExecStatus_UnrecognisedOperation);
     }
+    
+    // debug
+    /*
+    totemInstruction_Print(stdout, instruction);
+    totemInstructionType type = totemOperationType_GetInstructionType(op);
+    switch(type)
+    {
+        case totemInstructionType_Abc:
+        {
+            totemRegister *a = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+            totemRegister *b = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
+            totemRegister *c = TOTEM_GET_OPERANDC_REGISTER(state, instruction);
+            totemRegister_Print(stdout, a);
+            totemRegister_Print(stdout, b);
+            totemRegister_Print(stdout, c);
+            break;
+        }
+            
+        case totemInstructionType_Abx:
+        {
+            totemRegister *a = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+            totemRegister_Print(stdout, a);
+            break;
+        }
+            
+        case totemInstructionType_Axx:
+            break;
+    }*/
+    
+    return status;
+}
+
+totemExecStatus totemExecState_ExecAssert(totemExecState *state)
+{
+    totemInstruction instruction = *state->CurrentInstruction;
+    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    
+    if(dst->Value.Data != 0)
+    {
+        state->CurrentInstruction++;
+        return totemExecStatus_Continue;
+    }
+    else
+    {
+        return totemExecStatus_Break(totemExecStatus_FailedAssertion);
+    }
+}
+
+totemExecStatus totemExecState_ExecFunctionPointer(totemExecState *state)
+{
+    totemInstruction instruction = *state->CurrentInstruction;
+    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
+    
+    if(src->DataType != totemDataType_Function)
+    {
+        return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
+    }
+    
+    totemExecStatus status = totemExecStatus_Continue;
+    
+    switch(src->Value.FunctionPointer.Type)
+    {
+        case totemFunctionType_Native:
+            state->CurrentInstruction++;
+            status = totemExecState_ExecNative(state, dst, src->Value.FunctionPointer.Address);
+            break;
+            
+        case totemFunctionType_Script:
+            state->CurrentInstruction++;
+            status = totemExecState_Exec(state, NULL, src->Value.FunctionPointer.Address, dst);
+            break;
+            
+        default:
+            return totemExecStatus_Break(totemExecStatus_UnrecognisedOperation);
+    }
+    
+    return status;
 }
 
 totemExecStatus totemExecState_ExecAs(totemExecState *state)
@@ -1143,6 +1287,7 @@ totemExecStatus totemExecState_ExecMoreThan(totemExecState *state)
         default:
             return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
     }
+
     state->CurrentInstruction++;
     return totemExecStatus_Continue;
 }
@@ -1227,30 +1372,8 @@ totemExecStatus totemExecState_ExecNativeFunction(totemExecState *state)
     totemRegister *returnRegister = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
     totemOperandXUnsigned functionHandle = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(instruction);
     
-    totemNativeFunction *function = totemMemoryBuffer_Get(&state->Runtime->NativeFunctions, functionHandle);
-    if(function == NULL)
-    {
-        return totemExecStatus_Break(totemExecStatus_NativeFunctionNotFound);
-    }
-    
     state->CurrentInstruction++;
-    
-    // num args
-    uint8_t numArgs = 0;
-    if(TOTEM_INSTRUCTION_GET_OP(*state->CurrentInstruction) == totemOperationType_FunctionArg)
-    {
-        numArgs = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*state->CurrentInstruction);
-    }
-    
-    totemExecStatus status = totemExecState_PushFunctionCall(state, totemFunctionType_Native, functionHandle, returnRegister, numArgs);
-    if(status != totemExecStatus_Continue)
-    {
-        return status;
-    }
-    
-    status = (*function)(state);
-    totemExecState_PopFunctionCall(state);
-    return status;
+    return totemExecState_ExecNative(state, returnRegister, functionHandle);
 }
 
 totemExecStatus totemExecState_ExecReturn(totemExecState *state)
@@ -1263,7 +1386,7 @@ totemExecStatus totemExecState_ExecReturn(totemExecState *state)
     if(option == totemReturnOption_Register)
     {
         totemRegister *source = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
-        call->ReturnRegister->Value = source->Value;
+        totemRegister_Assign(call->ReturnRegister, source);
     }
     
     return totemExecStatus_Return;
@@ -1390,6 +1513,7 @@ const char *totemExecStatus_Describe(totemExecStatus status)
 {
     switch(status)
     {
+            TOTEM_STRINGIFY_CASE(totemExecStatus_FailedAssertion);
             TOTEM_STRINGIFY_CASE(totemExecStatus_Continue);
             TOTEM_STRINGIFY_CASE(totemExecStatus_InstructionOverflow);
             TOTEM_STRINGIFY_CASE(totemExecStatus_NativeFunctionNotFound);

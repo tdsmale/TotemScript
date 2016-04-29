@@ -22,6 +22,9 @@ function constTest()
     print("---");
     const $xw = 123;
     print($xw);
+
+    assert $xw == 123;
+
     print("---");
 }
 
@@ -30,28 +33,31 @@ function arrayTest()
     print("ARRAY TEST");
     print("---");
     $r = [10];
-    print("1");
+
     $r[3] = 12;
-    print("2");
+
+
+
     $r[0] = 1 * 2 + $r[3] * 4;
-    print("3");
 
     $r[4] = [20];
-    print("4");
+
     $r[4][15] = 12345;
-    print("5");
 
     $b = $r[3];
-    print("6");
+
     $a = $r[4][15];
-    print("7");
+
     $d = $r[0];
-    print("8");
 
     print($r);
     print($b);
     print($a);
     print($d);
+
+    assert $r[3] == 12;
+    assert $r[4][15] == 12345;
+
     print("---");
 }
 
@@ -61,6 +67,8 @@ function stringTest()
     print("---");
     $d = "This is an interned string!";
     print($d);
+
+    assert $d == "This is an interned string!";
     print("---");
 }
 
@@ -70,12 +78,17 @@ function moveToLocalTest()
 {
     print("MOVE TO LOCAL TEST");
     print("---");
+
     $e = $y;
     print($y);
+    assert $e == $y;
+
     $e = 0;
     $y = $e;
     print($y);
     print($e);
+    assert $e == $y;
+
     print("---");
 }
 
@@ -90,11 +103,53 @@ function dataTypeTest()
     print($b is $a);
     print($b is int);
 
+    assert $b is $a;
+    assert !($b is int);
+
     $d = int;
     $c = $b as $d;
     print($d);
     print($c);
     print($b);
+
+    assert $c == 3;
+
+    print("---");
+}
+
+function funcPointerTestChild($b, $c)
+{
+    print("HUZZAH!");
+    return $b + $c;
+}
+
+function funcPointerTest()
+{
+    print("function pointer test");
+    print("---");
+
+    $a = @funcPointerTestChild;
+    $b = 123;
+    $c = 456;
+    $d = $a($b, $c);
+    $e = @print;
+    $f = [10];
+    $f[5] = [12];
+    $f[5][2] = @print;
+
+    assert $d == $b + $c;
+    assert $a == @funcPointerTestChild;
+    assert $e == @print;
+    assert $f[5][2] == $e;
+
+    $e($a);
+    $e($b);
+    $e($c);
+    $e($d);
+    $e($e);
+    $f[5][2]($f[5][2]);
+    @print($d);
+    @print(function);
 
     print("---");
 }

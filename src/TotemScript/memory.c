@@ -406,6 +406,8 @@ void totemHashMap_Init(totemHashMap *hashmap)
 
 void totemHashMap_FreeEntry(totemHashMap *hashmap, totemHashMapEntry *entry)
 {
+	totem_CacheFree((void*)entry->Key, entry->KeyLen);
+
     entry->Next = hashmap->FreeList;
     hashmap->FreeList = entry;
 }

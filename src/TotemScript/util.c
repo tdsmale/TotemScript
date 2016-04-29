@@ -105,6 +105,10 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
+            TOTEM_STRINGIFY_CASE(totemOperationType_FunctionPointer);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Assert);
+            TOTEM_STRINGIFY_CASE(totemOperationType_As);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Is);
     }
     
     return "UNKNOWN";
@@ -120,6 +124,7 @@ const char *totemDataType_Describe(totemDataType type)
             TOTEM_STRINGIFY_CASE(totemDataType_String);
             TOTEM_STRINGIFY_CASE(totemDataType_Array);
             TOTEM_STRINGIFY_CASE(totemDataType_Type);
+            TOTEM_STRINGIFY_CASE(totemDataType_Function);
     }
     
     return "UNKNOWN";
@@ -261,6 +266,10 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
 {
     switch(reg->DataType)
     {
+        case totemDataType_Function:
+            fprintf(file, "%s: %d:%d\n", totemDataType_Describe(reg->DataType), reg->Value.FunctionPointer.Type, reg->Value.FunctionPointer.Address);
+            break;
+            
         case totemDataType_Type:
             fprintf(file, "%s: %s\n", totemDataType_Describe(reg->DataType), totemDataType_Describe(reg->Value.DataType));
             break;
@@ -420,7 +429,7 @@ totemBool totem_fchdir(FILE *file)
         return totemBool_False;
     }
     
-    WCHAR buffer[PATH_MAX];
+    TCHAR buffer[PATH_MAX];
     LPWSTR filename = buffer;
     
     DWORD length = GetFinalPathNameByHandle(handle, filename, TOTEM_ARRAYSIZE(buffer), VOLUME_NAME_DOS | FILE_NAME_NORMALIZED);
@@ -436,7 +445,7 @@ totemBool totem_fchdir(FILE *file)
         
         size_t len = wcslen(filename);
         
-        for(WCHAR *c = filename + len - 1; c >= filename; c--)
+		for (TCHAR *c = filename + len - 1; c >= filename; c--)
         {
             if(c[0] == '/' || c[0] == '\\')
             {

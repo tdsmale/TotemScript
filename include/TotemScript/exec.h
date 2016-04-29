@@ -31,7 +31,8 @@ extern "C" {
         totemExecStatus_InstructionOverflow,
         totemExecStatus_OutOfMemory,
         totemExecStatus_IndexOutOfBounds,
-        totemExecStatus_RefCountOverflow
+        totemExecStatus_RefCountOverflow,
+        totemExecStatus_FailedAssertion
     }
     totemExecStatus;
     
@@ -107,7 +108,8 @@ extern "C" {
      */
     totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size_t numRegisters);
     void totemExecState_Cleanup(totemExecState *state);
-    totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, size_t functionAddress, totemRegister *returnRegister);
+    totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionAddress, totemRegister *returnRegister);
+    totemExecStatus totemExecState_ExecNative(totemExecState *state, totemRegister *returnRegister, totemOperandXUnsigned functionHandle);
     totemExecStatus totemExecState_ExecInstruction(totemExecState *state);
     totemExecStatus totemExecState_ExecMove(totemExecState *state);
     totemExecStatus totemExecState_ExecMoveToGlobal(totemExecState *state);
@@ -133,6 +135,8 @@ extern "C" {
     totemExecStatus totemExecState_ExecArraySet(totemExecState *state);
     totemExecStatus totemExecState_ExecIs(totemExecState *state);
     totemExecStatus totemExecState_ExecAs(totemExecState *state);
+    totemExecStatus totemExecState_ExecFunctionPointer(totemExecState *state);
+    totemExecStatus totemExecState_ExecAssert(totemExecState *state);
     
     void totemRegister_Print(FILE *file, totemRegister *reg);
     void totemRegister_PrintList(FILE *file, totemRegister *regs, size_t numRegisters);

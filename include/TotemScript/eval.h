@@ -96,6 +96,7 @@ extern "C" {
         totemHashMap Strings;
         totemHashMap Numbers;
         totemHashMap MoveToLocalVars;
+        totemHashMap FunctionPointers;
         totemOperandXUnsigned NullIndex;
         totemBool HasNull;
         totemOperandType Scope;
@@ -122,6 +123,7 @@ extern "C" {
     totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPrototype *list, totemString *number, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPrototype *list, totemString *buffer, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand);
+    totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemFunctionPointer *value, totemOperandRegisterPrototype *operand);
     totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand);
     
     typedef struct
@@ -134,6 +136,7 @@ extern "C" {
         totemMemoryBuffer Instructions;
         totemMemoryBuffer NativeFunctionCallInstructions;
         totemMemoryBuffer NativeFunctionNames;
+        totemMemoryBuffer FunctionArguments;
         void *ErrorContext;
         totemBuildPrototypeFlag Flags;
     }

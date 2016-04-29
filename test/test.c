@@ -152,7 +152,7 @@ int main(int argc, const char * argv[])
     }
     
     // run test
-    execStatus = totemExecState_Exec(&execState, &actor, function->Value, &returnRegister);
+    execStatus = totemExecState_Exec(&execState, &actor, (totemOperandXUnsigned)function->Value, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));

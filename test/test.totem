@@ -14,6 +14,8 @@ function whileLoop()
     }
 
     print($c);
+    assert $c == 0;
+
     print("---");
 }
 
@@ -23,6 +25,7 @@ function doWhileLoop()
     print("---");
 
     $a = 20;
+    $numLoops = 0;
 
     do
     {
@@ -30,6 +33,9 @@ function doWhileLoop()
         $a--;
     }
     while($a);
+
+    print($a);
+    assert $a == 0;
 
     print("---");
 }
@@ -43,6 +49,8 @@ function forLoop()
     {
         print($i);
     }
+
+    assert $i == 30;
 
     print("---");
 }
@@ -79,11 +87,16 @@ function intFloat()
     $b = $f + 0.5;
     print($b);
 
+    assert $b == 1.5;
+
     $c = 12.4;
     print($c);
 
     $d = $c + 5;
     print($d);
+
+    assert $d == 17.4;
+
     print("---");
 }
 
@@ -93,13 +106,15 @@ function nullTest()
     print("---");
     $g = null;
     print($g);
+
+    assert $g == null;
+
     print("---");
 }
 
 function test()
 {
     dataTypeTest();
-
     moveToLocalTest();
     includeTest(1 + 2);
     constTest();
@@ -111,4 +126,6 @@ function test()
     ifBlock();
     intFloat();
     nullTest();
+
+    funcPointerTest();
 }

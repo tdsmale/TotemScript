@@ -131,7 +131,6 @@ extern "C" {
     typedef uint32_t totemOperandXUnsigned;
     typedef double totemFloat;
     typedef int64_t totemInt;
-    typedef size_t totemReference;
     typedef uint32_t totemHash;
     typedef uintptr_t totemHashValue;
     typedef uint32_t totemStringLength;
@@ -158,6 +157,20 @@ extern "C" {
     }
     totemRuntimeArray;
     
+    enum
+    {
+        totemFunctionType_Script = 0,
+        totemFunctionType_Native = 1
+    };
+    typedef uint8_t totemFunctionType;
+    
+    typedef struct
+    {
+        totemOperandXUnsigned Address;
+        totemFunctionType Type;
+    }
+    totemFunctionPointer;
+    
     typedef struct
     {
         totemHash Hash;
@@ -174,7 +187,8 @@ extern "C" {
         totemDataType_String = 3,
         totemDataType_Array = 4,
         totemDataType_Type = 5,
-        totemDataType_Max = 6
+        totemDataType_Function = 6,
+        totemDataType_Max = 7
     };
     typedef uint8_t totemDataType;
     const char *totemDataType_Describe(totemDataType type);
@@ -184,10 +198,10 @@ extern "C" {
     {
         totemFloat Float;
         totemInt Int;
-        totemReference Reference;
         totemInternedStringHeader *InternedString;
         totemRuntimeArray *Array;
         uint64_t Data;
+        totemFunctionPointer FunctionPointer;
         totemDataType DataType;
     }
     totemRegisterValue;
@@ -198,13 +212,6 @@ extern "C" {
         totemDataType DataType;
     }
     totemRegister;
-    
-    typedef enum
-    {
-        totemFunctionType_Script,
-        totemFunctionType_Native
-    }
-    totemFunctionType;
     
     /**
      * Operation Types
@@ -230,7 +237,7 @@ extern "C" {
         totemOperationType_Goto = 16,               // skip Bx instructions (can be negative)
         totemOperationType_NativeFunction = 17,     // A = Bx(), where Bx is the index of a native function
         totemOperationType_ScriptFunction = 18,     // A = Bx(), where Bx is the index of a script function
-        totemOperationType_FunctionArg = 19,        // A is register to pass, Bx is 1 or 0 to indicate if this is the last argument to pass
+        totemOperationType_FunctionArg = 19,        // A is register to pass, Bx is number of arguments total
         totemOperationType_Return = 20,             // return A,
         totemOperationType_NewArray = 21,           // A = array of size B
         totemOperationType_ArrayGet = 22,           // A = B[C]
@@ -239,9 +246,10 @@ extern "C" {
         totemOperationType_MoveToGlobal = 25,       // Bx = A
 		totemOperationType_Is = 26,					// A = B is C
 		totemOperationType_As = 27,					// A = B as C
+		totemOperationType_FunctionPointer = 28,	// A = B()
+        totemOperationType_Assert = 29,             // assert A
         /*
-		totemOperationType_FunctionPointer = 28,	// A = @Bx
-		totemOperationType_Throw = 29,				// throw A
+		totemOperationType_Throw = 30,				// throw A
 		*/
 
         totemOperationType_Max = 31
