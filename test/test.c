@@ -112,7 +112,7 @@ int main(int argc, const char * argv[])
     totemInstruction_PrintList(stdout, totemMemoryBuffer_Get(&build.Instructions, 0), totemMemoryBuffer_GetNumObjects(&build.Instructions));
     printf("\n");
     
-    // init
+    // init actor
     totemActor actor;
     if(totemActor_Init(&actor, &runtime, scriptAddr) != totemExecStatus_Continue)
     {
@@ -133,14 +133,11 @@ int main(int argc, const char * argv[])
         return EXIT_FAILURE;
     }
     
-    totemScript *script = totemMemoryBuffer_Get(&runtime.Scripts, scriptAddr);
-    totemHashMapEntry *function = totemHashMap_Find(&script->FunctionNameLookup, "test", 4);
-    
     totemRegister returnRegister;
     memset(&returnRegister, 0, sizeof(totemRegister));
     
     printf("******\n");
-    printf("Run:\n");
+    printf("Run globals:\n");
     printf("******\n");
     
     // init global vars
@@ -151,7 +148,13 @@ int main(int argc, const char * argv[])
         return EXIT_FAILURE;
     }
     
+    printf("******\n");
+    printf("Run locals:\n");
+    printf("******\n");
+    
     // run test
+    totemScript *script = totemMemoryBuffer_Get(&runtime.Scripts, scriptAddr);
+    totemHashMapEntry *function = totemHashMap_Find(&script->FunctionNameLookup, "test", 4);
     execStatus = totemExecState_Exec(&execState, &actor, (totemOperandXUnsigned)function->Value, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {

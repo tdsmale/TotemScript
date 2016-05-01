@@ -379,11 +379,11 @@ const char *totem_getcwd()
     {
         return buffer;
     }
-	else
-	{
-		totem_CacheFree(buffer, size);
-		return NULL;
-	}
+    else
+    {
+        totem_CacheFree(buffer, size);
+        return NULL;
+    }
 }
 
 void totem_Init()
@@ -445,7 +445,7 @@ totemBool totem_fchdir(FILE *file)
         
         size_t len = wcslen(filename);
         
-		for (TCHAR *c = filename + len - 1; c >= filename; c--)
+        for (TCHAR *c = filename + len - 1; c >= filename; c--)
         {
             if(c[0] == '/' || c[0] == '\\')
             {

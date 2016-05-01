@@ -132,12 +132,15 @@ extern "C" {
         totemRegisterListPrototype LocalRegisters;
         totemHashMap FunctionLookup;
         totemHashMap NativeFunctionNamesLookup;
+        totemHashMap AnonymousFunctions;
         totemMemoryBuffer Functions;
         totemMemoryBuffer Instructions;
         totemMemoryBuffer NativeFunctionCallInstructions;
         totemMemoryBuffer NativeFunctionNames;
         totemMemoryBuffer FunctionArguments;
         void *ErrorContext;
+        totemFunctionDeclarationPrototype *AnonymousFunctionHead;
+        totemFunctionDeclarationPrototype *AnonymousFunctionTail;
         totemBuildPrototypeFlag Flags;
     }
     totemBuildPrototype;

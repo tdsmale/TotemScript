@@ -122,7 +122,7 @@ extern "C" {
     {
         totemReturnOption_Implicit = 0,
         totemReturnOption_Register = 1,
-		totemReturnOption_Yield = 2
+        totemReturnOption_Yield = 2
     }
     totemReturnOption;
     
@@ -244,14 +244,14 @@ extern "C" {
         totemOperationType_ArraySet = 23,           // A[B] = C
         totemOperationType_MoveToLocal = 24,        // A = Bx
         totemOperationType_MoveToGlobal = 25,       // Bx = A
-		totemOperationType_Is = 26,					// A = B is C
-		totemOperationType_As = 27,					// A = B as C
-		totemOperationType_FunctionPointer = 28,	// A = B()
+        totemOperationType_Is = 26,					// A = B is C
+        totemOperationType_As = 27,					// A = B as C
+        totemOperationType_FunctionPointer = 28,	// A = B()
         totemOperationType_Assert = 29,             // assert A
         /*
-		totemOperationType_Throw = 30,				// throw A
-		*/
-
+         totemOperationType_Throw = 30,				// throw A
+         */
+        
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;

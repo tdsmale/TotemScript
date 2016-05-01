@@ -36,8 +36,6 @@ function arrayTest()
 
     $r[3] = 12;
 
-
-
     $r[0] = 1 * 2 + $r[3] * 4;
 
     $r[4] = [20];
@@ -123,6 +121,11 @@ function funcPointerTestChild($b, $c)
     return $b + $c;
 }
 
+$rtygh = function()
+{
+    print("DOOP");
+};
+
 function funcPointerTest()
 {
     print("function pointer test");
@@ -150,6 +153,17 @@ function funcPointerTest()
     $f[5][2]($f[5][2]);
     @print($d);
     @print(function);
+
+    $g = function($rt, $as, $we)
+    {
+        print("GOOD LORD!");
+        return $rt + $as + $we;
+    };
+
+    assert $g(456, 789, 123) == 456 + 789 + 123;
+    assert function($zxc, $vbn) { return $zxc - $vbn; }(10, 5) == 10 - 5;
+
+    $rtygh();
 
     print("---");
 }

@@ -30,7 +30,7 @@ extern "C" {
      array-source = variable | function-call | new-array | array-member
      array-member = array-source lbracket expression rbracket
      
-     argument = variable | number-token | string | function-call | new-array | type
+     argument = variable | number-token | string | function-call | new-array | type | function-declaration
      
      expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
      
@@ -96,7 +96,8 @@ extern "C" {
         totemArgumentType_FunctionCall,
         totemArgumentType_NewArray,
         totemArgumentType_Type,
-        totemArgumentType_FunctionPointer
+        totemArgumentType_FunctionPointer,
+        totemArgumentType_FunctionDeclaration
     }
     totemArgumentType;
     
@@ -237,12 +238,21 @@ extern "C" {
         totemTokenType_Max
     }
     totemTokenType;
-    
     const char *totemTokenType_Describe(totemTokenType type);
+    
+    typedef enum
+    {
+        totemTokenCategory_None = 0,
+        totemTokenCategory_Symbol,
+        totemTokenCategory_ReservedWord,
+        totemTokenCategory_Other
+    }
+    totemTokenCategory;
     
     typedef struct
     {
         totemTokenType Type;
+        totemTokenCategory Category;
         const char *Value;
     }
     totemTokenDesc;
@@ -259,6 +269,7 @@ extern "C" {
         totemString Value;
         totemBufferPositionInfo Position;
         totemTokenType Type;
+        totemTokenCategory Category;
     }
     totemToken;
     
@@ -290,6 +301,8 @@ extern "C" {
     }
     totemNewArrayPrototype;
     
+    struct totemFunctionDeclarationPrototype;
+    
     typedef struct totemArgumentPrototype
     {
         union
@@ -299,6 +312,7 @@ extern "C" {
             totemString *Number;
             totemString *FunctionPointer;
             totemFunctionCallPrototype *FunctionCall;
+            struct totemFunctionDeclarationPrototype *FunctionDeclaration;
             totemNewArrayPrototype *NewArray;
             totemDataType DataType;
         };
@@ -397,12 +411,13 @@ extern "C" {
     }
     totemDoWhileLoopPrototype;
     
-    typedef struct
+    typedef struct totemFunctionDeclarationPrototype
     {
         totemVariablePrototype *ParametersStart;
         struct totemStatementPrototype *StatementsStart;
         totemString *Identifier;
         totemBufferPositionInfo Position;
+        struct totemFunctionDeclarationPrototype *Next;
     }
     totemFunctionDeclarationPrototype;
     
@@ -499,7 +514,7 @@ extern "C" {
     totemParseStatus totemWhileLoopPrototype_Parse(totemWhileLoopPrototype *loop, totemToken **token, totemParseTree *tree);
     totemParseStatus totemDoWhileLoopPrototype_Parse(totemDoWhileLoopPrototype *loop, totemToken **token, totemParseTree *tree);
     totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemToken **token, totemParseTree *tree);
+    totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemToken **token, totemParseTree *tree, totemBool isAnonymous);
     totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expression, totemToken **token, totemParseTree *tree);
     totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemToken **token, totemParseTree *tree);
     totemParseStatus totemExpressionPrototype_ParseParameterInList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemToken **token, totemParseTree *tree);
@@ -510,7 +525,7 @@ extern "C" {
     totemParseStatus totemVariablePrototype_ParseParameterList(totemVariablePrototype **first, totemVariablePrototype **last, totemToken **token, totemParseTree *tree);
     totemParseStatus totemVariablePrototype_ParseParameterInList(totemVariablePrototype **first, totemVariablePrototype **last, totemToken **token, totemParseTree *tree);
     
-    totemParseStatus totemString_ParseIdentifier(totemString *string, totemToken **token, totemParseTree *tree);
+    totemParseStatus totemString_ParseIdentifier(totemString *string, totemToken **token, totemParseTree *tree, totemBool strict);
     totemParseStatus totemString_ParseNumber(totemString *string, totemToken **token, totemParseTree *tree);
     
     totemParseStatus totemPreUnaryOperatorPrototype_Parse(totemPreUnaryOperatorPrototype **type, totemToken **token, totemParseTree *tree);

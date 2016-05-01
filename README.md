@@ -14,7 +14,6 @@ A parser & virtual machine for a custom scripting language written in C.
 * "finally" block, can be used at the end of any control blocks - only invoked if the loop is actually entered at least once
 
 #### syntactic sugar
-* anonymous functions that eval to function pointers
 * type hinting, allowing compile-time type checking (e.g. $x:int = "this won't compile!"; )
  * cannot mix dynamic vars and type-checked vars
 * erlang-style records that eval to arrays at runtime

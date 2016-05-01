@@ -19,62 +19,65 @@
 #define TOTEM_PARSE_ENFORCENOTTOKEN(token, type) if((*token)->Type == type) return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
 #define TOTEM_PARSE_INC_NOT_ENDSCRIPT(token) (*token)++; TOTEM_PARSE_ENFORCENOTTOKEN(token, totemTokenType_EndScript);
 
+#define TOTEM_DESC_TOKEN_SYMBOL(type, value) { type, totemTokenCategory_Symbol, value }
+#define TOTEM_DESC_TOKEN_WORD(type, value) { type, totemTokenCategory_ReservedWord, value }
+
 const static totemTokenDesc s_symbolTokenValues[] =
 {
-    { totemTokenType_Variable, "$" },
-    { totemTokenType_Plus, "+" },
-    { totemTokenType_Minus, "-" },
-    { totemTokenType_Multiply, "*" },
-    { totemTokenType_Divide, "/" },
-    { totemTokenType_Not, "!" },
-    { totemTokenType_And, "&" },
-    { totemTokenType_Or, "|" },
-    { totemTokenType_Assign, "=" },
-    { totemTokenType_LBracket, "(" },
-    { totemTokenType_RBracket, ")" },
-    { totemTokenType_LessThan, "<" },
-    { totemTokenType_MoreThan, ">" },
-    { totemTokenType_LCBracket, "{" },
-    { totemTokenType_RCBracket, "}" },
-    { totemTokenType_Dot, "." },
-    { totemTokenType_PowerTo, "^" },
-    { totemTokenType_Semicolon, ";" },
-    { totemTokenType_Whitespace, " " },
-    { totemTokenType_SingleQuote, "'" },
-    { totemTokenType_DoubleQuote, "\"" },
-    { totemTokenType_LSBracket, "[" },
-    { totemTokenType_RSBracket, "]" },
-    { totemTokenType_Comma, "," },
-    { totemTokenType_Colon, ":" },
-    { totemTokenType_Backslash, "\\" },
-    { totemTokenType_Slash, "/" },
-    { totemTokenType_At, "@" }
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Variable, "$" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Plus, "+" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Minus, "-" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Multiply, "*" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Divide, "/" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Not, "!" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_And, "&" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Or, "|" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Assign, "=" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_LBracket, "(" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_RBracket, ")" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_LessThan, "<" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_MoreThan, ">" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_LCBracket, "{" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_RCBracket, "}" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Dot, "." ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_PowerTo, "^" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Semicolon, ";" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Whitespace, " " ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_SingleQuote, "'" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_DoubleQuote, "\"" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_LSBracket, "[" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_RSBracket, "]" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Comma, "," ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Colon, ":" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Backslash, "\\" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_Slash, "/" ),
+    TOTEM_DESC_TOKEN_SYMBOL( totemTokenType_At, "@" )
 };
 
 const static totemTokenDesc s_reservedWordValues[] =
 {
-    { totemTokenType_If, "if" },
-    { totemTokenType_Do, "do" },
-    { totemTokenType_While, "while" },
-    { totemTokenType_For, "for" },
-    { totemTokenType_Return, "return" },
-    { totemTokenType_Case, "case" },
-    { totemTokenType_Break, "break" },
-    { totemTokenType_Function, "function" },
-    { totemTokenType_Default, "default" },
-    { totemTokenType_Else, "else" },
-    { totemTokenType_True, "true" },
-    { totemTokenType_False, "false" },
-    { totemTokenType_Null, "null" },
-    { totemTokenType_Const, "const" },
-    { totemTokenType_Is, "is" },
-    { totemTokenType_Float, "float" },
-    { totemTokenType_Int, "int" },
-    { totemTokenType_Array, "array" },
-    { totemTokenType_String, "string" },
-    { totemTokenType_Type, "type" },
-    { totemTokenType_As, "as" },
-    { totemTokenType_Assert, "assert" }
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_If, "if" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Do, "do" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_While, "while" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_For, "for" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Return, "return" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Case, "case" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Break, "break" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Function, "function" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Default, "default" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Else, "else" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_True, "true" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_False, "false" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Null, "null" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Const, "const" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Is, "is" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Float, "float" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Int, "int" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Array, "array" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_String, "string" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Type, "type" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_As, "as" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Assert, "assert" )
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -507,6 +510,7 @@ totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size
     totemToken *endToken;
     TOTEM_LEX_ALLOC(endToken, list);
     endToken->Type = totemTokenType_EndScript;
+    endToken->Category = totemTokenCategory_Other;
     endToken->Value.Value = NULL;
     endToken->Value.Length = 0;
     
@@ -523,6 +527,7 @@ totemToken *totemTokenList_Alloc(totemTokenList *list)
         currentToken->Value.Value = NULL;
         currentToken->Value.Length = 0;
         currentToken->Type = totemTokenType_None;
+        currentToken->Category = totemTokenCategory_None;
         currentToken->Position.CharNumber = list->NextTokenStart;
         currentToken->Position.LineNumber = list->CurrentLine;
         return currentToken;
@@ -536,6 +541,7 @@ totemLexStatus totemTokenList_LexNumberOrIdentifierToken(totemTokenList *list, c
     totemToken *currentToken = NULL;
     TOTEM_LEX_ALLOC(currentToken, list);
     currentToken->Type = totemTokenType_Number;
+    currentToken->Category = totemTokenCategory_Other;
     currentToken->Value.Value = toCheck;
     currentToken->Value.Length = (uint32_t)length;
     
@@ -563,6 +569,7 @@ totemLexStatus totemTokenList_LexReservedWordToken(totemTokenList *list, const c
             totemToken *token = NULL;
             TOTEM_LEX_ALLOC(token, list);
             token->Type = s_reservedWordValues[i].Type;
+            token->Category = totemTokenCategory_ReservedWord;
             token->Value.Value = buffer;
             token->Value.Length = (uint32_t)tokenLength;
             
@@ -599,6 +606,7 @@ totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *list, const char *t
             totemToken *token = NULL;
             TOTEM_LEX_ALLOC(token, list);
             token->Type = s_symbolTokenValues[i].Type;
+            token->Category = totemTokenCategory_Symbol;
             token->Value.Value = toCheck;
             token->Value.Length = 1;
             
@@ -683,7 +691,7 @@ totemParseStatus totemBlockPrototype_Parse(totemBlockPrototype *block, totemToke
         {
             block->Type = totemBlockType_FunctionDeclaration;
             TOTEM_PARSE_ALLOC(block->FuncDec, totemFunctionDeclarationPrototype, tree);
-            return totemFunctionDeclarationPrototype_Parse(block->FuncDec, token, tree);
+            return totemFunctionDeclarationPrototype_Parse(block->FuncDec, token, tree, totemBool_False);
         }
             
         default:
@@ -761,7 +769,7 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             return totemParseStatus_Success;
         }
-    
+            
         default:
         {
             statement->Type = totemStatementType_Simple;
@@ -1047,17 +1055,20 @@ totemParseStatus totemForLoopPrototype_Parse(totemForLoopPrototype *loop, totemT
     return totemParseStatus_Success;
 }
 
-totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemToken **token, totemParseTree *tree)
+totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemToken **token, totemParseTree *tree, totemBool isAnonymous)
 {
     TOTEM_PARSE_SKIPWHITESPACE(token);
-    TOTEM_PARSE_COPYPOSITION(token, func);
     TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Function);
+    TOTEM_PARSE_COPYPOSITION(token, func);
     
     TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
     TOTEM_PARSE_SKIPWHITESPACE(token);
     
-    TOTEM_PARSE_ALLOC(func->Identifier, totemString, tree);
-    TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(func->Identifier, token, tree));
+    if(!isAnonymous)
+    {
+        TOTEM_PARSE_ALLOC(func->Identifier, totemString, tree);
+        TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(func->Identifier, token, tree, totemBool_True));
+    }
     
     totemVariablePrototype *firstParameter = NULL, *lastParameter = NULL;
     TOTEM_PARSE_CHECKRETURN(totemVariablePrototype_ParseParameterList(&firstParameter, &lastParameter, token, tree));
@@ -1206,7 +1217,7 @@ totemParseStatus totemPostUnaryOperatorPrototype_Parse(totemPostUnaryOperatorPro
             }
             
             return totemParseStatus_Success;
-         
+            
         case totemTokenType_LBracket:
             TOTEM_PARSE_ALLOC(*type, totemPostUnaryOperatorPrototype, tree);
             (*type)->Type = totemPostUnaryOperatorType_Invocation;
@@ -1414,7 +1425,7 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
     
     TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Variable);
     TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-    TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(&variable->Identifier, token, tree));
+    TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(&variable->Identifier, token, tree, totemBool_False));
     TOTEM_PARSE_SKIPWHITESPACE(token);
     
     return totemParseStatus_Success;
@@ -1423,7 +1434,7 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
 totemParseStatus totemFunctionCallPrototype_Parse(totemFunctionCallPrototype *call, totemToken **token, totemParseTree *tree)
 {
     TOTEM_PARSE_SKIPWHITESPACE(token);
-    TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(&call->Identifier, token, tree));
+    TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(&call->Identifier, token, tree, totemBool_True));
     
     totemExpressionPrototype *first = NULL, *last = NULL;
     TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_ParseParameterList(&first, &last, token, tree));
@@ -1456,12 +1467,36 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     
     switch((*token)->Type)
     {
+        case totemTokenType_Function:
+        {
+            totemToken *reset = *token;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            TOTEM_PARSE_SKIPWHITESPACE(token);
+            
+            if((*token)->Type == totemTokenType_LBracket)
+            {
+                // anonymous function
+                *token = reset;
+                argument->Type = totemArgumentType_FunctionDeclaration;
+                TOTEM_PARSE_ALLOC(argument->FunctionDeclaration, totemFunctionDeclarationPrototype, tree);
+                TOTEM_PARSE_CHECKRETURN(totemFunctionDeclarationPrototype_Parse(argument->FunctionDeclaration, token, tree, totemBool_True));
+            }
+            else
+            {
+                // function type
+                argument->DataType = totemDataType_Function;
+                argument->Type = totemArgumentType_Type;
+            }
+            
+            break;
+        }
+            
             // function pointer
         case totemTokenType_At:
             argument->Type = totemArgumentType_FunctionPointer;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             TOTEM_PARSE_ALLOC(argument->FunctionPointer, totemString, tree);
-            TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(argument->FunctionPointer, token, tree));
+            TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(argument->FunctionPointer, token, tree, totemBool_True));
             break;
             
             // types
@@ -1491,12 +1526,6 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             
         case totemTokenType_Type:
             argument->DataType = totemDataType_Type;
-            argument->Type = totemArgumentType_Type;
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
-            break;
-            
-        case totemTokenType_Function:
-            argument->DataType = totemDataType_Function;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
@@ -1607,26 +1636,41 @@ totemParseStatus totemNewArrayPrototype_Parse(totemNewArrayPrototype *arr, totem
     return totemParseStatus_Success;
 }
 
-totemParseStatus totemString_ParseIdentifier(totemString *string, totemToken **token, totemParseTree *tree)
+totemParseStatus totemString_ParseIdentifier(totemString *string, totemToken **token, totemParseTree *tree, totemBool strict)
 {
     TOTEM_PARSE_SKIPWHITESPACE(token);
-    TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Identifier);
     
     const char *start = (*token)->Value.Value;
     uint32_t length = 0;
     
-    while((*token)->Type == totemTokenType_Identifier)
+    if(strict)
     {
-        length += (*token)->Value.Length;
-        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+        TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Identifier);
+        
+        while((*token)->Type == totemTokenType_Identifier)
+        {
+            length += (*token)->Value.Length;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+        }
+    }
+    else
+    {
+        while((*token)->Type != totemTokenType_Whitespace && ((*token)->Category == totemTokenCategory_ReservedWord || (*token)->Type == totemTokenType_Identifier))
+        {
+            length += (*token)->Value.Length;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+        }
     }
     
     string->Length = length;
     string->Value = start;
     
-    (*token)--;
-    TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Identifier);
-    TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+    if(strict)
+    {
+        (*token)--;
+        TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Identifier);
+        TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+    }
     
     return totemParseStatus_Success;
 }

@@ -147,16 +147,16 @@ void *totem_CacheMalloc(size_t amount)
         else
         {
             // look for a new allocation in cached pages
-			if (freeList->HeadPage)
-			{
-				totemMemoryPage *page = freeList->HeadPage;
-				if (page->NumAllocated < page->NumTotal)
-				{
-					totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
-					page->NumAllocated++;
-					return obj;
-				}
-			}
+            if (freeList->HeadPage)
+            {
+                totemMemoryPage *page = freeList->HeadPage;
+                if (page->NumAllocated < page->NumTotal)
+                {
+                    totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
+                    page->NumAllocated++;
+                    return obj;
+                }
+            }
             
             // grab a new page & allocate from that
             totemMemoryPage *newPage = totem_Malloc(sizeof(totemMemoryPage));
@@ -406,8 +406,8 @@ void totemHashMap_Init(totemHashMap *hashmap)
 
 void totemHashMap_FreeEntry(totemHashMap *hashmap, totemHashMapEntry *entry)
 {
-	totem_CacheFree((void*)entry->Key, entry->KeyLen);
-
+    totem_CacheFree((void*)entry->Key, entry->KeyLen);
+    
     entry->Next = hashmap->FreeList;
     hashmap->FreeList = entry;
 }

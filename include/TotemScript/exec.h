@@ -32,7 +32,8 @@ extern "C" {
         totemExecStatus_OutOfMemory,
         totemExecStatus_IndexOutOfBounds,
         totemExecStatus_RefCountOverflow,
-        totemExecStatus_FailedAssertion
+        totemExecStatus_FailedAssertion,
+        totemExecStatus_DivideByZero
     }
     totemExecStatus;
     
@@ -101,7 +102,6 @@ extern "C" {
     
     void totemRuntimeArray_DefRefCount(totemRuntimeArray *arr);
     totemExecStatus totemRuntimeArray_IncRefCount(totemRuntimeArray *arr);
-    totemExecStatus totemRegister_Assign(totemRegister *dst, totemRegister *src);
     
     /**
      * Execute bytecode
