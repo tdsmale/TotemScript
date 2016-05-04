@@ -33,7 +33,8 @@ extern "C" {
         totemExecStatus_IndexOutOfBounds,
         totemExecStatus_RefCountOverflow,
         totemExecStatus_FailedAssertion,
-        totemExecStatus_DivideByZero
+        totemExecStatus_DivideByZero,
+        totemExecStatus_InternalBufferOverrun
     }
     totemExecStatus;
     
@@ -46,7 +47,8 @@ extern "C" {
         totemLinkStatus_FunctionAlreadyDeclared,
         totemLinkStatus_FunctionNotDeclared,
         totemLinkStatus_InvalidNativeFunctionAddress,
-        totemLinkStatus_InvalidNativeFunctionName
+        totemLinkStatus_InvalidNativeFunctionName,
+        totemLinkStatus_TooManyNativeFunctions
     }
     totemLinkStatus;
     
@@ -54,17 +56,47 @@ extern "C" {
     
     typedef struct
     {
+        size_t ScriptHandle;
+        totemMemoryBuffer GlobalRegisters;
+    }
+    totemActor;
+    
+    typedef struct
+    {
+        size_t InstructionsStart;
+        uint8_t RegistersNeeded;
+    }
+    totemScriptFunction;
+    
+    typedef struct
+    {
         totemHashMap FunctionNameLookup;
         totemMemoryBuffer GlobalRegisters;
-        totemMemoryBuffer GlobalData;
         totemMemoryBuffer Functions;
+        totemMemoryBuffer FunctionNames;
         totemMemoryBuffer Instructions;
     }
     totemScript;
     
+    typedef struct totemFunctionCall
+    {
+        struct totemFunctionCall *Prev;
+        totemActor *CurrentActor;
+        totemRegister *ReturnRegister;
+        totemRegister *PreviousFrameStart;
+        totemRegister *FrameStart;
+        totemInstruction *ResumeAt;
+        size_t FunctionHandle;
+        totemFunctionType Type;
+        uint8_t NumRegisters;
+        uint8_t NumArguments;
+    }
+    totemFunctionCall;
+    
     typedef struct
     {
         totemMemoryBuffer NativeFunctions;
+        totemMemoryBuffer NativeFunctionNames;
         totemMemoryBuffer Scripts;
         
         totemHashMap ScriptLookup;
@@ -79,7 +111,6 @@ extern "C" {
     {
         totemFunctionCall *CallStack;
         totemInstruction *CurrentInstruction;
-        totemActor *CurrentActor;
         totemRuntime *Runtime;
         totemRegister *Registers[2];
         size_t MaxLocalRegisters;
@@ -96,12 +127,15 @@ extern "C" {
     void totemRuntime_Reset(totemRuntime *runtime);
     void totemRuntime_Cleanup(totemRuntime *runtime);
     totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
-    totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, size_t *addressOut);
-    totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, size_t *addressOut);
+    totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, totemOperandXUnsigned *addressOut);
+    totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, totemOperandXUnsigned *addressOut);
     totemInternedStringHeader *totemRuntime_InternString(totemRuntime *runtime, totemString *str);
     
-    void totemRuntimeArray_DefRefCount(totemRuntimeArray *arr);
-    totemExecStatus totemRuntimeArray_IncRefCount(totemRuntimeArray *arr);
+    totemRuntimeArrayHeader *totemRuntimeArrayHeader_Create(uint32_t numRegisters);
+    void totemRuntimeArrayHeader_Destroy(totemRuntimeArrayHeader *arr);
+    totemRegister *totemRuntimeArrayHeader_GetRegisters(totemRuntimeArrayHeader *arr);
+    void totemRuntimeArrayHeader_DefRefCount(totemRuntimeArrayHeader *arr);
+    totemExecStatus totemRuntimeArrayHeader_IncRefCount(totemRuntimeArrayHeader *arr);
     
     /**
      * Execute bytecode
@@ -109,7 +143,7 @@ extern "C" {
     totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size_t numRegisters);
     void totemExecState_Cleanup(totemExecState *state);
     totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionAddress, totemRegister *returnRegister);
-    totemExecStatus totemExecState_ExecNative(totemExecState *state, totemRegister *returnRegister, totemOperandXUnsigned functionHandle);
+    totemExecStatus totemExecState_ExecNative(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionHandle, totemRegister *returnRegister);
     totemExecStatus totemExecState_ExecInstruction(totemExecState *state);
     totemExecStatus totemExecState_ExecMove(totemExecState *state);
     totemExecStatus totemExecState_ExecMoveToGlobal(totemExecState *state);

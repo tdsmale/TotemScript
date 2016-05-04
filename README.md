@@ -3,7 +3,6 @@ A parser & virtual machine for a custom scripting language written in C.
 ### backlog
 
 #### new language features
-* ref-counting cycle detection
 * array operators
 * string operators
 * loop scope for vars
@@ -11,9 +10,9 @@ A parser & virtual machine for a custom scripting language written in C.
 * operator precedence reordering
 * exceptions - try, catch & throw
  * both user & system-generated exceptions
-* "finally" block, can be used at the end of any control blocks - only invoked if the loop is actually entered at least once
 
 #### syntactic sugar
+* "finally" block, can be used at the end of any control blocks - only invoked if the loop is actually entered at least once
 * type hinting, allowing compile-time type checking (e.g. $x:int = "this won't compile!"; )
  * cannot mix dynamic vars and type-checked vars
 * erlang-style records that eval to arrays at runtime
@@ -21,16 +20,17 @@ A parser & virtual machine for a custom scripting language written in C.
  * public & private access specifiers (e.g. record vec2 { public $x:float = 0, public $y:float = 0 };
  * "loose" functions eval to normal functions with $this corresponding to record value, e.g. record a { function whatever() { print($this); } }
  * "is" must be evaluated at compile-time with record types
+ * type-casting?
 * initializer lists for arrays, both with and without indices
 
 #### runtime improvements
+* ref-counting cycle detection
 * line/char/len numbers for eval, link & exec errors
-* two string types behind-the-scenes: the default interned strings, and a mutable string type that is created when a string is modified (which is then interned when needed e.g. equality check, hash check etc.)
+* new internal string representations:
+ * "small" strings that can fit within the register value
+ * dynamic strings, which are created when a string is modified, then interned when that functionality is needed
 * pre-compute value-only expressions
  * discard values that aren't referenced anywhere else
-* const improvements
- * local const vars should eval to global vars wherever possible
- * global const vars should eval straight to value register
 * unroll determinate loops
 * escape analysis for arrays
 * JIT
@@ -38,6 +38,8 @@ A parser & virtual machine for a custom scripting language written in C.
  * check register & function addresses, function arguments
 * register-allocation improvement
  * track how many times a variable is referenced
+ * local const vars should eval to global vars wherever possible
+ * global const vars should eval straight to value register
 * piggy-back on free global registers if any are available and local scope is full
 * breakpoints
  * replace chosen instruction with break instruction, store original instruction alongside breakpoint

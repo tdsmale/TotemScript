@@ -112,6 +112,46 @@ function dataTypeTest()
 
     assert $c == 3;
 
+    assert (123 as 123) == 123;
+    assert (123 as string) == "123";
+    assert (123 as array)[0] == 123;
+    assert (123 as float) is 123.00;
+    assert (123 as type) == int;
+    assert (123 as null) == null;
+
+    assert (123.45 as 123.45) == 123.45;
+    assert (123.45 as string) == "123.45";
+    assert (123.45 as array)[0] == 123.45;
+    assert (123.45 as int) is 123;
+    assert (123.45 as type) == float;
+    assert (123.45 as null) == null;
+
+    $rep = [2];
+    $rep[0] = 456;
+    $rep[1] = 789;
+
+    assert ($rep as array)[0] == $rep[0];
+    assert ($rep as array)[0] == 456;
+    assert ($rep as int) == 2;
+    assert ($rep as float) == 2.00;
+    assert ($rep as string) == "456789";
+    assert ($rep as type) == array;
+    assert ($rep as null) == null;
+
+    assert (array as array)[0] == array;
+    assert (array as type) == array;
+    assert (array as string) == "array";
+    assert (array as null) == null;
+
+    assert ("6664" as int) == 6664;
+    assert ("567.123" as float) == 567.123;
+    assert ("45.123" as int) == 45;
+    assert ("doop" as array)[2] == "o";
+    assert ("str" as type) == string;
+    assert ("str" as string) == "str";
+    assert ("str" as null) == null;
+    assert ("print" as function) == @print;
+
     print("---");
 }
 

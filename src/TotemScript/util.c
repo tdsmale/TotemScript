@@ -285,7 +285,9 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
         case totemDataType_Array:
         {
             indent += 5;
-            totemRuntimeArray *arr = reg->Value.Array;
+            totemRuntimeArrayHeader *arr = reg->Value.Array;
+            totemRegister *regs = totemRuntimeArrayHeader_GetRegisters(arr);
+            
             fprintf(file, "array[%u] {\n", arr->NumRegisters);
             
             for(totemInt i = 0; i < arr->NumRegisters; ++i)
@@ -297,7 +299,7 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
                 
                 fprintf(file, "%lld: ", i);
                 
-                totemRegister *val = &arr->Registers[i];
+                totemRegister *val = &regs[i];
                 totemRegister_PrintRecursive(file, val, indent);
             }
             

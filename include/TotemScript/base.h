@@ -151,11 +151,10 @@ extern "C" {
     
     typedef struct
     {
-        struct totemRegister *Registers;
         uint32_t RefCount;
         uint32_t NumRegisters;
     }
-    totemRuntimeArray;
+    totemRuntimeArrayHeader;
     
     enum
     {
@@ -199,7 +198,7 @@ extern "C" {
         totemFloat Float;
         totemInt Int;
         totemInternedStringHeader *InternedString;
-        totemRuntimeArray *Array;
+        totemRuntimeArrayHeader *Array;
         uint64_t Data;
         totemFunctionPointer FunctionPointer;
         totemDataType DataType;
@@ -244,8 +243,8 @@ extern "C" {
         totemOperationType_ArraySet = 23,           // A[B] = C
         totemOperationType_MoveToLocal = 24,        // A = Bx
         totemOperationType_MoveToGlobal = 25,       // Bx = A
-        totemOperationType_Is = 26,					// A = B is C
-        totemOperationType_As = 27,					// A = B as C
+        totemOperationType_Is = 26,                 // A = B is C
+        totemOperationType_As = 27,                 // A = B as C
         totemOperationType_FunctionPointer = 28,	// A = B()
         totemOperationType_Assert = 29,             // assert A
         /*
@@ -436,35 +435,6 @@ extern "C" {
     totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash);
     totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *Key, size_t KeyLen);
     totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *Key, size_t keyLen);
-    
-    typedef struct
-    {
-        size_t ScriptHandle;
-        totemMemoryBuffer GlobalRegisters;
-    }
-    totemActor;
-    
-    typedef struct totemFunctionCall
-    {
-        struct totemFunctionCall *Prev;
-        totemRegister *ReturnRegister;
-        totemRegister *PreviousFrameStart;
-        totemRegister *FrameStart;
-        totemInstruction *ResumeAt;
-        size_t FunctionHandle;
-        totemFunctionType Type;
-        uint8_t NumRegisters;
-        uint8_t NumArguments;
-    }
-    totemFunctionCall;
-    
-    typedef struct
-    {
-        size_t InstructionsStart;
-        uint8_t RegistersNeeded;
-        totemString Name;
-    }
-    totemFunction;
     
     void totem_Init();
     void totem_InitMemory();

@@ -103,6 +103,14 @@ extern "C" {
     }
     totemRegisterListPrototype;
     
+    typedef struct
+    {
+        totemString Name;
+        size_t InstructionsStart;
+        uint8_t RegistersNeeded;
+    }
+    totemScriptFunctionPrototype;
+    
     void totemRegisterListPrototype_Init(totemRegisterListPrototype *list, totemOperandType scope);
     void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list);
     void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list);
@@ -153,7 +161,7 @@ extern "C" {
     totemRegisterListPrototype *totemBuildPrototype_GetLocalScope(totemBuildPrototype *build);
     totemRegisterListPrototype *totemBuildPrototype_GetRegisterList(totemBuildPrototype *build, totemOperandType scope);
     totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseTree *prototype);
-    totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemFunction **functionOut);
+    totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemScriptFunctionPrototype **functionOut);
     
     totemEvalStatus totemStatementPrototype_EvalValues(totemStatementPrototype *statement, totemBuildPrototype *build);
     totemEvalStatus totemWhileLoopPrototype_EvalValues(totemWhileLoopPrototype *loop, totemBuildPrototype *build);

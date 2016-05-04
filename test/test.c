@@ -47,7 +47,7 @@ int main(int argc, const char * argv[])
     totemRuntime_Init(&runtime);
     
     // link print function
-    size_t printAddr = 0;
+    totemOperandXUnsigned printAddr = 0;
     totemString printName;
     totemString_FromLiteral(&printName, "print");
     totemLinkStatus linkStatus = totemRuntime_LinkNativeFunction(&runtime, &totemPrint, &printName, &printAddr);

@@ -465,10 +465,10 @@ totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *l
     
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
     reg->DataType = totemDataType_Null;
+    list->HasNull = totemBool_True;
+    list->NullIndex = operand->RegisterIndex;
     TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
     TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
-    
-    list->HasNull = totemBool_True;
     
     return totemEvalStatus_Success;
 }
@@ -709,7 +709,7 @@ void totemBuildPrototype_Init(totemBuildPrototype *build)
     totemRegisterListPrototype_Init(&build->LocalRegisters, totemOperandType_LocalRegister);
     totemHashMap_Init(&build->FunctionLookup);
     totemHashMap_Init(&build->NativeFunctionNamesLookup);
-    totemMemoryBuffer_Init(&build->Functions, sizeof(totemFunction));
+    totemMemoryBuffer_Init(&build->Functions, sizeof(totemScriptFunctionPrototype));
     totemMemoryBuffer_Init(&build->Instructions, sizeof(totemInstruction));
     totemMemoryBuffer_Init(&build->NativeFunctionCallInstructions, sizeof(size_t));
     totemMemoryBuffer_Init(&build->NativeFunctionNames, sizeof(totemString));
@@ -1072,7 +1072,7 @@ totemEvalStatus totemBuildPrototype_EvalAnonymousFunction(totemBuildPrototype *b
         }
         
         totemOperandXUnsigned funcIndex = (totemOperandXUnsigned)totemMemoryBuffer_GetNumObjects(&build->Functions);
-        totemFunction *functionPrototype;
+        totemScriptFunctionPrototype *functionPrototype;
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, &functionPrototype));
         
         if(!totemHashMap_Insert(&build->AnonymousFunctions, &func, sizeof(totemFunctionDeclarationPrototype*), funcIndex))
@@ -1373,7 +1373,7 @@ totemEvalStatus totemStatementPrototype_EvalValues(totemStatementPrototype *stat
 totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseTree *prototype)
 {
     // global function is always at index 0
-    totemFunction *globalFunction;
+    totemScriptFunctionPrototype *globalFunction;
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, &globalFunction));
     
     // eval global values
@@ -1424,7 +1424,7 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
                     
                     // secure named function - anonymous functions are secured when evaluated as arguments
                     size_t functionIndex = totemMemoryBuffer_GetNumObjects(&build->Functions);
-                    totemFunction *functionPrototype;
+                    totemScriptFunctionPrototype *functionPrototype;
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, &functionPrototype));
                     memcpy(&functionPrototype->Name, func->Identifier, sizeof(totemString));
                     
@@ -1497,7 +1497,7 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
                     isAnonymous = totemBool_True;
                 }
                 
-                totemFunction *functionPrototype = totemMemoryBuffer_Get(&build->Functions, funcIndex);
+                totemScriptFunctionPrototype *functionPrototype = totemMemoryBuffer_Get(&build->Functions, funcIndex);
                 functionPrototype->InstructionsStart = totemMemoryBuffer_GetNumObjects(&build->Instructions);
                 
                 totemRegisterListPrototype_Reset(&build->LocalRegisters);
@@ -1523,7 +1523,7 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemFunction **functionOut)
+totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemScriptFunctionPrototype **functionOut)
 {
     if(totemMemoryBuffer_GetNumObjects(&build->Functions) + 1 >= TOTEM_MAX_SCRIPTFUNCTIONS)
     {
