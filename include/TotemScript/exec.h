@@ -42,6 +42,17 @@ extern "C" {
     
     typedef enum
     {
+        totemInterpreterStatus_Success,
+        totemInterpreterStatus_FileError,
+        totemInterpreterStatus_LexError,
+        totemInterpreterStatus_ParseError,
+        totemInterpreterStatus_EvalError,
+        totemInterpreterStatus_LinkError
+    }
+    totemInterpreterStatus;
+    
+    typedef enum
+    {
         totemLinkStatus_Success,
         totemLinkStatus_OutOfMemory,
         totemLinkStatus_FunctionAlreadyDeclared,
@@ -118,7 +129,35 @@ extern "C" {
     }
     totemExecState;
     
+    typedef struct
+    {
+        totemScriptFile Script;
+        totemTokenList TokenList;
+        totemParseTree ParseTree;
+        totemBuildPrototype Build;
+    }
+    totemInterpreter;
+    
+    typedef struct
+    {
+        size_t ErrorLine;
+        size_t ErrorChar;
+        size_t ErrorLength;
+        totemInterpreterStatus Status;
+        union
+        {
+            totemLoadScriptStatus FileStatus;
+            totemLexStatus LexStatus;
+            totemParseStatus ParseStatus;
+            totemEvalStatus EvalStatus;
+            totemLinkStatus LinkStatus;
+        };
+    }
+    totemInterpreterResult;
+    
     typedef totemExecStatus(*totemNativeFunction)(totemExecState*);
+    
+    
     
     totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress);
     void totemActor_Cleanup(totemActor *actor);

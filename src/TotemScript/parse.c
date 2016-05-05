@@ -1547,7 +1547,9 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             
             // null
         case totemTokenType_Null:
-            argument->Type = totemArgumentType_Null;
+            argument->Type = totemArgumentType_Number;
+            TOTEM_PARSE_ALLOC(argument->Number, totemString, tree);
+            totemString_FromLiteral(argument->Number, "0");
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
             

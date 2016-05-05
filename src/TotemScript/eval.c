@@ -287,7 +287,7 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
     reg->Value.Data = 0;
     reg->RefCount = 1;
     reg->GlobalAssoc = 0;
-    reg->DataType = totemDataType_Null;
+    reg->DataType = totemDataType_Int;
     reg->Flags = totemRegisterPrototypeFlag_IsTemporary | totemRegisterPrototypeFlag_IsUsed;
     
     operand->RegisterIndex = index;
@@ -445,32 +445,6 @@ totemBool totemRegisterListPrototype_GetRegisterGlobalAssoc(totemRegisterListPro
     
     *assoc = reg->GlobalAssoc;
     return totemBool_True;
-}
-
-totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand)
-{
-    if(list->HasNull)
-    {
-        operand->RegisterIndex = list->NullIndex;
-        operand->RegisterScopeType = list->Scope;
-        totemRegisterListPrototype_IncRegisterRefCount(list, operand->RegisterIndex, NULL);
-        return totemEvalStatus_Success;
-    }
-    
-    totemEvalStatus status = totemRegisterListPrototype_AddRegister(list, operand);
-    if(status != totemEvalStatus_Success)
-    {
-        return status;
-    }
-    
-    totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
-    reg->DataType = totemDataType_Null;
-    list->HasNull = totemBool_True;
-    list->NullIndex = operand->RegisterIndex;
-    TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
-    TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
-    
-    return totemEvalStatus_Success;
 }
 
 totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *list, totemDataType type, totemOperandRegisterPrototype *op)
@@ -666,8 +640,6 @@ void totemRegisterListPrototype_Init(totemRegisterListPrototype *list, totemOper
     totemMemoryBuffer_Init(&list->Registers, sizeof(totemRegisterPrototype));
     totemMemoryBuffer_Init(&list->GlobalRegisterStrings, sizeof(totemOperandXUnsigned));
     totemMemoryBuffer_Init(&list->RegisterFreeList, sizeof(totemOperandXUnsigned));
-    list->NullIndex = 0;
-    list->HasNull = totemBool_False;
     list->Scope = scope;
 }
 
@@ -683,8 +655,6 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
     totemMemoryBuffer_Reset(&list->Registers);
     totemMemoryBuffer_Reset(&list->GlobalRegisterStrings);
     totemMemoryBuffer_Reset(&list->RegisterFreeList);
-    list->NullIndex = 0;
-    list->HasNull = totemBool_False;
 }
 
 void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
@@ -699,8 +669,6 @@ void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
     totemMemoryBuffer_Cleanup(&list->Registers);
     totemMemoryBuffer_Cleanup(&list->GlobalRegisterStrings);
     totemMemoryBuffer_Cleanup(&list->RegisterFreeList);
-    list->NullIndex = 0;
-    list->HasNull = totemBool_False;
 }
 
 void totemBuildPrototype_Init(totemBuildPrototype *build)
@@ -988,17 +956,6 @@ totemEvalStatus totemBuildPrototype_EvalString(totemBuildPrototype *build, totem
     return status;
 }
 
-totemEvalStatus totemBuildPrototype_EvalNull(totemBuildPrototype *build, totemOperandRegisterPrototype *operand)
-{
-    totemEvalStatus status = totemRegisterListPrototype_AddNull(&build->GlobalRegisters, operand);
-    if(status == totemEvalStatus_Success)
-    {
-        status = totemBuildPrototype_GlobalAssocCheck(build, operand);
-    }
-    
-    return status;
-}
-
 totemEvalStatus totemBuildPrototype_EvalFunctionName(totemBuildPrototype *build, totemString *name, totemFunctionPointer *func)
 {
     // did we define this function in the script?
@@ -1151,9 +1108,6 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
     
     switch(arg->Type)
     {
-        case totemArgumentType_Null:
-            return totemBuildPrototype_EvalNull(build, &dummy);
-            
         case totemArgumentType_Number:
             return totemBuildPrototype_EvalNumber(build, arg->Number, &dummy);
             
@@ -1846,7 +1800,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                 
                 if(TOTEM_HASBITS(lValueFlags, totemRegisterPrototypeFlag_IsValue))
                 {
-                    totemDataType dataType = totemDataType_Null;
+                    totemDataType dataType = 0;
                     if(totemRegisterListPrototype_GetRegisterType(lValueScope, lValue.RegisterIndex, &dataType))
                     {
                         if(dataType != totemDataType_Function)
@@ -2077,9 +2031,6 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
             
             return status;
         }
-            
-        case totemArgumentType_Null:
-            return totemBuildPrototype_EvalNull(build, value);
             
         case totemArgumentType_String:
             return totemBuildPrototype_EvalString(build, argument->String, value);

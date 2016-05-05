@@ -96,6 +96,7 @@ extern "C" {
     
 #define TOTEM_ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 #define TOTEM_STRINGIFY_CASE(x) case x: return #x
+#define TOTEM_ASSERT(test, explanation) { char assert[(test) ? 1 : -1]; (void)assert; }
     
 #define TOTEM_BITMASK(start, length) (((((unsigned)1) << (length)) - 1) << (start))
 #define TOTEM_HASBITS(i, mask) (((i) & (mask)) == (mask))
@@ -178,16 +179,22 @@ extern "C" {
     totemInternedStringHeader;
     const char *totemInternedStringHeader_GetString(totemInternedStringHeader *hdr);
     
+    typedef struct
+    {
+        char Length;
+        char Value[7];
+    }
+    totemMiniRuntimeString;
+    
     enum
     {
-        totemDataType_Null = 0,
-        totemDataType_Int = 1,
-        totemDataType_Float = 2,
-        totemDataType_String = 3,
-        totemDataType_Array = 4,
-        totemDataType_Type = 5,
-        totemDataType_Function = 6,
-        totemDataType_Max = 7
+        totemDataType_Int = 0,
+        totemDataType_Float = 1,
+        totemDataType_String = 2,
+        totemDataType_Array = 3,
+        totemDataType_Type = 4,
+        totemDataType_Function = 5,
+        totemDataType_Max = 6
     };
     typedef uint8_t totemDataType;
     const char *totemDataType_Describe(totemDataType type);

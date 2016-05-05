@@ -3,16 +3,13 @@ A parser & virtual machine for a custom scripting language written in C.
 ### backlog
 
 #### new language features
-* array operators
-* string operators
 * loop scope for vars
 * yield - stores this function's call stack in a local var, allowing it to be resumed later as a function pointer (e.g. $x = callFunc(); $x();)
 * operator precedence reordering
-* exceptions - try, catch & throw
+* exceptions - try, catch, finally & throw
  * both user & system-generated exceptions
 
 #### syntactic sugar
-* "finally" block, can be used at the end of any control blocks - only invoked if the loop is actually entered at least once
 * type hinting, allowing compile-time type checking (e.g. $x:int = "this won't compile!"; )
  * cannot mix dynamic vars and type-checked vars
 * erlang-style records that eval to arrays at runtime
@@ -45,3 +42,4 @@ A parser & virtual machine for a custom scripting language written in C.
  * replace chosen instruction with break instruction, store original instruction alongside breakpoint
  * call user-supplied callback
  * when removing a breakpoint, replace instruction with original
+* make sequences of array / string concatenation more efficient

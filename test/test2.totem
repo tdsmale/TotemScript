@@ -56,6 +56,21 @@ function arrayTest()
     assert $r[3] == 12;
     assert $r[4][15] == 12345;
 
+    $s = [3];
+    $s[0] = 1;
+    $s[1] = 2;
+    $s[2] = 3;
+
+    $t = [3];
+    $t[0] = 4;
+    $t[1] = 5;
+    $t[2] = 6;
+
+    assert (($s + $t) as string) == "123456";
+
+    assert ($s + 123)[3] == 123;
+    assert ($s + "456")[1] == 2;
+
     print("---");
 }
 
@@ -63,10 +78,14 @@ function stringTest()
 {
     print("STRING TEST");
     print("---");
+
     $d = "This is an interned string!";
     print($d);
-
     assert $d == "This is an interned string!";
+
+    $e = " Ain't this great?";
+    assert ($d + $e) == "This is an interned string! Ain't this great?";
+
     print("---");
 }
 
@@ -117,14 +136,12 @@ function dataTypeTest()
     assert (123 as array)[0] == 123;
     assert (123 as float) is 123.00;
     assert (123 as type) == int;
-    assert (123 as null) == null;
 
     assert (123.45 as 123.45) == 123.45;
     assert (123.45 as string) == "123.45";
     assert (123.45 as array)[0] == 123.45;
     assert (123.45 as int) is 123;
     assert (123.45 as type) == float;
-    assert (123.45 as null) == null;
 
     $rep = [2];
     $rep[0] = 456;
@@ -136,12 +153,10 @@ function dataTypeTest()
     assert ($rep as float) == 2.00;
     assert ($rep as string) == "456789";
     assert ($rep as type) == array;
-    assert ($rep as null) == null;
 
     assert (array as array)[0] == array;
     assert (array as type) == array;
     assert (array as string) == "array";
-    assert (array as null) == null;
 
     assert ("6664" as int) == 6664;
     assert ("567.123" as float) == 567.123;
@@ -149,7 +164,6 @@ function dataTypeTest()
     assert ("doop" as array)[2] == "o";
     assert ("str" as type) == string;
     assert ("str" as string) == "str";
-    assert ("str" as null) == null;
     assert ("print" as function) == @print;
 
     print("---");

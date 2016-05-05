@@ -118,7 +118,6 @@ const char *totemDataType_Describe(totemDataType type)
 {
     switch(type)
     {
-            TOTEM_STRINGIFY_CASE(totemDataType_Null);
             TOTEM_STRINGIFY_CASE(totemDataType_Float);
             TOTEM_STRINGIFY_CASE(totemDataType_Int);
             TOTEM_STRINGIFY_CASE(totemDataType_String);
@@ -322,10 +321,6 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
             fprintf(file, "%s %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Int);
             break;
             
-        case totemDataType_Null:
-            fprintf(file, "%s\n", totemDataType_Describe(reg->DataType));
-            break;
-            
         default:
             fprintf(file, "%s %d %f %lli %p\n", totemDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.Array);
             break;
@@ -390,6 +385,8 @@ const char *totem_getcwd()
 
 void totem_Init()
 {
+    TOTEM_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values should be 8 bytes large");
+    
     totem_InitMemory();
 }
 
