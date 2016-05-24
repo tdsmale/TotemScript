@@ -751,7 +751,7 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             
             TOTEM_PARSE_SKIPWHITESPACE(token);
             TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Semicolon);
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            (*token)++;
             return totemParseStatus_Success;
         }
             
@@ -766,7 +766,7 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             
             TOTEM_PARSE_SKIPWHITESPACE(token);
             TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Semicolon);
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            (*token)++;
             return totemParseStatus_Success;
         }
             
@@ -778,7 +778,7 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             
             TOTEM_PARSE_SKIPWHITESPACE(token);
             TOTEM_PARSE_ENFORCETOKEN(token, totemTokenType_Semicolon);
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
+            (*token)++;
             return totemParseStatus_Success;
         }
     }
@@ -1484,7 +1484,7 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             else
             {
                 // function type
-                argument->DataType = totemDataType_Function;
+                argument->DataType = totemPublicDataType_Function;
                 argument->Type = totemArgumentType_Type;
             }
             
@@ -1501,31 +1501,31 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             
             // types
         case totemTokenType_Array:
-            argument->DataType = totemDataType_Array;
+            argument->DataType = totemPublicDataType_Array;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
             
         case totemTokenType_Int:
-            argument->DataType = totemDataType_Int;
+            argument->DataType = totemPublicDataType_Int;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
             
         case totemTokenType_Float:
-            argument->DataType = totemDataType_Float;
+            argument->DataType = totemPublicDataType_Float;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
             
         case totemTokenType_String:
-            argument->DataType = totemDataType_String;
+            argument->DataType = totemPublicDataType_String;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;
             
         case totemTokenType_Type:
-            argument->DataType = totemDataType_Type;
+            argument->DataType = totemPublicDataType_Type;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(token);
             break;

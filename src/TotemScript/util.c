@@ -114,19 +114,60 @@ const char *totemOperationType_Describe(totemOperationType op)
     return "UNKNOWN";
 }
 
-const char *totemDataType_Describe(totemDataType type)
+const char *totemPublicDataType_Describe(totemPublicDataType type)
 {
     switch(type)
     {
-            TOTEM_STRINGIFY_CASE(totemDataType_Float);
-            TOTEM_STRINGIFY_CASE(totemDataType_Int);
-            TOTEM_STRINGIFY_CASE(totemDataType_String);
-            TOTEM_STRINGIFY_CASE(totemDataType_Array);
-            TOTEM_STRINGIFY_CASE(totemDataType_Type);
-            TOTEM_STRINGIFY_CASE(totemDataType_Function);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Float);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Int);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_String);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Array);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Type);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Function);
+        default: return "UNKNOWN";
+    }
+}
+
+const char *totemPrivateDataType_Describe(totemPrivateDataType type)
+{
+    switch(type)
+    {
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Int);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Type);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Array);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Float);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Function);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_MiniString);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_InternedString);
+        default: return "UNKNOWN";
+    }
+}
+
+totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
+{
+    switch(type)
+    {
+        case totemPrivateDataType_InternedString:
+        case totemPrivateDataType_MiniString:
+            return totemPublicDataType_String;
+            
+        case totemPrivateDataType_Float:
+            return totemPublicDataType_Float;
+            
+        case totemPrivateDataType_Type:
+            return totemPublicDataType_Type;
+            
+        case totemPrivateDataType_Int:
+            return totemPublicDataType_Int;
+            
+        case totemPrivateDataType_Function:
+            return totemPublicDataType_Function;
+            
+        case totemPrivateDataType_Array:
+            return totemPublicDataType_Array;
     }
     
-    return "UNKNOWN";
+    return totemPublicDataType_Max;
 }
 
 totemInstructionType totemOperationType_GetInstructionType(totemOperationType op)
@@ -261,27 +302,58 @@ void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction)
     fprintf(file, "\n");
 }
 
+totemStringLength totemRegister_GetStringLength(totemRegister *reg)
+{
+    switch(reg->DataType)
+    {
+        case totemPrivateDataType_InternedString:
+            return reg->Value.InternedString->Length;
+            
+        case totemPrivateDataType_MiniString:
+            return (totemStringLength)strnlen(reg->Value.MiniString.Value, TOTEM_MINISTRING_MAXLENGTH);
+            
+        default:
+            return 0;
+    }
+}
+
+const char *totemRegister_GetStringValue(totemRegister *reg)
+{
+    switch(reg->DataType)
+    {
+        case totemPrivateDataType_InternedString:
+            return totemInternedStringHeader_GetString(reg->Value.InternedString);
+            
+        case totemPrivateDataType_MiniString:
+            return reg->Value.MiniString.Value;
+            
+        default:
+            return NULL;
+    }
+}
+
 void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
 {
     switch(reg->DataType)
     {
-        case totemDataType_Function:
-            fprintf(file, "%s: %d:%d\n", totemDataType_Describe(reg->DataType), reg->Value.FunctionPointer.Type, reg->Value.FunctionPointer.Address);
+        case totemPrivateDataType_Function:
+            fprintf(file, "%s: %d:%d\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.FunctionPointer.Type, reg->Value.FunctionPointer.Address);
             break;
             
-        case totemDataType_Type:
-            fprintf(file, "%s: %s\n", totemDataType_Describe(reg->DataType), totemDataType_Describe(reg->Value.DataType));
+        case totemPrivateDataType_Type:
+            fprintf(file, "%s: %s\n", totemPrivateDataType_Describe(reg->DataType), totemPublicDataType_Describe(reg->Value.DataType));
             break;
             
-        case totemDataType_String:
+        case totemPrivateDataType_InternedString:
+        case totemPrivateDataType_MiniString:
             fprintf(file, "%s \"%.*s\" (%i) \n",
-                    totemDataType_Describe(reg->DataType),
-                    reg->Value.InternedString->Length,
-                    totemInternedStringHeader_GetString(reg->Value.InternedString),
-                    reg->Value.InternedString->Length);
+                    totemPrivateDataType_Describe(reg->DataType),
+                    totemRegister_GetStringLength(reg),
+                    totemRegister_GetStringValue(reg),
+                    totemRegister_GetStringLength(reg));
             break;
             
-        case totemDataType_Array:
+        case totemPrivateDataType_Array:
         {
             indent += 5;
             totemRuntimeArrayHeader *arr = reg->Value.Array;
@@ -313,16 +385,16 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
             break;
         }
             
-        case totemDataType_Float:
-            fprintf(file, "%s %f\n", totemDataType_Describe(reg->DataType), reg->Value.Float);
+        case totemPrivateDataType_Float:
+            fprintf(file, "%s %f\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Float);
             break;
             
-        case totemDataType_Int:
-            fprintf(file, "%s %lli\n", totemDataType_Describe(reg->DataType), reg->Value.Int);
+        case totemPrivateDataType_Int:
+            fprintf(file, "%s %lli\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Int);
             break;
             
         default:
-            fprintf(file, "%s %d %f %lli %p\n", totemDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.Array);
+            fprintf(file, "%s %d %f %lli %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.Array);
             break;
     }
 }
@@ -385,7 +457,8 @@ const char *totem_getcwd()
 
 void totem_Init()
 {
-    TOTEM_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values should be 8 bytes large");
+    TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values expected to be 8 bytes");
+    TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction expected to be 4 bytes");
     
     totem_InitMemory();
 }

@@ -96,7 +96,7 @@ extern "C" {
     
 #define TOTEM_ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 #define TOTEM_STRINGIFY_CASE(x) case x: return #x
-#define TOTEM_ASSERT(test, explanation) { char assert[(test) ? 1 : -1]; (void)assert; }
+#define TOTEM_STATIC_ASSERT(test, explanation) { char assert[(test) ? 1 : -1]; (void)assert; }
     
 #define TOTEM_BITMASK(start, length) (((((unsigned)1) << (length)) - 1) << (start))
 #define TOTEM_HASBITS(i, mask) (((i) & (mask)) == (mask))
@@ -179,45 +179,66 @@ extern "C" {
     totemInternedStringHeader;
     const char *totemInternedStringHeader_GetString(totemInternedStringHeader *hdr);
     
+#define TOTEM_MINISTRING_MAXLENGTH (7)
     typedef struct
     {
-        char Length;
-        char Value[7];
+        char Value[TOTEM_MINISTRING_MAXLENGTH + 1];
     }
-    totemMiniRuntimeString;
+    totemRuntimeMiniString;
     
     enum
     {
-        totemDataType_Int = 0,
-        totemDataType_Float = 1,
-        totemDataType_String = 2,
-        totemDataType_Array = 3,
-        totemDataType_Type = 4,
-        totemDataType_Function = 5,
-        totemDataType_Max = 6
+        totemPrivateDataType_Int = 0,
+        totemPrivateDataType_Float = 1,
+        totemPrivateDataType_InternedString = 2,
+        totemPrivateDataType_Array = 3,
+        totemPrivateDataType_Type = 4,
+        totemPrivateDataType_Function = 5,
+        totemPrivateDataType_MiniString = 6,
+        totemPrivateDataType_Max = 7
     };
-    typedef uint8_t totemDataType;
-    const char *totemDataType_Describe(totemDataType type);
+    typedef uint8_t totemPrivateDataType;
+    
+    const char *totemPrivateDataType_Describe(totemPrivateDataType type);
 #define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
+    
+    // we differentiate between private & public data types so we can have more than one representation of each data type
+    typedef enum
+    {
+        totemPublicDataType_Int = 0,
+        totemPublicDataType_Float = 1,
+        totemPublicDataType_String = 2,
+        totemPublicDataType_Array = 3,
+        totemPublicDataType_Type = 4,
+        totemPublicDataType_Function = 5,
+        totemPublicDataType_Max = 6
+    }
+    totemPublicDataType;
+    
+    totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type);
     
     typedef union
     {
         totemFloat Float;
         totemInt Int;
         totemInternedStringHeader *InternedString;
+        totemRuntimeMiniString MiniString;
         totemRuntimeArrayHeader *Array;
         uint64_t Data;
         totemFunctionPointer FunctionPointer;
-        totemDataType DataType;
+        totemPublicDataType DataType;
     }
     totemRegisterValue;
     
     typedef struct totemRegister
     {
         totemRegisterValue Value;
-        totemDataType DataType;
+        totemPrivateDataType DataType;
     }
     totemRegister;
+    
+    const char *totemRegister_GetStringValue(totemRegister *reg);
+    totemStringLength totemRegister_GetStringLength(totemRegister *reg);
     
     /**
      * Operation Types

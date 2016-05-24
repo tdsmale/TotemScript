@@ -86,6 +86,8 @@ function stringTest()
     $e = " Ain't this great?";
     assert ($d + $e) == "This is an interned string! Ain't this great?";
 
+    assert ("123" + "456" + "789") == "123456789";
+
     print("---");
 }
 

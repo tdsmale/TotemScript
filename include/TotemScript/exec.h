@@ -59,7 +59,8 @@ extern "C" {
         totemLinkStatus_FunctionNotDeclared,
         totemLinkStatus_InvalidNativeFunctionAddress,
         totemLinkStatus_InvalidNativeFunctionName,
-        totemLinkStatus_TooManyNativeFunctions
+        totemLinkStatus_TooManyNativeFunctions,
+        totemLinkStatus_UnexpectedValueType
     }
     totemLinkStatus;
     
@@ -157,8 +158,6 @@ extern "C" {
     
     typedef totemExecStatus(*totemNativeFunction)(totemExecState*);
     
-    
-    
     totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress);
     void totemActor_Cleanup(totemActor *actor);
     
@@ -167,8 +166,8 @@ extern "C" {
     void totemRuntime_Cleanup(totemRuntime *runtime);
     totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
     totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, totemOperandXUnsigned *addressOut);
+    totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegister *strOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, totemOperandXUnsigned *addressOut);
-    totemInternedStringHeader *totemRuntime_InternString(totemRuntime *runtime, totemString *str);
     
     totemRuntimeArrayHeader *totemRuntimeArrayHeader_Create(uint32_t numRegisters);
     void totemRuntimeArrayHeader_Destroy(totemRuntimeArrayHeader *arr);

@@ -313,7 +313,7 @@ extern "C" {
             totemFunctionCallPrototype *FunctionCall;
             struct totemFunctionDeclarationPrototype *FunctionDeclaration;
             totemNewArrayPrototype *NewArray;
-            totemDataType DataType;
+            totemPublicDataType DataType;
         };
         totemBufferPositionInfo Position;
         totemArgumentType Type;

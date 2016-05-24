@@ -287,7 +287,7 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
     reg->Value.Data = 0;
     reg->RefCount = 1;
     reg->GlobalAssoc = 0;
-    reg->DataType = totemDataType_Int;
+    reg->DataType = totemPublicDataType_Int;
     reg->Flags = totemRegisterPrototypeFlag_IsTemporary | totemRegisterPrototypeFlag_IsUsed;
     
     operand->RegisterIndex = index;
@@ -345,7 +345,7 @@ totemBool totemRegisterListPrototype_GetRegisterFlags(totemRegisterListPrototype
     return totemBool_True;
 }
 
-totemBool totemRegisterListPrototype_GetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemDataType *type)
+totemBool totemRegisterListPrototype_GetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemPublicDataType *type)
 {
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, index);
     if(!reg || !TOTEM_HASBITS(reg->Flags, totemRegisterPrototypeFlag_IsUsed))
@@ -357,7 +357,7 @@ totemBool totemRegisterListPrototype_GetRegisterType(totemRegisterListPrototype 
     return totemBool_True;
 }
 
-totemBool totemRegisterListPrototype_SetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemDataType type)
+totemBool totemRegisterListPrototype_SetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemPublicDataType type)
 {
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, index);
     if(!reg || !TOTEM_HASBITS(reg->Flags, totemRegisterPrototypeFlag_IsUsed))
@@ -447,9 +447,9 @@ totemBool totemRegisterListPrototype_GetRegisterGlobalAssoc(totemRegisterListPro
     return totemBool_True;
 }
 
-totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *list, totemDataType type, totemOperandRegisterPrototype *op)
+totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *list, totemPublicDataType type, totemOperandRegisterPrototype *op)
 {
-    if(type >= totemDataType_Max)
+    if(type >= totemPublicDataType_Max)
     {
         return totemEvalStatus_Break(totemEvalStatus_InvalidDataType);
     }
@@ -465,7 +465,7 @@ totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *l
     TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(list, op));
     
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, op->RegisterIndex);
-    reg->DataType = totemDataType_Type;
+    reg->DataType = totemPublicDataType_Type;
     reg->Value.DataType = type;
     
     list->DataTypes[type] = op->RegisterIndex;
@@ -497,7 +497,7 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
         }
         
         reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
-        reg->DataType = totemDataType_String;
+        reg->DataType = totemPublicDataType_String;
         reg->Value.InternedString = (void*)str;
         TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
         TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
@@ -506,15 +506,6 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
         {
             return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
-        
-        // add to global string register list for later linking
-        totemOperandXUnsigned *globalRegisterStrIndex = totemMemoryBuffer_Secure(&list->GlobalRegisterStrings, 1);
-        if(!globalRegisterStrIndex)
-        {
-            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
-        }
-        
-        *globalRegisterStrIndex = operand->RegisterIndex;
     }
     
     return totemEvalStatus_Success;
@@ -581,12 +572,12 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
         if(memchr(number->Value, '.', number->Length) != NULL)
         {
             reg->Value.Float = atof(number->Value);
-            reg->DataType = totemDataType_Float;
+            reg->DataType = totemPublicDataType_Float;
         }
         else
         {
             reg->Value.Int = atoi(number->Value);
-            reg->DataType = totemDataType_Int;
+            reg->DataType = totemPublicDataType_Int;
         }
         
         TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
@@ -620,7 +611,7 @@ totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListP
     
     totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
     reg->Value.FunctionPointer = *value;
-    reg->DataType = totemDataType_Function;
+    reg->DataType = totemPublicDataType_Function;
     
     TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
     TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
@@ -638,7 +629,6 @@ void totemRegisterListPrototype_Init(totemRegisterListPrototype *list, totemOper
     totemHashMap_Init(&list->MoveToLocalVars);
     totemHashMap_Init(&list->FunctionPointers);
     totemMemoryBuffer_Init(&list->Registers, sizeof(totemRegisterPrototype));
-    totemMemoryBuffer_Init(&list->GlobalRegisterStrings, sizeof(totemOperandXUnsigned));
     totemMemoryBuffer_Init(&list->RegisterFreeList, sizeof(totemOperandXUnsigned));
     list->Scope = scope;
 }
@@ -653,7 +643,6 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
     totemHashMap_Reset(&list->MoveToLocalVars);
     totemHashMap_Reset(&list->FunctionPointers);
     totemMemoryBuffer_Reset(&list->Registers);
-    totemMemoryBuffer_Reset(&list->GlobalRegisterStrings);
     totemMemoryBuffer_Reset(&list->RegisterFreeList);
 }
 
@@ -667,7 +656,6 @@ void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
     totemHashMap_Cleanup(&list->MoveToLocalVars);
     totemHashMap_Cleanup(&list->FunctionPointers);
     totemMemoryBuffer_Cleanup(&list->Registers);
-    totemMemoryBuffer_Cleanup(&list->GlobalRegisterStrings);
     totemMemoryBuffer_Cleanup(&list->RegisterFreeList);
 }
 
@@ -1065,7 +1053,7 @@ totemEvalStatus totemBuildPrototype_EvalNamedFunctionPointer(totemBuildPrototype
     return totemBuildPrototype_EvalFunctionPointer(build, &value, op);
 }
 
-totemEvalStatus totemBuildPrototype_EvalType(totemBuildPrototype *build, totemDataType type, totemOperandRegisterPrototype *operand)
+totemEvalStatus totemBuildPrototype_EvalType(totemBuildPrototype *build, totemPublicDataType type, totemOperandRegisterPrototype *operand)
 {
     totemEvalStatus status = totemRegisterListPrototype_AddType(&build->GlobalRegisters, type, operand);
     if(status == totemEvalStatus_Success)
@@ -1592,7 +1580,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     
     totemBool mutatedLValueRegisterUnary = totemBool_False;
     totemBool mutatedLValueRegisterBinary = totemBool_False;
-    totemBool lValueIsArrayMember = totemBool_False;
+    totemBool lValueRegisterIsArrayMember = totemBool_False;
     size_t numlValueArrayAccesses = 0;
     totemRegisterPrototypeFlag lValueSrcFlags = totemRegisterPrototypeFlag_None;
     totemRegisterListPrototype *lValueSrcScope = totemBuildPrototype_GetRegisterList(build, lValueSrc.RegisterScopeType);
@@ -1618,7 +1606,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         if(op->Type == totemPostUnaryOperatorType_ArrayAccess)
         {
             numlValueArrayAccesses++;
-            lValueIsArrayMember = totemBool_True;
+            lValueRegisterIsArrayMember = totemBool_True;
         }
     }
     
@@ -1638,6 +1626,12 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     
     if(mutatedLValueRegisterBinary | mutatedLValueRegisterUnary)
     {
+        // array accesses cannot be modified
+        if(TOTEM_HASBITS(lValueSrcFlags, totemRegisterPrototypeFlag_IsConst) && lValueRegisterIsArrayMember)
+        {
+            return totemEvalStatus_Break(totemEvalStatus_AssignmentLValueNotMutable);
+        }
+        
         // if already assigned, and is const, throw an error
         if(TOTEM_HASBITS(lValueSrcFlags, totemRegisterPrototypeFlag_IsAssigned | totemRegisterPrototypeFlag_IsConst))
         {
@@ -1645,7 +1639,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         }
         
         // assignment expressions can only happen on mutable lValues (variables)
-        if(!TOTEM_HASBITS(lValueSrcFlags, totemRegisterPrototypeFlag_IsVariable) && !lValueIsArrayMember)
+        if(!TOTEM_HASBITS(lValueSrcFlags, totemRegisterPrototypeFlag_IsVariable) && !lValueRegisterIsArrayMember)
         {
             return totemEvalStatus_Break(totemEvalStatus_AssignmentLValueNotMutable);
         }
@@ -1657,7 +1651,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         }
         
         // ensure the array src is valid
-        if(lValueIsArrayMember && TOTEM_HASBITS(lValueSrcFlags, totemRegisterPrototypeFlag_IsValue))
+        if(lValueRegisterIsArrayMember && TOTEM_HASBITS(lValueSrcFlags, totemRegisterPrototypeFlag_IsValue))
         {
             return totemEvalStatus_Break(totemEvalStatus_AssignmentLValueNotMutable);
         }
@@ -1673,7 +1667,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     totemRegisterPrototypeFlag lValueFlags = lValueSrcFlags;
     totemRegisterListPrototype *lValueScope = lValueSrcScope;
     
-    if(lValueIsArrayMember)
+    if(lValueRegisterIsArrayMember)
     {
         size_t arrayAccessesPerformed = 0;
         
@@ -1800,10 +1794,10 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                 
                 if(TOTEM_HASBITS(lValueFlags, totemRegisterPrototypeFlag_IsValue))
                 {
-                    totemDataType dataType = 0;
+                    totemPublicDataType dataType = 0;
                     if(totemRegisterListPrototype_GetRegisterType(lValueScope, lValue.RegisterIndex, &dataType))
                     {
-                        if(dataType != totemDataType_Function)
+                        if(dataType != totemPublicDataType_Function)
                         {
                             return totemEvalStatus_Break(totemEvalStatus_InvalidDataType);
                         }
@@ -1815,14 +1809,14 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                 memcpy(&pointer, &lValue, sizeof(totemOperandRegisterPrototype));
                 
                 // replace lvalue, we're done with it
-                if(lValueIsArrayMember && (mutatedLValueRegisterUnary || mutatedLValueRegisterBinary))
+                if(lValueRegisterIsArrayMember && (mutatedLValueRegisterUnary || mutatedLValueRegisterBinary))
                 {
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalArrayAccessEnd(build, &lValue, &lValueSrc, &arrIndex));
                 }
                 
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &lValue));
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, &lValue));
-                lValueIsArrayMember = totemBool_False;
+                lValueRegisterIsArrayMember = totemBool_False;
                 lValueScope = totemBuildPrototype_GetRegisterList(build, lValue.RegisterScopeType);
                 totemRegisterListPrototype_GetRegisterFlags(lValueScope, lValue.RegisterIndex, &lValueFlags);
                 
@@ -1845,10 +1839,10 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         
         if(expression->BinaryOperator == totemBinaryOperatorType_Assign)
         {
-            if(lValueIsArrayMember || TOTEM_HASBITS(lValueFlags, totemRegisterPrototypeFlag_IsTemporary))
+            if(lValueRegisterIsArrayMember || TOTEM_HASBITS(lValueFlags, totemRegisterPrototypeFlag_IsTemporary))
             {
                 // result of rValue expression can now be stored directly in lValue
-                if(!lValueIsArrayMember && TOTEM_HASBITS(lValueFlags, totemRegisterPrototypeFlag_IsTemporary))
+                if(!lValueRegisterIsArrayMember && TOTEM_HASBITS(lValueFlags, totemRegisterPrototypeFlag_IsTemporary))
                 {
                     TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_FreeRegister(lValueScope, &lValue));
                 }
@@ -2008,7 +2002,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     }
     
     // finish the array-access if the value was mutated
-    if(lValueIsArrayMember && (mutatedLValueRegisterUnary || mutatedLValueRegisterBinary))
+    if(lValueRegisterIsArrayMember && (mutatedLValueRegisterUnary || mutatedLValueRegisterBinary))
     {
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalArrayAccessEnd(build, &lValue, &lValueSrc, &arrIndex));
     }

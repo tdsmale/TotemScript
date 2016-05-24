@@ -73,7 +73,7 @@ extern "C" {
         totemRegisterValue Value;
         size_t RefCount;
         totemOperandXUnsigned GlobalAssoc;
-        totemDataType DataType;
+        totemPublicDataType DataType;
         totemRegisterPrototypeFlag Flags;
     }
     totemRegisterPrototype;
@@ -87,11 +87,10 @@ extern "C" {
     
     typedef struct
     {
-        totemOperandXUnsigned DataTypes[totemDataType_Max];
-        totemBool HasDataType[totemDataType_Max];
+        totemOperandXUnsigned DataTypes[totemPublicDataType_Max];
+        totemBool HasDataType[totemPublicDataType_Max];
         totemMemoryBuffer Registers;
         totemMemoryBuffer RegisterFreeList;
-        totemMemoryBuffer GlobalRegisterStrings;
         totemHashMap Variables;
         totemHashMap Strings;
         totemHashMap Numbers;
@@ -120,8 +119,8 @@ extern "C" {
     totemBool totemRegisterListPrototype_SetRegisterFlags(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemRegisterPrototypeFlag flags);
     totemBool totemRegisterListPrototype_UnsetRegisterFlags(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemRegisterPrototypeFlag flags);
     totemBool totemRegisterListPrototype_GetRegisterFlags(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemRegisterPrototypeFlag *flags);
-    totemBool totemRegisterListPrototype_GetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemDataType *type);
-    totemBool totemRegisterListPrototype_SetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemDataType type);
+    totemBool totemRegisterListPrototype_GetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemPublicDataType *type);
+    totemBool totemRegisterListPrototype_SetRegisterType(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemPublicDataType type);
     totemBool totemRegisterListPrototype_SetRegisterGlobalAssoc(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemOperandXUnsigned assoc);
     totemBool totemRegisterListPrototype_GetRegisterGlobalAssoc(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemOperandXUnsigned *assoc);
     
