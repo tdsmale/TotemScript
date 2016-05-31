@@ -127,7 +127,7 @@ int main(int argc, const char * argv[])
     printf("\n");
     
     totemExecState execState;
-    if(!totemExecState_Init(&execState, &runtime, 4096))
+    if(!totemExecState_Init(&execState, &runtime, 0))
     {
         printf("Could not create exec state\n");
         return EXIT_FAILURE;

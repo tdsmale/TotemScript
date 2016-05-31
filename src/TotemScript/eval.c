@@ -665,6 +665,7 @@ void totemBuildPrototype_Init(totemBuildPrototype *build)
     totemRegisterListPrototype_Init(&build->LocalRegisters, totemOperandType_LocalRegister);
     totemHashMap_Init(&build->FunctionLookup);
     totemHashMap_Init(&build->NativeFunctionNamesLookup);
+    totemHashMap_Init(&build->AnonymousFunctions);
     totemMemoryBuffer_Init(&build->Functions, sizeof(totemScriptFunctionPrototype));
     totemMemoryBuffer_Init(&build->Instructions, sizeof(totemInstruction));
     totemMemoryBuffer_Init(&build->NativeFunctionCallInstructions, sizeof(size_t));
@@ -680,6 +681,7 @@ void totemBuildPrototype_Reset(totemBuildPrototype *build)
     totemRegisterListPrototype_Reset(&build->LocalRegisters);
     totemHashMap_Reset(&build->FunctionLookup);
     totemHashMap_Reset(&build->NativeFunctionNamesLookup);
+    totemHashMap_Reset(&build->AnonymousFunctions);
     totemMemoryBuffer_Reset(&build->Functions);
     totemMemoryBuffer_Reset(&build->Instructions);
     totemMemoryBuffer_Reset(&build->NativeFunctionCallInstructions);
@@ -695,6 +697,7 @@ void totemBuildPrototype_Cleanup(totemBuildPrototype *build)
     totemRegisterListPrototype_Cleanup(&build->LocalRegisters);
     totemHashMap_Cleanup(&build->FunctionLookup);
     totemHashMap_Cleanup(&build->NativeFunctionNamesLookup);
+    totemHashMap_Cleanup(&build->AnonymousFunctions);
     totemMemoryBuffer_Cleanup(&build->Functions);
     totemMemoryBuffer_Cleanup(&build->Instructions);
     totemMemoryBuffer_Cleanup(&build->NativeFunctionCallInstructions);
@@ -1932,6 +1935,12 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                     recycleLValue = totemBool_True;
                     break;
                     
+                case totemBinaryOperatorType_NotEquals:
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, result, &lValue, &rValue, totemOperationType_NotEquals));
+                    recycleLValue = totemBool_True;
+                    break;
+                    
                 case totemBinaryOperatorType_MoreThan:
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, result, &lValue, &rValue, totemOperationType_MoreThan));
@@ -2303,11 +2312,15 @@ totemEvalStatus totemBuildPrototype_EvalAbcInstruction(totemBuildPrototype *buil
 
 totemEvalStatus totemBuildPrototype_EvalImplicitReturn(totemBuildPrototype *build)
 {
-    totemInstruction *lastInstruction = totemMemoryBuffer_Get(&build->Instructions, totemMemoryBuffer_GetNumObjects(&build->Instructions) - 1);
+    totemInstruction *lastInstruction = totemMemoryBuffer_Top(&build->Instructions);
     if(lastInstruction == NULL || TOTEM_INSTRUCTION_GET_OP(*lastInstruction) != totemOperationType_Return)
     {
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalReturn(build, NULL));
+        lastInstruction = totemMemoryBuffer_Top(&build->Instructions);
     }
+    
+    totemOperandXUnsigned flags = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*lastInstruction);
+    totemInstruction_SetBxUnsigned(lastInstruction, flags | totemReturnFlag_Last);
     
     return totemEvalStatus_Success;
 }
@@ -2317,7 +2330,7 @@ totemEvalStatus totemBuildPrototype_EvalReturn(totemBuildPrototype *build, totem
     // free moved global registers if any still exist in local scope
     totemBuildPrototype_FreeGlobalAssocs(build, 0);
     
-    totemOperandXUnsigned option = totemReturnOption_Register;
+    totemOperandXUnsigned flags = totemReturnFlag_Register;
     totemOperandRegisterPrototype def;
     def.RegisterScopeType = totemOperandType_LocalRegister;
     def.RegisterIndex = 0;
@@ -2326,10 +2339,10 @@ totemEvalStatus totemBuildPrototype_EvalReturn(totemBuildPrototype *build, totem
     if(dest == NULL)
     {
         dest = &def;
-        option = totemReturnOption_Implicit;
+        flags = totemReturnFlag_None;
     }
     
-    return totemBuildPrototype_EvalAbxInstructionUnsigned(build, dest, option, totemOperationType_Return);
+    return totemBuildPrototype_EvalAbxInstructionUnsigned(build, dest, flags, totemOperationType_Return);
 }
 
 totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemBuildPrototype *build, totemOperandRegisterPrototype *hint, totemOperandRegisterPrototype *result)

@@ -20,17 +20,16 @@ extern "C" {
     /*
      grammatically parses a given string buffer and creates a tree structure that can then be eval()'d
      
-     variable = [ const-token ] variable-start-token [ colon-token identifier-token ] identifier-token
+     variable = [ const-token ] variable-start-token identifier-token [ colon-token identifier-token ]
      string = double-quote-token { * } double-quote-token
      function-call = function-token identifier-token lbracket-token { expression } rbracket-token
      type = array-token | string-token | int-token | float-token | type-token
-     function-pointer = at-token identifier
+     function-pointer = at-token identifier [ lbracket { identifier } rbracket colon identifier ]
      
      new-array = lbracket array-accessor rbracket
-     array-source = variable | function-call | new-array | array-member
-     array-member = array-source lbracket expression rbracket
+     array-access = expression lbracket expression rbracket
      
-     argument = variable | number-token | string | function-call | new-array | type | function-declaration
+     argument = variable | number-token | string | function-call | new-array | type | function-declaration-body
      
      expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
      
@@ -42,7 +41,8 @@ extern "C" {
      simple-statement = expression end-statement
      
      statement = while-loop | for-loop | do-while-loop | if-loop | return | simple-statement
-     function-declaration = identifier-token lbracket-token { variable } rbracket-token lcbracket-token { statement } rcbracket-token
+     function-declaration-body = function-token lbracket-token { variable } rbracket-token lcbracket-token { statement } rcbracket-token
+     function-declaration = identifier-token function-declaration-body
      
      block = function-declaration | statement
      script = { block } end-script-token
@@ -133,6 +133,7 @@ extern "C" {
         totemBinaryOperatorType_DivideAssign,
         totemBinaryOperatorType_Assign,
         totemBinaryOperatorType_Equals,
+        totemBinaryOperatorType_NotEquals,
         totemBinaryOperatorType_MoreThan,
         totemBinaryOperatorType_LessThan,
         totemBinaryOperatorType_MoreThanEquals,
@@ -234,6 +235,7 @@ extern "C" {
         totemTokenType_As,
         totemTokenType_At,
         totemTokenType_Assert,
+        totemTokenType_Coroutine,
         totemTokenType_Max
     }
     totemTokenType;
@@ -506,30 +508,30 @@ extern "C" {
     void totemParseTree_Reset(totemParseTree *tree);
     void totemParseTree_Cleanup(totemParseTree *tree);
     
-    totemParseStatus totemBlockPrototype_Parse(totemBlockPrototype *block, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statement, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemStatementPrototype_ParseSet(totemStatementPrototype **firstStatement, totemStatementPrototype **lastStatement, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemForLoopPrototype_Parse(totemForLoopPrototype *loop, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemWhileLoopPrototype_Parse(totemWhileLoopPrototype *loop, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemDoWhileLoopPrototype_Parse(totemDoWhileLoopPrototype *loop, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemToken **token, totemParseTree *tree, totemBool isAnonymous);
-    totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expression, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemExpressionPrototype_ParseParameterInList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemNewArrayPrototype_Parse(totemNewArrayPrototype *arr, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemFunctionCallPrototype_Parse(totemFunctionCallPrototype *call, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemVariablePrototype_ParseParameterList(totemVariablePrototype **first, totemVariablePrototype **last, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemVariablePrototype_ParseParameterInList(totemVariablePrototype **first, totemVariablePrototype **last, totemToken **token, totemParseTree *tree);
+    totemParseStatus totemBlockPrototype_Parse(totemBlockPrototype *block, totemParseTree *tree);
+    totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statement, totemParseTree *tree);
+    totemParseStatus totemStatementPrototype_ParseSet(totemStatementPrototype **firstStatement, totemStatementPrototype **lastStatement, totemParseTree *tree);
+    totemParseStatus totemForLoopPrototype_Parse(totemForLoopPrototype *loop, totemParseTree *tree);
+    totemParseStatus totemWhileLoopPrototype_Parse(totemWhileLoopPrototype *loop, totemParseTree *tree);
+    totemParseStatus totemDoWhileLoopPrototype_Parse(totemDoWhileLoopPrototype *loop, totemParseTree *tree);
+    totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totemParseTree *tree);
+    totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemParseTree *tree, totemBool isAnonymous);
+    totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expression, totemParseTree *tree);
+    totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree);
+    totemParseStatus totemExpressionPrototype_ParseParameterInList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree);
+    totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument,  totemParseTree *tree);
+    totemParseStatus totemNewArrayPrototype_Parse(totemNewArrayPrototype *arr, totemParseTree *tree);
+    totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, totemParseTree *tree);
+    totemParseStatus totemFunctionCallPrototype_Parse(totemFunctionCallPrototype *call, totemParseTree *tree);
+    totemParseStatus totemVariablePrototype_ParseParameterList(totemVariablePrototype **first, totemVariablePrototype **last, totemParseTree *tree);
+    totemParseStatus totemVariablePrototype_ParseParameterInList(totemVariablePrototype **first, totemVariablePrototype **last, totemParseTree *tree);
     
-    totemParseStatus totemString_ParseIdentifier(totemString *string, totemToken **token, totemParseTree *tree, totemBool strict);
-    totemParseStatus totemString_ParseNumber(totemString *string, totemToken **token, totemParseTree *tree);
+    totemParseStatus totemString_ParseIdentifier(totemString *string, totemParseTree *tree, totemBool strict);
+    totemParseStatus totemString_ParseNumber(totemString *string, totemParseTree *tree);
     
-    totemParseStatus totemPreUnaryOperatorPrototype_Parse(totemPreUnaryOperatorPrototype **type, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemPostUnaryOperatorPrototype_Parse(totemPostUnaryOperatorPrototype **type, totemToken **token, totemParseTree *tree);
-    totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, totemToken **token, totemParseTree *tree);
+    totemParseStatus totemPreUnaryOperatorPrototype_Parse(totemPreUnaryOperatorPrototype **type, totemParseTree *tree);
+    totemParseStatus totemPostUnaryOperatorPrototype_Parse(totemPostUnaryOperatorPrototype **type, totemParseTree *tree);
+    totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, totemParseTree *tree);
     
     void totemToken_Print(FILE *target, totemToken *token);
     void totemToken_PrintList(FILE *target, totemToken *token, size_t num);

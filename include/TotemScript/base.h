@@ -121,11 +121,11 @@ extern "C" {
     
     typedef enum
     {
-        totemReturnOption_Implicit = 0,
-        totemReturnOption_Register = 1,
-        totemReturnOption_Yield = 2
+        totemReturnFlag_None = 0,
+        totemReturnFlag_Register = 1,
+        totemReturnFlag_Last = 2
     }
-    totemReturnOption;
+    totemReturnFlag;
     
     typedef uint8_t totemLocalRegisterIndex;
     typedef int32_t totemOperandXSigned;
@@ -147,15 +147,6 @@ extern "C" {
     
     void totemString_FromLiteral(totemString *strOut, const char *str);
     totemBool totemString_Equals(totemString *a, totemString *b);
-    
-    struct totemRegister;
-    
-    typedef struct
-    {
-        uint32_t RefCount;
-        uint32_t NumRegisters;
-    }
-    totemRuntimeArrayHeader;
     
     enum
     {
@@ -195,7 +186,8 @@ extern "C" {
         totemPrivateDataType_Type = 4,
         totemPrivateDataType_Function = 5,
         totemPrivateDataType_MiniString = 6,
-        totemPrivateDataType_Max = 7
+        totemPrivateDataType_Coroutine = 7,
+        totemPrivateDataType_Max = 8
     };
     typedef uint8_t totemPrivateDataType;
     
@@ -211,7 +203,8 @@ extern "C" {
         totemPublicDataType_Array = 3,
         totemPublicDataType_Type = 4,
         totemPublicDataType_Function = 5,
-        totemPublicDataType_Max = 6
+        totemPublicDataType_Coroutine = 6,
+        totemPublicDataType_Max = 7
     }
     totemPublicDataType;
     
@@ -223,7 +216,7 @@ extern "C" {
         totemInt Int;
         totemInternedStringHeader *InternedString;
         totemRuntimeMiniString MiniString;
-        totemRuntimeArrayHeader *Array;
+        struct totemGCObject *GCObject;
         uint64_t Data;
         totemFunctionPointer FunctionPointer;
         totemPublicDataType DataType;
@@ -473,6 +466,12 @@ extern "C" {
     FILE *totem_fopen(const char *str, const char *mode);
     totemBool totem_fchdir(FILE *file);
     totemBool totem_chdir(const char *str);
+    
+#if _WIN32
+#define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
+#else
+#define totem_snprintf snprintf
+#endif
     
 #ifdef __cplusplus
 }

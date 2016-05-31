@@ -90,6 +90,14 @@ extern "C" {
     }
     totemScript;
     
+    typedef enum
+    {
+        totemFunctionCallFlag_None = 0,
+        totemFunctionCallFlag_FreeStack = 1,
+        totemFunctionCallFlag_IsCoroutine = 2
+    }
+    totemFunctionCallFlag;
+    
     typedef struct totemFunctionCall
     {
         struct totemFunctionCall *Prev;
@@ -98,8 +106,9 @@ extern "C" {
         totemRegister *PreviousFrameStart;
         totemRegister *FrameStart;
         totemInstruction *ResumeAt;
-        size_t FunctionHandle;
+        totemOperandXUnsigned FunctionHandle;
         totemFunctionType Type;
+        totemFunctionCallFlag Flags;
         uint8_t NumRegisters;
         uint8_t NumArguments;
     }
@@ -119,7 +128,7 @@ extern "C" {
     }
     totemRuntime;
     
-    typedef struct
+    typedef struct totemExecState
     {
         totemFunctionCall *CallStack;
         totemInstruction *CurrentInstruction;
@@ -166,14 +175,45 @@ extern "C" {
     void totemRuntime_Cleanup(totemRuntime *runtime);
     totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
     totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, totemOperandXUnsigned *addressOut);
-    totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegister *strOut);
+    totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegisterValue *valOut, totemPrivateDataType *typeOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, totemOperandXUnsigned *addressOut);
+    totemFunctionCall *totemRuntime_SecureFunctionCall(totemRuntime *runtime);
+    void totemRuntime_FreeFunctionCall(totemRuntime *runtime, totemFunctionCall *call);
     
-    totemRuntimeArrayHeader *totemRuntimeArrayHeader_Create(uint32_t numRegisters);
-    void totemRuntimeArrayHeader_Destroy(totemRuntimeArrayHeader *arr);
-    totemRegister *totemRuntimeArrayHeader_GetRegisters(totemRuntimeArrayHeader *arr);
-    void totemRuntimeArrayHeader_DefRefCount(totemRuntimeArrayHeader *arr);
-    totemExecStatus totemRuntimeArrayHeader_IncRefCount(totemRuntimeArrayHeader *arr);
+    enum
+    {
+        totemGCObjectType_Array,
+        totemGCObjectType_Coroutine
+    };
+    typedef uint8_t totemGCObjectType;
+    
+    typedef struct
+    {
+        uint32_t NumRegisters;
+        totemRegister Registers[1];
+    }
+    totemArray;
+    
+    typedef struct totemGCObject
+    {
+        union
+        {
+            totemArray *Array;
+            totemFunctionCall *Coroutine;
+        };
+        uint32_t RefCount;
+        totemGCObjectType Type;
+    }
+    totemGCObject;
+    
+    totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type);
+    void totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *gc);
+    totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOperandXUnsigned functionAddress, totemGCObject **objOut);
+    totemExecStatus totemExecState_CreateArray(totemExecState *state, uint32_t numRegisters, totemGCObject **objOut);
+    totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, totemRegister *registers, uint32_t numRegisters, totemGCObject **objOut);
+    void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc);
+    void totemExecState_DestroyArray(totemExecState *state, totemArray *arr);
+    void totemExecState_DestroyCoroutine(totemExecState *state, totemFunctionCall *co);
     
     /**
      * Execute bytecode

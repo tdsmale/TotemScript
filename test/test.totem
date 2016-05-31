@@ -126,6 +126,6 @@ function test()
     ifBlock();
     intFloat();
     nullTest();
-
     funcPointerTest();
+	coroutineTest();
 }

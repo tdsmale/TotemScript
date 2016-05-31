@@ -87,6 +87,9 @@ function stringTest()
     assert ($d + $e) == "This is an interned string! Ain't this great?";
 
     assert ("123" + "456" + "789") == "123456789";
+	assert ("123" + "456" + "789")[3] == "4";
+	assert ("123" + "456")[3] == "4";
+	assert $e[3] == "n";
 
     print("---");
 }
@@ -119,10 +122,8 @@ function dataTypeTest()
     $b = 3.75;
     print($a);
     print($b);
-    print($b is $a);
     print($b is int);
 
-    assert $b is $a;
     assert !($b is int);
 
     $d = int;
@@ -133,16 +134,16 @@ function dataTypeTest()
 
     assert $c == 3;
 
-    assert (123 as 123) == 123;
+    assert (123 as int) == 123;
     assert (123 as string) == "123";
     assert (123 as array)[0] == 123;
-    assert (123 as float) is 123.00;
+    assert (123 as float) == 123.00;
     assert (123 as type) == int;
 
-    assert (123.45 as 123.45) == 123.45;
+    assert (123.45 as float) == 123.45;
     assert (123.45 as string) == "123.45";
     assert (123.45 as array)[0] == 123.45;
-    assert (123.45 as int) is 123;
+    assert (123.45 as int) == 123;
     assert (123.45 as type) == float;
 
     $rep = [2];
@@ -157,7 +158,7 @@ function dataTypeTest()
     assert ($rep as type) == array;
 
     assert (array as array)[0] == array;
-    assert (array as type) == array;
+    assert (array as type) == type;
     assert (array as string) == "array";
 
     assert ("6664" as int) == 6664;
@@ -167,6 +168,13 @@ function dataTypeTest()
     assert ("str" as type) == string;
     assert ("str" as string) == "str";
     assert ("print" as function) == @print;
+
+	$x = @dataTypeTest as coroutine;
+	assert ($x as function) == @dataTypeTest;
+	assert ($x as string) == "dataTypeTest";
+	assert (($x as coroutine) as function) == @dataTypeTest;
+	assert ($x as coroutine) != $x;
+	assert ($x as coroutine) is coroutine;
 
     print("---");
 }
@@ -222,4 +230,46 @@ function funcPointerTest()
     $rtygh();
 
     print("---");
+}
+
+function generatorTest($start, $end)
+{
+    for($i = $start; $i < $end; $i++)
+    {
+        return $i + $start + $end;
+    }
+
+    return 0;
+}
+
+function coroutineTest()
+{
+	print("coroutine test");
+	print("---");
+
+    $co = @generatorTest as coroutine;
+    $start = 11;
+    $end = 20;
+    $maxLoops = $end - $start;
+
+	print("loop 1");
+
+    for($numLoops = 0; $val = $co($start, $end); $numLoops++)
+    {
+        print($val);
+		assert $val == ($start + $numLoops + $start + $end);
+    }
+
+	print("loop 2");
+
+	for($numLoops = 0; $val = $co($start, $end); $numLoops++)
+    {
+        print($val);
+		assert $val == ($start + $numLoops + $start + $end);
+    }
+
+    assert $numLoops == $maxLoops;
+    assert $val == 0;
+
+	print("---");
 }

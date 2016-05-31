@@ -124,6 +124,7 @@ const char *totemPublicDataType_Describe(totemPublicDataType type)
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Array);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Type);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Function);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Coroutine);
         default: return "UNKNOWN";
     }
 }
@@ -139,6 +140,7 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Function);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_MiniString);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_InternedString);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Coroutine);
         default: return "UNKNOWN";
     }
 }
@@ -165,6 +167,9 @@ totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
             
         case totemPrivateDataType_Array:
             return totemPublicDataType_Array;
+            
+        case totemPrivateDataType_Coroutine:
+            return totemPublicDataType_Coroutine;
     }
     
     return totemPublicDataType_Max;
@@ -340,6 +345,10 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
             fprintf(file, "%s: %d:%d\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.FunctionPointer.Type, reg->Value.FunctionPointer.Address);
             break;
             
+        case totemPrivateDataType_Coroutine:
+            fprintf(file, "%s: %d\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.GCObject->Coroutine->FunctionHandle);
+            break;
+            
         case totemPrivateDataType_Type:
             fprintf(file, "%s: %s\n", totemPrivateDataType_Describe(reg->DataType), totemPublicDataType_Describe(reg->Value.DataType));
             break;
@@ -356,8 +365,7 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
         case totemPrivateDataType_Array:
         {
             indent += 5;
-            totemRuntimeArrayHeader *arr = reg->Value.Array;
-            totemRegister *regs = totemRuntimeArrayHeader_GetRegisters(arr);
+            totemArray *arr = reg->Value.GCObject->Array;
             
             fprintf(file, "array[%u] {\n", arr->NumRegisters);
             
@@ -370,7 +378,7 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
                 
                 fprintf(file, "%lld: ", i);
                 
-                totemRegister *val = &regs[i];
+                totemRegister *val = &arr->Registers[i];
                 totemRegister_PrintRecursive(file, val, indent);
             }
             
@@ -394,7 +402,7 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
             break;
             
         default:
-            fprintf(file, "%s %d %f %lli %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.Array);
+            fprintf(file, "%s %d %f %lli %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.GCObject->Array);
             break;
     }
 }
