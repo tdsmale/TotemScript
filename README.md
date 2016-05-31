@@ -26,9 +26,32 @@ function test()
     const $x = "This variable cannot be modified";
 }
 ```
+#### Variable Scope
+```
+// Variables declared outside of functions are in global scope, and can be accessed by any function.
+$global = "This can be accessed by any function.";
+
+function test()
+{
+    return $global + " See?";
+}
+
+// Variables declared inside of functions are in local scope, and can only be accessed by that function.
+function localTest()
+{
+    $a = 123;
+
+    $b = function()
+    {
+        return $a; // scope error
+    }
+}
+
+```
 #### Functions
 ```
 // declaring a function
+// named functions can only be declared in global scope
 function test($a, $b)
 {
     return $a + $b;
@@ -40,7 +63,7 @@ $a = test(123); // arguments default to an integer value of 0 when not provided 
 $b = @test; // functions can also be stored in variables
 $a = $b(123, 456, 789); // additional arguments provided by caller are discarded
 
-// functions can also be anonymous
+// functions can also be anonymous, which can be declared anywhere
 $b = function($a, $b)
 {
     return $a * $b;
