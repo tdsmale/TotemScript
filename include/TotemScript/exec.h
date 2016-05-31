@@ -68,7 +68,17 @@ extern "C" {
     
     typedef struct
     {
-        size_t ScriptHandle;
+        totemHashMap FunctionNameLookup;
+        totemMemoryBuffer GlobalRegisters;
+        totemMemoryBuffer Functions;
+        totemMemoryBuffer FunctionNames;
+        totemMemoryBuffer Instructions;
+    }
+    totemScript;
+    
+    typedef struct
+    {
+        totemScript *Script;
         totemMemoryBuffer GlobalRegisters;
     }
     totemActor;
@@ -79,16 +89,6 @@ extern "C" {
         uint8_t RegistersNeeded;
     }
     totemScriptFunction;
-    
-    typedef struct
-    {
-        totemHashMap FunctionNameLookup;
-        totemMemoryBuffer GlobalRegisters;
-        totemMemoryBuffer Functions;
-        totemMemoryBuffer FunctionNames;
-        totemMemoryBuffer Instructions;
-    }
-    totemScript;
     
     typedef enum
     {
@@ -118,13 +118,8 @@ extern "C" {
     {
         totemMemoryBuffer NativeFunctions;
         totemMemoryBuffer NativeFunctionNames;
-        totemMemoryBuffer Scripts;
-        
-        totemHashMap ScriptLookup;
         totemHashMap NativeFunctionsLookup;
         totemHashMap InternedStrings;
-        
-        totemFunctionCall *FunctionCallFreeList;
     }
     totemRuntime;
     
@@ -136,6 +131,8 @@ extern "C" {
         totemRegister *Registers[2];
         size_t MaxLocalRegisters;
         size_t UsedLocalRegisters;
+        
+        totemFunctionCall *FunctionCallFreeList;
     }
     totemExecState;
     
@@ -167,18 +164,23 @@ extern "C" {
     
     typedef totemExecStatus(*totemNativeFunction)(totemExecState*);
     
-    totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress);
+    void totemActor_Init(totemActor *actor);
+    void totemActor_Reset(totemActor *actor);
     void totemActor_Cleanup(totemActor *actor);
+    
+    void totemScript_Init(totemScript *script);
+    void totemScript_Reset(totemScript *script);
+    void totemScript_Cleanup(totemScript *script);
+    totemLinkStatus totemScript_LinkActor(totemScript *script, totemActor *actor);
     
     void totemRuntime_Init(totemRuntime *runtime);
     void totemRuntime_Reset(totemRuntime *runtime);
     void totemRuntime_Cleanup(totemRuntime *runtime);
-    totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *addressOut);
+    totemLinkStatus totemRuntime_LinkExecState(totemRuntime *runtime, totemExecState *state, size_t numRegisters);
+    totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemScript *scriptOut);
     totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, totemOperandXUnsigned *addressOut);
     totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegisterValue *valOut, totemPrivateDataType *typeOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, totemOperandXUnsigned *addressOut);
-    totemFunctionCall *totemRuntime_SecureFunctionCall(totemRuntime *runtime);
-    void totemRuntime_FreeFunctionCall(totemRuntime *runtime, totemFunctionCall *call);
     
     enum
     {
@@ -218,7 +220,7 @@ extern "C" {
     /**
      * Execute bytecode
      */
-    totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size_t numRegisters);
+    void totemExecState_Init(totemExecState *state);
     void totemExecState_Cleanup(totemExecState *state);
     totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionAddress, totemRegister *returnRegister);
     totemExecStatus totemExecState_ExecNative(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionHandle, totemRegister *returnRegister);

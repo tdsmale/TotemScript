@@ -96,10 +96,9 @@ int main(int argc, const char * argv[])
     }
     
     // link
-    totemString scriptName;
-    totemString_FromLiteral(&scriptName, "TotemTest");
-    size_t scriptAddr = 0;
-    linkStatus = totemRuntime_LinkBuild(&runtime, &build, &scriptName, &scriptAddr);
+    totemScript script;
+    totemScript_Init(&script);
+    linkStatus = totemRuntime_LinkBuild(&runtime, &build, &script);
     if(linkStatus != totemLinkStatus_Success)
     {
         printf("Could not register script: %s\n", totemLinkStatus_Describe(linkStatus));
@@ -114,7 +113,8 @@ int main(int argc, const char * argv[])
     
     // init actor
     totemActor actor;
-    if(totemActor_Init(&actor, &runtime, scriptAddr) != totemExecStatus_Continue)
+    totemActor_Init(&actor);
+    if (totemScript_LinkActor(&script, &actor) != totemLinkStatus_Success)
     {
         printf("Could not create actor\n");
         return EXIT_FAILURE;
@@ -126,8 +126,10 @@ int main(int argc, const char * argv[])
     totemRegister_PrintList(stdout, totemMemoryBuffer_Get(&actor.GlobalRegisters, 0), totemMemoryBuffer_GetNumObjects(&actor.GlobalRegisters));
     printf("\n");
     
+    // init exec state
     totemExecState execState;
-    if(!totemExecState_Init(&execState, &runtime, 0))
+    totemExecState_Init(&execState);
+    if(totemRuntime_LinkExecState(&runtime, &execState, 128) != totemLinkStatus_Success)
     {
         printf("Could not create exec state\n");
         return EXIT_FAILURE;
@@ -137,25 +139,11 @@ int main(int argc, const char * argv[])
     memset(&returnRegister, 0, sizeof(totemRegister));
     
     printf("******\n");
-    printf("Run globals:\n");
+    printf("Run script:\n");
     printf("******\n");
     
-    // init global vars
+    // run script
     totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, 0, &returnRegister);
-    if(execStatus != totemExecStatus_Return)
-    {
-        printf("exec error %s\n", totemExecStatus_Describe(execStatus));
-        return EXIT_FAILURE;
-    }
-    
-    printf("******\n");
-    printf("Run locals:\n");
-    printf("******\n");
-    
-    // run test
-    totemScript *script = totemMemoryBuffer_Get(&runtime.Scripts, scriptAddr);
-    totemHashMapEntry *function = totemHashMap_Find(&script->FunctionNameLookup, "test", 4);
-    execStatus = totemExecState_Exec(&execState, &actor, (totemOperandXUnsigned)function->Value, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));
@@ -165,6 +153,7 @@ int main(int argc, const char * argv[])
     // free
     totemExecState_Cleanup(&execState);
     totemActor_Cleanup(&actor);
+    totemScript_Cleanup(&script);
     
     totemBuildPrototype_Cleanup(&build);
     totemParseTree_Cleanup(&parseTree);

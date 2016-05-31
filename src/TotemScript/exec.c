@@ -87,6 +87,40 @@ totemExecStatus totemExecStatus_Break(totemExecStatus status)
     return status;
 }
 
+totemFunctionCall *totemExecState_SecureFunctionCall(totemExecState *state)
+{
+    totemFunctionCall *call = NULL;
+    
+    if (state->FunctionCallFreeList)
+    {
+        call = state->FunctionCallFreeList;
+        state->FunctionCallFreeList = call->Prev;
+    }
+    else
+    {
+        call = totem_CacheMalloc(sizeof(totemFunctionCall));
+        if (!call)
+        {
+            return NULL;
+        }
+    }
+    
+    memset(call, 0, sizeof(totemFunctionCall));
+    return call;
+}
+
+void totemExecState_FreeFunctionCall(totemExecState *state, totemFunctionCall *call)
+{
+    call->Prev = NULL;
+    
+    if (state->FunctionCallFreeList)
+    {
+        call->Prev = state->FunctionCallFreeList;
+    }
+    
+    state->FunctionCallFreeList = call;
+}
+
 totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut)
 {
     totemRegister newStr;
@@ -240,13 +274,7 @@ totemExecStatus totemExecState_FunctionPointerToString(totemExecState *state, to
             
         case totemFunctionType_Script:
         {
-            totemScript *scr = totemMemoryBuffer_Get(&state->Runtime->Scripts, state->CallStack->CurrentActor->ScriptHandle);
-            if(!scr)
-            {
-                return totemExecStatus_Break(totemExecStatus_ScriptNotFound);
-            }
-            
-            result = totemMemoryBuffer_Get(&scr->FunctionNames, ptr->Address);
+            result = totemMemoryBuffer_Get(&state->CallStack->CurrentActor->Script->FunctionNames, ptr->Address);
             if(!result)
             {
                 return totemExecStatus_Break(totemExecStatus_ScriptFunctionNotFound);
@@ -374,13 +402,7 @@ totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, to
     }
     else
     {
-        totemScript *script = totemMemoryBuffer_Get(&state->Runtime->Scripts, state->CallStack->CurrentActor->ScriptHandle);
-        if (!script)
-        {
-            return totemExecStatus_Break(totemExecStatus_ScriptNotFound);
-        }
-        
-        totemHashMapEntry *entry = totemHashMap_Find(&script->FunctionNameLookup, lookup.Value, lookup.Length);
+        totemHashMapEntry *entry = totemHashMap_Find(&state->CallStack->CurrentActor->Script->FunctionNameLookup, lookup.Value, lookup.Length);
         if (entry)
         {
             addr = (totemOperandXUnsigned)entry->Value;
@@ -394,8 +416,6 @@ totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, to
     
     return totemExecStatus_Continue;
 }
-
-static int numGc = 0;
 
 totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type)
 {
@@ -449,13 +469,7 @@ totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, to
 
 totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOperandXUnsigned address, totemGCObject **gcOut)
 {
-    totemScript *script = totemMemoryBuffer_Get(&state->Runtime->Scripts, state->CallStack->CurrentActor->ScriptHandle);
-    if (!script)
-    {
-        return totemExecStatus_Break(totemExecStatus_ScriptNotFound);
-    }
-    
-    totemScriptFunction *func = totemMemoryBuffer_Get(&script->Functions, address);
+    totemScriptFunction *func = totemMemoryBuffer_Get(&state->CallStack->CurrentActor->Script->Functions, address);
     if (!func)
     {
         return totemExecStatus_Break(totemExecStatus_ScriptFunctionNotFound);
@@ -467,7 +481,7 @@ totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOpera
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
     
-    gc->Coroutine = totemRuntime_SecureFunctionCall(state->Runtime);
+    gc->Coroutine = totemExecState_SecureFunctionCall(state);
     if (!gc->Coroutine)
     {
         totemExecState_DestroyGCObject(state, gc);
@@ -483,7 +497,7 @@ totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOpera
     gc->Coroutine->FrameStart = totem_CacheMalloc(sizeof(totemRegister) * func->RegistersNeeded);
     if (!gc->Coroutine->FrameStart)
     {
-        totemRuntime_FreeFunctionCall(state->Runtime, gc->Coroutine);
+        totemExecState_FreeFunctionCall(state, gc->Coroutine);
         totemExecState_DestroyGCObject(state, gc);
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
@@ -551,28 +565,13 @@ void totemExecState_DestroyCoroutine(totemExecState *state, totemFunctionCall *c
 {
     totemExecState_CleanupRegisterList(state, co->FrameStart, co->NumRegisters);
     totem_CacheFree(co->FrameStart, sizeof(totemRegister) * co->NumRegisters);
-    totemRuntime_FreeFunctionCall(state->Runtime, co);
+    totemExecState_FreeFunctionCall(state, co);
 }
 
-totemExecStatus totemActor_Init(totemActor *actor, totemRuntime *runtime, size_t scriptAddress)
+void totemActor_Init(totemActor *actor)
 {
-    memset(actor, 0, sizeof(totemActor));
     totemMemoryBuffer_Init(&actor->GlobalRegisters, sizeof(totemRegister));
-    
-    actor->ScriptHandle = scriptAddress;
-    
-    totemScript *script = totemMemoryBuffer_Get(&runtime->Scripts, scriptAddress);
-    if(script == NULL)
-    {
-        return totemExecStatus_Break(totemExecStatus_ScriptNotFound);
-    }
-    
-    if (!totemMemoryBuffer_TakeFrom(&actor->GlobalRegisters, &script->GlobalRegisters))
-    {
-        return totemExecStatus_Break(totemExecStatus_OutOfMemory);
-    }
-    
-    return totemExecStatus_Continue;
+    actor->Script = NULL;
 }
 
 void totemActor_Cleanup(totemActor *actor)
@@ -618,23 +617,30 @@ void totemScript_Cleanup(totemScript *script)
     totemHashMap_Cleanup(&script->FunctionNameLookup);
 }
 
+totemLinkStatus totemScript_LinkActor(totemScript *script, totemActor *actor)
+{
+    actor->Script = script;
+    
+    if (!totemMemoryBuffer_TakeFrom(&actor->GlobalRegisters, &script->GlobalRegisters))
+    {
+        return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
+    }
+    
+    return totemLinkStatus_Success;
+}
+
 void totemRuntime_Init(totemRuntime *runtime)
 {
     totemMemoryBuffer_Init(&runtime->NativeFunctions, sizeof(totemNativeFunction));
-    totemMemoryBuffer_Init(&runtime->Scripts, sizeof(totemScript));
     totemMemoryBuffer_Init(&runtime->NativeFunctionNames, sizeof(totemRegister));
-    totemHashMap_Init(&runtime->ScriptLookup);
     totemHashMap_Init(&runtime->NativeFunctionsLookup);
     totemHashMap_Init(&runtime->InternedStrings);
-    runtime->FunctionCallFreeList = NULL;
 }
 
 void totemRuntime_Reset(totemRuntime *runtime)
 {
     totemMemoryBuffer_Reset(&runtime->NativeFunctions);
-    totemMemoryBuffer_Reset(&runtime->Scripts);
     totemMemoryBuffer_Reset(&runtime->NativeFunctionNames);
-    totemHashMap_Reset(&runtime->ScriptLookup);
     totemHashMap_Reset(&runtime->NativeFunctionsLookup);
     totemHashMap_Reset(&runtime->InternedStrings);
 }
@@ -642,9 +648,7 @@ void totemRuntime_Reset(totemRuntime *runtime)
 void totemRuntime_Cleanup(totemRuntime *runtime)
 {
     totemMemoryBuffer_Cleanup(&runtime->NativeFunctions);
-    totemMemoryBuffer_Cleanup(&runtime->Scripts);
     totemMemoryBuffer_Cleanup(&runtime->NativeFunctionNames);
-    totemHashMap_Cleanup(&runtime->ScriptLookup);
     totemHashMap_Cleanup(&runtime->NativeFunctionsLookup);
     
     // clean up interned strings
@@ -661,14 +665,6 @@ void totemRuntime_Cleanup(totemRuntime *runtime)
     }
     
     totemHashMap_Cleanup(&runtime->InternedStrings);
-    
-    // clean up function calls
-    while(runtime->FunctionCallFreeList)
-    {
-        totemFunctionCall *call = runtime->FunctionCallFreeList;
-        runtime->FunctionCallFreeList = call->Prev;
-        totem_CacheFree(call, sizeof(totemFunctionCall));
-    }
 }
 
 totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegisterValue *valOut, totemPrivateDataType *typeOut)
@@ -716,32 +712,9 @@ totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *st
     return totemLinkStatus_Success;
 }
 
-totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemString *name, size_t *indexOut)
+totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemScript *script)
 {
-    totemScript *script = NULL;
-    totemHashMapEntry *existing = totemHashMap_Find(&runtime->ScriptLookup, name->Value, name->Length);
-    if(existing == NULL)
-    {
-        *indexOut = totemMemoryBuffer_GetNumObjects(&runtime->Scripts);
-        if(!totemHashMap_Insert(&runtime->ScriptLookup, name->Value, name->Length, *indexOut))
-        {
-            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
-        }
-        
-        script = totemMemoryBuffer_Secure(&runtime->Scripts, 1);
-        if(!script)
-        {
-            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
-        }
-        
-        totemScript_Init(script);
-    }
-    else
-    {
-        *indexOut = existing->Value;
-        script = totemMemoryBuffer_Get(&runtime->Scripts, *indexOut);
-        totemScript_Reset(script);
-    }
+    totemScript_Reset(script);
     
     // check script function names against existing native functions
     for(size_t i = 0; i < totemMemoryBuffer_GetNumObjects(&build->Functions); i++)
@@ -954,60 +927,40 @@ totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemStri
     return totemBool_False;
 }
 
-totemFunctionCall *totemRuntime_SecureFunctionCall(totemRuntime *runtime)
+totemLinkStatus totemRuntime_LinkExecState(totemRuntime *runtime, totemExecState *state, size_t numRegisters)
 {
-    totemFunctionCall *call = NULL;
+    state->Runtime = runtime;
     
-    if(runtime->FunctionCallFreeList)
+    if (state->Registers[totemOperandType_LocalRegister])
     {
-        call = runtime->FunctionCallFreeList;
-        runtime->FunctionCallFreeList = call->Prev;
+        totem_CacheFree(state->Registers[totemOperandType_LocalRegister], sizeof(totemRegister) * state->MaxLocalRegisters);
+    }
+    
+    if (numRegisters > 0)
+    {
+        totemRegister *regs = totem_CacheMalloc(sizeof(totemRegister) * numRegisters);
+        
+        if (!regs)
+        {
+            return totemLinkStatus_OutOfMemory;
+        }
+        
+        memset(regs, 0, sizeof(totemRegister) * numRegisters);
+        state->Registers[totemOperandType_LocalRegister] = regs;
     }
     else
     {
-        call = totem_CacheMalloc(sizeof(totemFunctionCall));
-        if(!call)
-        {
-            return NULL;
-        }
-    }
-    
-    memset(call, 0, sizeof(totemFunctionCall));
-    return call;
-}
-
-void totemRuntime_FreeFunctionCall(totemRuntime *runtime, totemFunctionCall *call)
-{
-    call->Prev = NULL;
-    
-    if(runtime->FunctionCallFreeList)
-    {
-        call->Prev = runtime->FunctionCallFreeList;
-    }
-    
-    runtime->FunctionCallFreeList = call;
-}
-
-totemBool totemExecState_Init(totemExecState *state, totemRuntime *runtime, size_t numRegisters)
-{
-    memset(state, 0, sizeof(totemExecState));
-    
-    state->Runtime = runtime;
-    
-    if(numRegisters > 0)
-    {
-        state->Registers[totemOperandType_LocalRegister] = totem_CacheMalloc(sizeof(totemRegister) * numRegisters);
-        if(state->Registers[totemOperandType_LocalRegister] == NULL)
-        {
-            return totemBool_False;
-        }
-        
-        memset(state->Registers[totemOperandType_LocalRegister], 0, sizeof(totemRegister) * numRegisters);
+        state->Registers[totemOperandType_LocalRegister] = NULL;
     }
     
     state->MaxLocalRegisters = numRegisters;
     state->UsedLocalRegisters = 0;
-    return totemBool_True;
+    return totemLinkStatus_Success;
+}
+
+void totemExecState_Init(totemExecState *state)
+{
+    memset(state, 0, sizeof(*state));
 }
 
 void totemExecState_Cleanup(totemExecState *state)
@@ -1049,7 +1002,7 @@ totemExecStatus totemExecState_PushFunctionArgs(totemExecState *state, totemFunc
 
 totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, size_t numRegisters, totemActor *actor, totemRegister *returnReg, totemFunctionType funcType, totemOperandXUnsigned functionAddress, totemFunctionCall **callOut)
 {
-    totemFunctionCall *call = totemRuntime_SecureFunctionCall(state->Runtime);
+    totemFunctionCall *call = totemExecState_SecureFunctionCall(state);
     if (call == NULL)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
@@ -1152,7 +1105,7 @@ void totemExecState_PopRoutine(totemExecState *state)
                 state->UsedLocalRegisters -= call->NumRegisters;
             }
             
-            totemRuntime_FreeFunctionCall(state->Runtime, call);
+            totemExecState_FreeFunctionCall(state, call);
         }
         
         state->CallStack = prev;
@@ -1173,19 +1126,13 @@ totemExecStatus totemExecState_ExecuteInstructions(totemExecState *state)
 
 totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionAddress, totemRegister *returnRegister)
 {
-    totemScript *script = totemMemoryBuffer_Get(&state->Runtime->Scripts, actor->ScriptHandle);
-    if(script == NULL)
-    {
-        return totemExecStatus_Break(totemExecStatus_ScriptNotFound);
-    }
-    
-    totemScriptFunction *function = totemMemoryBuffer_Get(&script->Functions, functionAddress);
+    totemScriptFunction *function = totemMemoryBuffer_Get(&actor->Script->Functions, functionAddress);
     if(function == NULL)
     {
         return totemExecStatus_Break(totemExecStatus_ScriptFunctionNotFound);
     }
     
-    totemInstruction *startAt = totemMemoryBuffer_Get(&script->Instructions, function->InstructionsStart);
+    totemInstruction *startAt = totemMemoryBuffer_Get(&actor->Script->Instructions, function->InstructionsStart);
     if (startAt == NULL)
     {
         return totemExecStatus_Break(totemExecStatus_ScriptFunctionNotFound);
@@ -1400,19 +1347,13 @@ totemExecStatus totemExecState_ExecFunctionPointer(totemExecState *state)
             {
                 TOTEM_EXEC_CHECKRETURN(totemExecState_PushFunctionArgs(state, call));
                 
-                totemScript *script = totemMemoryBuffer_Get(&state->Runtime->Scripts, call->CurrentActor->ScriptHandle);
-                if (script == NULL)
-                {
-                    return totemExecStatus_Break(totemExecStatus_ScriptNotFound);
-                }
-                
-                totemScriptFunction *function = totemMemoryBuffer_Get(&script->Functions, call->FunctionHandle);
+                totemScriptFunction *function = totemMemoryBuffer_Get(&call->CurrentActor->Script->Functions, call->FunctionHandle);
                 if (function == NULL)
                 {
                     return totemExecStatus_Break(totemExecStatus_ScriptFunctionNotFound);
                 }
                 
-                startFrom = totemMemoryBuffer_Get(&script->Instructions, function->InstructionsStart);
+                startFrom = totemMemoryBuffer_Get(&call->CurrentActor->Script->Instructions, function->InstructionsStart);
                 if (startFrom == NULL)
                 {
                     return totemExecStatus_Break(totemExecStatus_ScriptFunctionNotFound);

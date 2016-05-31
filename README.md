@@ -141,9 +141,6 @@ $co = 123;
  
 #### Runtime Improvements
 * ref-counting cycle detection
-* line/char/len numbers for eval, link & exec errors
-* better concurrency
- * separate scripts from runtime
  
 ### Feature Creep
 #### Language Features
@@ -174,3 +171,4 @@ $co = 123;
 * breakpoints
  * lookup first instruction at given line of source code, replace with breakpoint instruction, store original
  * call user-supplied callback, then execute original instruction
+* line/char/len numbers for eval, link & exec errors
