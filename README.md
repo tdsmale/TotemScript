@@ -4,7 +4,7 @@ TotemScript is a light-weight, general-purpose scripting language.
 print("Hello, World!");
 ```
 #### Defining Variables
-Variables are dynamic by default, supporting the following types:
+Variables are dynamically-typed, supporting the following types:
 * int - 64-bit signed integers
 * float - 64-bit floating point
 * string - Interned, immutable strings
