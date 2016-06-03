@@ -48,9 +48,9 @@ function localTest()
 }
 
 ```
-#### Include other Files
+#### Combining scripts
 ```
-include "..otherDir/otherFile.totem"
+include "..otherDir/otherFile.totem";
 // include statements must be at the top of the file
 // file paths are relative to the current file's path
 ```
@@ -106,6 +106,32 @@ $b = $a[0] + $a[1];
 $a[20] = 1; // runtime error
 
 $a = "some other value"; // Arrays are automatically garbage-collected when no-longer referenced
+```
+#### Objects
+```
+// Create new garbage-collected object
+$obj = {};
+
+// Objects map strings to values
+$obj["test"] = 123;
+$val = $obj["test"];
+
+// Objects can store any sort of value, but can only use strings as keys
+$val["test2"] = function($x, $y)
+{
+    return $x * $y;
+};
+
+$val["test2"](123, 456);
+
+// Objects are less efficient than arrays, but don't need to be manually resized
+$key = "key";
+$obj[$key] = [20];
+
+for($i = 0; $i < 20; $i++)
+{
+    $obj[$key][$i] = $i;
+}
 ```
 #### Coroutines
 ```
