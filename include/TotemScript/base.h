@@ -166,9 +166,9 @@ extern "C" {
     {
         totemHash Hash;
         totemStringLength Length;
+        char Data[1];
     }
     totemInternedStringHeader;
-    const char *totemInternedStringHeader_GetString(totemInternedStringHeader *hdr);
     
 #define TOTEM_MINISTRING_MAXLENGTH (7)
     typedef struct
@@ -187,7 +187,8 @@ extern "C" {
         totemPrivateDataType_Function = 5,
         totemPrivateDataType_MiniString = 6,
         totemPrivateDataType_Coroutine = 7,
-        totemPrivateDataType_Max = 8
+        totemPrivateDataType_Object = 8,
+        totemPrivateDataType_Max = 9
     };
     typedef uint8_t totemPrivateDataType;
     
@@ -204,7 +205,8 @@ extern "C" {
         totemPublicDataType_Type = 4,
         totemPublicDataType_Function = 5,
         totemPublicDataType_Coroutine = 6,
-        totemPublicDataType_Max = 7
+        totemPublicDataType_Object = 7,
+        totemPublicDataType_Max = 8
     }
     totemPublicDataType;
     
@@ -232,46 +234,39 @@ extern "C" {
     
     const char *totemRegister_GetStringValue(totemRegister *reg);
     totemStringLength totemRegister_GetStringLength(totemRegister *reg);
+    totemHash totemRegister_GetStringHash(totemRegister *reg);
     
     /**
      * Operation Types
      */
     enum
     {
-        totemOperationType_None = 0,                // empty instruction, used at end of script
-        totemOperationType_Move = 1,                // A = B
-        totemOperationType_Add = 2,                 // A = B + C
-        totemOperationType_Subtract = 3,            // A = B - C
-        totemOperationType_Multiply = 4,            // A = B * C
-        totemOperationType_Divide = 5,              // A = B / C
-        totemOperationType_Power = 6,               // A = B ^ C
-        totemOperationType_Equals = 7,              // A = B == C
-        totemOperationType_NotEquals = 8,           // A = B != C
-        totemOperationType_LessThan = 9,            // A = B < C
-        totemOperationType_LessThanEquals = 10,     // A = B <= C
-        totemOperationType_MoreThan = 11,           // A = B > C
-        totemOperationType_MoreThanEquals = 12,     // A = B >= C
-        totemOperationType_LogicalOr = 13,          // A = B && C
-        totemOperationType_LogicalAnd = 14,         // A = B || C
-        totemOperationType_ConditionalGoto = 15,    // if(A is 0) skip Bx instructions (can be negative)
-        totemOperationType_Goto = 16,               // skip Bx instructions (can be negative)
-        totemOperationType_NativeFunction = 17,     // A = Bx(), where Bx is the index of a native function
-        totemOperationType_ScriptFunction = 18,     // A = Bx(), where Bx is the index of a script function
-        totemOperationType_FunctionArg = 19,        // A is register to pass, Bx is number of arguments total
-        totemOperationType_Return = 20,             // return A,
-        totemOperationType_NewArray = 21,           // A = array of size B
-        totemOperationType_ArrayGet = 22,           // A = B[C]
-        totemOperationType_ArraySet = 23,           // A[B] = C
-        totemOperationType_MoveToLocal = 24,        // A = Bx
-        totemOperationType_MoveToGlobal = 25,       // Bx = A
-        totemOperationType_Is = 26,                 // A = B is C
-        totemOperationType_As = 27,                 // A = B as C
-        totemOperationType_FunctionPointer = 28,	// A = B()
-        totemOperationType_Assert = 29,             // assert A
-        /*
-         totemOperationType_Throw = 30,				// throw A
-         */
-        
+        totemOperationType_Move = 0,                // A = B
+        totemOperationType_Add = 1,                 // A = B + C
+        totemOperationType_Subtract = 2,            // A = B - C
+        totemOperationType_Multiply = 3,            // A = B * C
+        totemOperationType_Divide = 4,              // A = B / C
+        totemOperationType_Equals = 5,              // A = B == C
+        totemOperationType_NotEquals = 6,           // A = B != C
+        totemOperationType_LessThan = 7,            // A = B < C
+        totemOperationType_LessThanEquals = 8,      // A = B <= C
+        totemOperationType_MoreThan = 9,            // A = B > C
+        totemOperationType_MoreThanEquals = 10,     // A = B >= C
+        totemOperationType_LogicalOr = 11,          // A = B && C
+        totemOperationType_LogicalAnd = 12,         // A = B || C
+        totemOperationType_ConditionalGoto = 13,    // if(A is 0) skip Bx instructions (can be negative)
+        totemOperationType_Goto = 14,               // skip Bx instructions (can be negative)
+        totemOperationType_FunctionArg = 15,        // A is register to pass, Bx is number of arguments total
+        totemOperationType_Return = 16,             // return A,
+        totemOperationType_NewArray = 17,           // A = array of size B
+        totemOperationType_ArrayGet = 18,           // A = B[C]
+        totemOperationType_ArraySet = 19,           // A[B] = C
+        totemOperationType_MoveToLocal = 20,        // A = Bx
+        totemOperationType_MoveToGlobal = 21,       // Bx = A
+        totemOperationType_Is = 22,                 // A = B is C
+        totemOperationType_As = 23,                 // A = B as C
+        totemOperationType_FunctionPointer = 24,	// A = B()
+        totemOperationType_NewObject = 25,			// A = new object
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;

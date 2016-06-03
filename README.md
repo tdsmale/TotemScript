@@ -48,6 +48,12 @@ function localTest()
 }
 
 ```
+#### Include other Files
+```
+include "..otherDir/otherFile.totem"
+// include statements must be at the top of the file
+// file paths are relative to the current file's path
+```
 #### Functions
 ```
 // declaring a function
@@ -105,7 +111,7 @@ $a = "some other value"; // Arrays are automatically garbage-collected when no-l
 ```
 // Coroutines are functions that pause when they return, and can be resumed later
 
-// Coroutines are created by casting any function to a coroutine
+// Coroutines are created by casting any function to a coroutine, and invoked like a regular function
 $co = function($start, $end)
 {
     for($i = $start; $i < $end; $i++)
@@ -134,37 +140,23 @@ for($numLoops = 0; $val = $co($start + 1, $end + 1); $numLoops++)
 // Coroutines are also garbage-collected, just like Arrays - when no longer referenced, they are destroyed
 $co = 123;
 ```
-### Todo
-#### Language Features
-* garbage-collected string->value maps, e.g. $x = {"whatever":123, "this":@hello}; $y = $x{"this"}($x{"whatever"});
-* garbage-collected lua-like userdata with destructors
- 
-#### Runtime Improvements
-* ref-counting cycle detection
- 
 ### Feature Creep
 #### Language Features
-* exceptions - try, catch, finally & throw
- * both user & system-generated exceptions
+* garbage-collected lua-like userdata with destructors
+* FIFO message channels, e.g. $channel = <>; $channel push $x; $channel pop $y;
+* function error handlers, catch runtime errors e.g. function x($a, $b) { causeAnError(); } unless { somethingBadHappened(); }
 * operator precedence reordering
-* initializer lists for arrays & records, both with and without indices/names e.g. $a:vec2 = { $x:1.75, $y:1.45 };
+* initializer lists for arrays & objects, both with and without indices/names e.g. $a = { "x":1.75, "y":1.45 }; $b = [$a, 123, "456"];
 * loop scope for vars
 * function arg improvements
  * default arguments for functions e.g. function call($x:int = 123, $y:int = 456);
  * specify argument name in direct function calls, e.g. $x = call($y: 123, $x: 456);
+* switch statement
 
 #### Runtime Improvements
-* pre-compute value-only expressions
-* unroll determinate loops
-* escape analysis for arrays
+* ref-cycle detection
 * bytecode serialisation
  * check register & function addresses, function arguments
-* register-allocation improvement
- * track how many times a variable is referenced when evaluating values
- * local const vars should eval to global vars wherever possible
- * global const vars should eval straight to value register
- * piggy-back on free global registers if any are available and local scope is full
-* make sequences of array / string concatenation more efficient
 * debug information for scripts
  * line numbers
  * variable->register mappings
@@ -172,3 +164,13 @@ $co = 123;
  * lookup first instruction at given line of source code, replace with breakpoint instruction, store original
  * call user-supplied callback, then execute original instruction
 * line/char/len numbers for eval, link & exec errors
+* better built-in support for concurrency
+ * memory
+  * synchronize cache alloc/free
+  * ensure refcount changes are atomic
+  * ref-cycle detection isolated to individual exec states
+  * synchronise string interning
+  * synchronise channels
+ * function pointers must reference actor
+* use setjmp/longjmp to break instruction execution instead of checking return value
+ * allows simple subroutine threading

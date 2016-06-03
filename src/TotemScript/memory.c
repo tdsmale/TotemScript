@@ -11,7 +11,6 @@
 
 #define TOTEM_MEM_FREELIST_DIVISOR (sizeof(totemMemoryPageObject))
 #define TOTEM_MEM_PAGESIZE (TOTEM_MEM_FREELIST_DIVISOR * 512)
-#define TOTEM_MEM_BLOCKSIZE (TOTEM_MEM_PAGESIZE * TOTEM_MEM_PAGESIZE)
 #define TOTEM_MEM_NUM_FREELISTS (TOTEM_MEM_PAGESIZE / TOTEM_MEM_FREELIST_DIVISOR)
 
 typedef struct totemMemoryPageObject
@@ -437,6 +436,8 @@ void totemHashMap_MoveKeysToFreeList(totemHashMap *hashmap)
             totemHashMap_FreeEntry(hashmap, entry);
         }
     }
+    
+    hashmap->NumKeys = 0;
 }
 
 void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, totemHashMapEntry *entry)
@@ -527,6 +528,8 @@ totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key,
         entry->KeyLen = keyLen;
         entry->Hash = hash == 0 ? totem_Hash(key, keyLen) : hash;
         totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
+        
+        hashmap->NumKeys++;
         return totemBool_True;
     }
 }
@@ -574,6 +577,7 @@ totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, s
                 }
                 
                 totemHashMap_FreeEntry(hashmap, entry);
+                hashmap->NumKeys--;
                 return entry;
             }
         }

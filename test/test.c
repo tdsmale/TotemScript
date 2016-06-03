@@ -17,6 +17,19 @@ totemExecStatus totemPrint(totemExecState *state)
     return totemExecStatus_Continue;
 }
 
+totemExecStatus totemAssert(totemExecState *state)
+{
+    totemRegister *reg = &state->Registers[totemOperandType_LocalRegister][0];
+    if (reg->Value.Data)
+    {
+        return totemExecStatus_Continue;
+    }
+    else
+    {
+        return totemExecStatus_Stop;
+    }
+}
+
 int main(int argc, const char * argv[])
 {
     totem_Init();
@@ -47,13 +60,22 @@ int main(int argc, const char * argv[])
     totemRuntime_Init(&runtime);
     
     // link print function
-    totemOperandXUnsigned printAddr = 0;
+    totemOperandXUnsigned linkedFunctionAddr = 0;
     totemString printName;
     totemString_FromLiteral(&printName, "print");
-    totemLinkStatus linkStatus = totemRuntime_LinkNativeFunction(&runtime, &totemPrint, &printName, &printAddr);
+    totemLinkStatus linkStatus = totemRuntime_LinkNativeFunction(&runtime, &totemPrint, &printName, &linkedFunctionAddr);
     if(linkStatus != totemLinkStatus_Success)
     {
         printf("Could not register print: %s\n", totemLinkStatus_Describe(linkStatus));
+        return EXIT_FAILURE;
+    }
+    
+    // link assert function
+    totemString_FromLiteral(&printName, "assert");
+    linkStatus = totemRuntime_LinkNativeFunction(&runtime, &totemAssert, &printName, &linkedFunctionAddr);
+    if (linkStatus != totemLinkStatus_Success)
+    {
+        printf("Could not register assert: %s\n", totemLinkStatus_Describe(linkStatus));
         return EXIT_FAILURE;
     }
     

@@ -139,7 +139,6 @@ extern "C" {
         totemHashMap AnonymousFunctions;
         totemMemoryBuffer Functions;
         totemMemoryBuffer Instructions;
-        totemMemoryBuffer NativeFunctionCallInstructions;
         totemMemoryBuffer NativeFunctionNames;
         totemMemoryBuffer FunctionArguments;
         void *ErrorContext;

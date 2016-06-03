@@ -77,8 +77,8 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD( totemTokenType_String, "string" ),
     TOTEM_DESC_TOKEN_WORD( totemTokenType_Type, "type" ),
     TOTEM_DESC_TOKEN_WORD( totemTokenType_As, "as" ),
-    TOTEM_DESC_TOKEN_WORD( totemTokenType_Assert, "assert" ),
-    TOTEM_DESC_TOKEN_WORD( totemTokenType_Coroutine, "coroutine" )
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Coroutine, "coroutine" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Object, "object" )
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -749,21 +749,6 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             statement->Type = totemStatementType_Return;
             TOTEM_PARSE_ALLOC(statement->Return, totemExpressionPrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(statement->Return, tree));
-            
-            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-            TOTEM_PARSE_ENFORCETOKEN(tree->CurrentToken, totemTokenType_Semicolon);
-            tree->CurrentToken++;
-            return totemParseStatus_Success;
-        }
-            
-        case totemTokenType_Assert:
-        {
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-            
-            statement->Type = totemStatementType_Assert;
-            TOTEM_PARSE_ALLOC(statement->Assert, totemExpressionPrototype, tree);
-            TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(statement->Assert, tree));
             
             TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
             TOTEM_PARSE_ENFORCETOKEN(tree->CurrentToken, totemTokenType_Semicolon);
@@ -1549,10 +1534,25 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             break;
             
+        case totemTokenType_Object:
+            argument->DataType = totemPublicDataType_Object;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
         case totemTokenType_Coroutine:
             argument->DataType = totemPublicDataType_Coroutine;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
+            // new object
+        case totemTokenType_LCBracket:
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            TOTEM_PARSE_ENFORCETOKEN(tree->CurrentToken, totemTokenType_RCBracket);
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            argument->Type = totemArgumentType_NewObject;
             break;
             
             // new array
@@ -1731,7 +1731,6 @@ const char *totemTokenType_Describe(totemTokenType type)
 {
     switch(type)
     {
-            TOTEM_STRINGIFY_CASE(totemTokenType_Assert);
             TOTEM_STRINGIFY_CASE(totemTokenType_At);
             TOTEM_STRINGIFY_CASE(totemTokenType_As);
             TOTEM_STRINGIFY_CASE(totemTokenType_Array);
@@ -1773,6 +1772,7 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_None);
             TOTEM_STRINGIFY_CASE(totemTokenType_Not);
             TOTEM_STRINGIFY_CASE(totemTokenType_Number);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Object);
             TOTEM_STRINGIFY_CASE(totemTokenType_Or);
             TOTEM_STRINGIFY_CASE(totemTokenType_Plus);
             TOTEM_STRINGIFY_CASE(totemTokenType_PowerTo);

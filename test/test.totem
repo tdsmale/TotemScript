@@ -14,7 +14,7 @@ function whileLoop()
     }
 
     print($c);
-    assert $c == 0;
+    assert($c == 0);
 
     print("---");
 }
@@ -35,7 +35,7 @@ function doWhileLoop()
     while($a);
 
     print($a);
-    assert $a == 0;
+    assert($a == 0);
 
     print("---");
 }
@@ -50,7 +50,7 @@ function forLoop()
         print($i);
     }
 
-    assert $i == 30;
+    assert($i == 30);
 
     print("---");
 }
@@ -87,7 +87,7 @@ function intFloat()
     $b = $f + 0.5;
     print($b);
 
-    assert $b == 1.5;
+    assert($b == 1.5);
 
     $c = 12.4;
     print($c);
@@ -95,7 +95,7 @@ function intFloat()
     $d = $c + 5;
     print($d);
 
-    assert $d == 17.4;
+    assert($d == 17.4);
 
     print("---");
 }
@@ -107,13 +107,15 @@ function nullTest()
     $g = null;
     print($g);
 
-    assert $g == null;
+    assert($g == null);
 
     print("---");
 }
 
 function test()
 {
+
+	objectTest();
     dataTypeTest();
     moveToLocalTest();
     includeTest(1 + 2);

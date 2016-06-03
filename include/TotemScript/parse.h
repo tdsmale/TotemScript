@@ -26,10 +26,11 @@ extern "C" {
      type = array-token | string-token | int-token | float-token | type-token
      function-pointer = at-token identifier [ lbracket { identifier } rbracket colon identifier ]
      
-     new-array = lbracket array-accessor rbracket
-     array-access = expression lbracket expression rbracket
+     new-array = lsbracket array-accessor rsbracket
+     new-object = rbracket lbracket
+     array-access = expression lcbracket expression rcbracket
      
-     argument = variable | number-token | string | function-call | new-array | type | function-declaration-body
+     argument = variable | number-token | string | function-call | new-array | type | function-declaration-body | new-object
      
      expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
      
@@ -37,7 +38,6 @@ extern "C" {
      for-loop = for-token lbracket statement statement statement rbracket rbracket lcbracket { statement } rcbracket-token
      do-while-loop = do-token lcbracket { statement } rcbracket while-token statement
      if-loop = if-token expression lcbracket { statement } rcbracket
-     assert = assert-token expression end-statement
      simple-statement = expression end-statement
      
      statement = while-loop | for-loop | do-while-loop | if-loop | return | simple-statement
@@ -94,6 +94,7 @@ extern "C" {
         totemArgumentType_Number,
         totemArgumentType_FunctionCall,
         totemArgumentType_NewArray,
+        totemArgumentType_NewObject,
         totemArgumentType_Type,
         totemArgumentType_FunctionPointer,
         totemArgumentType_FunctionDeclaration
@@ -152,7 +153,6 @@ extern "C" {
         totemStatementType_IfBlock,
         totemStatementType_DoWhileLoop,
         totemStatementType_Return,
-        totemStatementType_Assert,
         totemStatementType_Simple
     }
     totemStatementType;
@@ -232,9 +232,9 @@ extern "C" {
         totemTokenType_Array,
         totemTokenType_String,
         totemTokenType_Type,
+        totemTokenType_Object,
         totemTokenType_As,
         totemTokenType_At,
-        totemTokenType_Assert,
         totemTokenType_Coroutine,
         totemTokenType_Max
     }
@@ -432,7 +432,6 @@ extern "C" {
             totemDoWhileLoopPrototype *DoWhileLoop;
             totemExpressionPrototype *Return;
             totemExpressionPrototype *Simple;
-            totemExpressionPrototype *Assert;
         };
         struct totemStatementPrototype *Next;
         totemBufferPositionInfo Position;

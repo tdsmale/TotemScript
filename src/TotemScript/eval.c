@@ -668,7 +668,6 @@ void totemBuildPrototype_Init(totemBuildPrototype *build)
     totemHashMap_Init(&build->AnonymousFunctions);
     totemMemoryBuffer_Init(&build->Functions, sizeof(totemScriptFunctionPrototype));
     totemMemoryBuffer_Init(&build->Instructions, sizeof(totemInstruction));
-    totemMemoryBuffer_Init(&build->NativeFunctionCallInstructions, sizeof(size_t));
     totemMemoryBuffer_Init(&build->NativeFunctionNames, sizeof(totemString));
     totemMemoryBuffer_Init(&build->FunctionArguments, sizeof(totemOperandRegisterPrototype));
     build->AnonymousFunctionHead = NULL;
@@ -684,7 +683,6 @@ void totemBuildPrototype_Reset(totemBuildPrototype *build)
     totemHashMap_Reset(&build->AnonymousFunctions);
     totemMemoryBuffer_Reset(&build->Functions);
     totemMemoryBuffer_Reset(&build->Instructions);
-    totemMemoryBuffer_Reset(&build->NativeFunctionCallInstructions);
     totemMemoryBuffer_Reset(&build->NativeFunctionNames);
     totemMemoryBuffer_Reset(&build->FunctionArguments);
     build->AnonymousFunctionHead = NULL;
@@ -700,7 +698,6 @@ void totemBuildPrototype_Cleanup(totemBuildPrototype *build)
     totemHashMap_Cleanup(&build->AnonymousFunctions);
     totemMemoryBuffer_Cleanup(&build->Functions);
     totemMemoryBuffer_Cleanup(&build->Instructions);
-    totemMemoryBuffer_Cleanup(&build->NativeFunctionCallInstructions);
     totemMemoryBuffer_Cleanup(&build->NativeFunctionNames);
     totemMemoryBuffer_Cleanup(&build->FunctionArguments);
     build->AnonymousFunctionHead = NULL;
@@ -1125,6 +1122,7 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
             break;
             
         case totemArgumentType_NewArray:
+        case totemArgumentType_NewObject:
             break;
     }
     
@@ -1304,9 +1302,6 @@ totemEvalStatus totemStatementPrototype_EvalValues(totemStatementPrototype *stat
             
         case totemStatementType_Simple:
             return totemExpressionPrototype_EvalValues(statement->Simple, build, totemEvalVariableFlag_None);
-            
-        case totemStatementType_Assert:
-            return totemExpressionPrototype_EvalValues(statement->Assert, build, totemEvalVariableFlag_MustBeDefined);
             
         case totemStatementType_Return:
             return totemExpressionPrototype_EvalValues(statement->Return, build, totemEvalVariableFlag_MustBeDefined);
@@ -1534,12 +1529,6 @@ totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement,
             
         case totemStatementType_WhileLoop:
             TOTEM_EVAL_CHECKRETURN(totemWhileLoopPrototype_Eval(statement->WhileLoop, build));
-            break;
-            
-        case totemStatementType_Assert:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Simple, build, NULL, &result, totemEvalVariableFlag_MustBeDefined));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &result, &result, &result, totemOperationType_Assert));
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &result));
             break;
             
         case totemStatementType_Simple:
@@ -2055,6 +2044,10 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
             
         case totemArgumentType_NewArray:
             return totemNewArrayPrototype_Eval(argument->NewArray, build, hint, value);
+            
+        case totemArgumentType_NewObject:
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, value));
+            return totemBuildPrototype_EvalAbcInstruction(build, value, value, value, totemOperationType_NewObject);
     }
     
     return totemEvalStatus_Success;
@@ -2349,8 +2342,11 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
 {
     // lookup function
     totemFunctionPointer funcInfo;
+    totemOperandRegisterPrototype funcPtrReg;
     memset(&funcInfo, 0, sizeof(totemFunctionPointer));
+    memset(&funcPtrReg, 0, sizeof(totemOperandRegisterPrototype));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionName(build, &functionCall->Identifier, &funcInfo));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionPointer(build, &funcInfo, &funcPtrReg));
     
     if(hint)
     {
@@ -2361,21 +2357,8 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
     }
     
-    totemOperationType opType = funcInfo.Type == totemFunctionType_Native ? totemOperationType_NativeFunction : totemOperationType_ScriptFunction;
-    
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionArgumentsBegin(build, functionCall->ParametersStart));
-    
-    // mark instruction for later linking if native
-    if(funcInfo.Type == totemFunctionType_Native)
-    {
-        size_t instructionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
-        if(!totemMemoryBuffer_Insert(&build->NativeFunctionCallInstructions, &instructionIndex, 1))
-        {
-            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
-        }
-    }
-    
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, result, funcInfo.Address, opType));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, result, &funcPtrReg, &funcPtrReg, totemOperationType_FunctionPointer));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionArgumentsEnd(build));
     
     if(!hint)

@@ -93,12 +93,9 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_MoreThanEquals);
             TOTEM_STRINGIFY_CASE(totemOperationType_Move);
             TOTEM_STRINGIFY_CASE(totemOperationType_Multiply);
-            TOTEM_STRINGIFY_CASE(totemOperationType_NativeFunction);
-            TOTEM_STRINGIFY_CASE(totemOperationType_None);
+            TOTEM_STRINGIFY_CASE(totemOperationType_NewObject);
             TOTEM_STRINGIFY_CASE(totemOperationType_NotEquals);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Power);
             TOTEM_STRINGIFY_CASE(totemOperationType_Return);
-            TOTEM_STRINGIFY_CASE(totemOperationType_ScriptFunction);
             TOTEM_STRINGIFY_CASE(totemOperationType_Subtract);
             TOTEM_STRINGIFY_CASE(totemOperationType_ArrayGet);
             TOTEM_STRINGIFY_CASE(totemOperationType_ArraySet);
@@ -106,7 +103,6 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
             TOTEM_STRINGIFY_CASE(totemOperationType_FunctionPointer);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Assert);
             TOTEM_STRINGIFY_CASE(totemOperationType_As);
             TOTEM_STRINGIFY_CASE(totemOperationType_Is);
     }
@@ -125,6 +121,7 @@ const char *totemPublicDataType_Describe(totemPublicDataType type)
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Type);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Function);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Coroutine);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Object);
         default: return "UNKNOWN";
     }
 }
@@ -141,6 +138,7 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_MiniString);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_InternedString);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Coroutine);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Object);
         default: return "UNKNOWN";
     }
 }
@@ -170,6 +168,9 @@ totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
             
         case totemPrivateDataType_Coroutine:
             return totemPublicDataType_Coroutine;
+            
+        case totemPrivateDataType_Object:
+            return totemPublicDataType_Object;
     }
     
     return totemPublicDataType_Max;
@@ -181,8 +182,6 @@ totemInstructionType totemOperationType_GetInstructionType(totemOperationType op
     {
         case totemOperationType_ConditionalGoto:
         case totemOperationType_FunctionArg:
-        case totemOperationType_NativeFunction:
-        case totemOperationType_ScriptFunction:
         case totemOperationType_Return:
         case totemOperationType_MoveToGlobal:
         case totemOperationType_MoveToLocal:
@@ -322,12 +321,27 @@ totemStringLength totemRegister_GetStringLength(totemRegister *reg)
     }
 }
 
+totemHash totemRegister_GetStringHash(totemRegister *reg)
+{
+    switch (reg->DataType)
+    {
+        case totemPrivateDataType_InternedString:
+            return reg->Value.InternedString->Hash;
+            
+        case totemPrivateDataType_MiniString:
+            return totem_Hash(reg->Value.MiniString.Value, strnlen(reg->Value.MiniString.Value, TOTEM_MINISTRING_MAXLENGTH));
+            
+        default:
+            return 0;
+    }
+}
+
 const char *totemRegister_GetStringValue(totemRegister *reg)
 {
     switch(reg->DataType)
     {
         case totemPrivateDataType_InternedString:
-            return totemInternedStringHeader_GetString(reg->Value.InternedString);
+            return reg->Value.InternedString->Data;
             
         case totemPrivateDataType_MiniString:
             return reg->Value.MiniString.Value;
@@ -361,6 +375,47 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
                     totemRegister_GetStringValue(reg),
                     totemRegister_GetStringLength(reg));
             break;
+            
+        case totemPrivateDataType_Object:
+        {
+            indent += 5;
+            totemObject *obj = reg->Value.GCObject->Object;
+            
+            fprintf(file, "object {\n");
+            
+            for (size_t i = 0; i < obj->Lookup.NumBuckets; i++)
+            {
+                totemHashMapEntry *entry = obj->Lookup.Buckets[i];
+                
+                while (entry)
+                {
+                    for (size_t i = 0; i < indent; i++)
+                    {
+                        fprintf(file, " ");
+                    }
+                    
+                    fprintf(file, "\"%.*s\": ", (int)entry->KeyLen, entry->Key);
+                    totemRegister *val = totemMemoryBuffer_Get(&obj->Registers, entry->Value);
+                    if (val)
+                    {
+                        totemRegister_PrintRecursive(file, val, indent);
+                    }
+                    
+                    entry = entry->Next;
+                }
+            }
+            
+            indent -= 5;
+            
+            for (size_t i = 0; i < indent; i++)
+            {
+                fprintf(file, " ");
+            }
+            
+            fprintf(file, "}\n");
+            
+            break;
+        }
             
         case totemPrivateDataType_Array:
         {
