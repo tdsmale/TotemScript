@@ -37,38 +37,38 @@ void totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *obj)
 
 totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc)
 {
-	if (totem_AtomicInc64(&gc->RefCount) < 0)
-	{
-		return totemExecStatus_Break(totemExecStatus_RefCountOverflow);
-	}
-
-	return totemExecStatus_Continue;
+    if (totem_AtomicInc64(&gc->RefCount) < 0)
+    {
+        return totemExecStatus_Break(totemExecStatus_RefCountOverflow);
+    }
+    
+    return totemExecStatus_Continue;
 }
 
 void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc)
 {
-	if (gc->RefCount <= 0)
-	{
-		return;
-	}
-
-	if (totem_AtomicDec64(&gc->RefCount) == 0)
-	{
-		switch (gc->Type)
-		{
-		case totemGCObjectType_Array:
-			totemExecState_DestroyArray(state, gc->Array);
-			break;
-
-		case totemGCObjectType_Coroutine:
-			totemExecState_DestroyCoroutine(state, gc->Coroutine);
-			break;
-
-		case totemGCObjectType_Object:
-			totemExecState_DestroyObject(state, gc->Object);
-			break;
-		}
-
-		totemExecState_DestroyGCObject(state, gc);
-	}
+    if (gc->RefCount <= 0)
+    {
+        return;
+    }
+    
+    if (totem_AtomicDec64(&gc->RefCount) == 0)
+    {
+        switch (gc->Type)
+        {
+            case totemGCObjectType_Array:
+                totemExecState_DestroyArray(state, gc->Array);
+                break;
+                
+            case totemGCObjectType_Coroutine:
+                totemExecState_DestroyCoroutine(state, gc->Coroutine);
+                break;
+                
+            case totemGCObjectType_Object:
+                totemExecState_DestroyObject(state, gc->Object);
+                break;
+        }
+        
+        totemExecState_DestroyGCObject(state, gc);
+    }
 }

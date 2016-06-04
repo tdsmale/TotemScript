@@ -473,29 +473,29 @@ extern "C" {
 #else
 #define totem_snprintf snprintf
 #endif
-
+    
 #if _WIN32
-	typedef struct
-	{
-		CRITICAL_SECTION Lock;
-	}
-	totemLock;
+    typedef struct
+    {
+        CRITICAL_SECTION Lock;
+    }
+    totemLock;
 #else
-	typedef struct
-	{
+    typedef struct
+    {
         pthread_mutex_t Lock;
-	}
-	totemLock;
+    }
+    totemLock;
 #endif
-
-	void totemLock_Init(totemLock *lock);
-	void totemLock_Cleanup(totemLock *lock);
-	void totemLock_Acquire(totemLock *lock);
-	void totemLock_Release(totemLock *lock);
+    
+    void totemLock_Init(totemLock *lock);
+    void totemLock_Cleanup(totemLock *lock);
+    void totemLock_Acquire(totemLock *lock);
+    void totemLock_Release(totemLock *lock);
     
     int64_t totem_AtomicInc64(volatile int64_t *val);
-	int64_t totem_AtomicDec64(volatile int64_t *val);
-
+    int64_t totem_AtomicDec64(volatile int64_t *val);
+    
 #define totem_setjmp(jmp) setjmp((int*)jmp)
 #define totem_longjmp(jmp) longjmp((int*)jmp, 1)
     

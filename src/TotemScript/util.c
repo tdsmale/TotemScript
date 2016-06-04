@@ -628,7 +628,7 @@ totemBool totem_fchdir(FILE *file)
 void totemLock_Init(totemLock *lock)
 {
 #ifdef _WIN32
-	InitializeCriticalSection(&lock->Lock);
+    InitializeCriticalSection(&lock->Lock);
 #else
     pthread_mutex_init(&lock->Lock, NULL);
 #endif
@@ -637,7 +637,7 @@ void totemLock_Init(totemLock *lock)
 void totemLock_Cleanup(totemLock *lock)
 {
 #ifdef _WIN32
-	DeleteCriticalSection(&lock->Lock);
+    DeleteCriticalSection(&lock->Lock);
 #else
     pthread_mutex_destroy(&lock->Lock);
 #endif
@@ -646,7 +646,7 @@ void totemLock_Cleanup(totemLock *lock)
 void totemLock_Acquire(totemLock *lock)
 {
 #ifdef _WIN32
-	EnterCriticalSection(&lock->Lock);
+    EnterCriticalSection(&lock->Lock);
 #else
     pthread_mutex_lock(&lock->Lock);
 #endif
@@ -655,7 +655,7 @@ void totemLock_Acquire(totemLock *lock)
 void totemLock_Release(totemLock *lock)
 {
 #ifdef _WIN32
-	LeaveCriticalSection(&lock->Lock);
+    LeaveCriticalSection(&lock->Lock);
 #else
     pthread_mutex_unlock(&lock->Lock);
 #endif
@@ -664,7 +664,7 @@ void totemLock_Release(totemLock *lock)
 int64_t totem_AtomicInc64(volatile int64_t *val)
 {
 #ifdef _WIN32
-	return InterlockedIncrement64(val);
+    return InterlockedIncrement64(val);
 #else
     return OSAtomicIncrement64(val);
 #endif
@@ -673,8 +673,8 @@ int64_t totem_AtomicInc64(volatile int64_t *val)
 int64_t totem_AtomicDec64(volatile int64_t *val)
 {
 #ifdef _WIN32
-	return InterlockedDecrement64(val);
+    return InterlockedDecrement64(val);
 #else
-	return OSAtomicDecrement64(val);
+    return OSAtomicDecrement64(val);
 #endif
 }

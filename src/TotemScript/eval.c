@@ -16,7 +16,7 @@
 #define TOTEM_EVAL_SETINSTRUCTIONBITS(ins, val, min, max, start) \
 if ((val) > (max) || (val) < (min)) \
 { \
-return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow); \
+    return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow); \
 } \
 TOTEM_SETBITS_OFFSET(ins, val, start);
 
@@ -1066,7 +1066,7 @@ totemEvalStatus totemBuildPrototype_EvalType(totemBuildPrototype *build, totemPu
 
 totemEvalStatus totemFunctionCallPrototype_EvalValues(totemFunctionCallPrototype *call, totemBuildPrototype *build)
 {
-	for(totemExpressionPrototype *exp = call->ParametersStart; exp != NULL; exp = exp->Next)
+    for(totemExpressionPrototype *exp = call->ParametersStart; exp != NULL; exp = exp->Next)
     {
         TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(exp, build, totemEvalVariableFlag_MustBeDefined));
     }
