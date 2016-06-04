@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #include <sys/param.h>
 #include <dirent.h>
+#include <libkern/OSAtomic.h>
 
 #endif
 
@@ -621,5 +622,59 @@ totemBool totem_fchdir(FILE *file)
     }
     
     return totemBool_False;
+#endif
+}
+
+void totemLock_Init(totemLock *lock)
+{
+#ifdef _WIN32
+	InitializeCriticalSection(&lock->Lock);
+#else
+    pthread_mutex_init(&lock->Lock, NULL);
+#endif
+}
+
+void totemLock_Cleanup(totemLock *lock)
+{
+#ifdef _WIN32
+	DeleteCriticalSection(&lock->Lock);
+#else
+    pthread_mutex_destroy(&lock->Lock);
+#endif
+}
+
+void totemLock_Acquire(totemLock *lock)
+{
+#ifdef _WIN32
+	EnterCriticalSection(&lock->Lock);
+#else
+    pthread_mutex_lock(&lock->Lock);
+#endif
+}
+
+void totemLock_Release(totemLock *lock)
+{
+#ifdef _WIN32
+	LeaveCriticalSection(&lock->Lock);
+#else
+    pthread_mutex_unlock(&lock->Lock);
+#endif
+}
+
+int64_t totem_AtomicInc64(volatile int64_t *val)
+{
+#ifdef _WIN32
+	return InterlockedIncrement64(val);
+#else
+    return OSAtomicIncrement64(val);
+#endif
+}
+
+int64_t totem_AtomicDec64(volatile int64_t *val)
+{
+#ifdef _WIN32
+	return InterlockedDecrement64(val);
+#else
+	return OSAtomicDecrement64(val);
 #endif
 }

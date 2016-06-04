@@ -168,6 +168,10 @@ $co = 123;
 ```
 ### Feature Creep
 #### Language Features
+* object as string
+* object as array
+* array as object
+* string as object
 * garbage-collected lua-like userdata with destructors
 * FIFO message channels, e.g. $channel = <>; $channel push $x; $channel pop $y;
 * function error handlers, catch runtime errors e.g. function x($a, $b) { causeAnError(); } unless { somethingBadHappened(); }
@@ -175,7 +179,7 @@ $co = 123;
 * initializer lists for arrays & objects, both with and without indices/names e.g. $a = { "x":1.75, "y":1.45 }; $b = [$a, 123, "456"];
 * loop scope for vars
 * function arg improvements
- * default arguments for functions e.g. function call($x:int = 123, $y:int = 456);
+ * default arguments for functions e.g. function call($x: 123, $y: 456);
  * specify argument name in direct function calls, e.g. $x = call($y: 123, $x: 456);
 * switch statement
 
@@ -192,10 +196,7 @@ $co = 123;
 * line/char/len numbers for eval, link & exec errors
 * better built-in support for concurrency
  * memory
-  * synchronize cache alloc/free
-  * ensure refcount changes are atomic
-  * ref-cycle detection isolated to individual exec states
-  * synchronise string interning
+  * gc-object creation, collection & ref-cycle detection isolated to individual exec states
   * synchronise channels
  * function pointers must reference actor
 * use setjmp/longjmp to break instruction execution instead of checking return value

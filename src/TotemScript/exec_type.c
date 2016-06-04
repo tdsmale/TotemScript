@@ -9,6 +9,88 @@
 #include <string.h>
 
 #define TOTEM_EXEC_ARRAYSIZE(numRegisters) (sizeof(totemArray) + (sizeof(totemRegister) * (numRegisters - 1)))
+#define TOTEM_REGISTER_DECIFGC(dst) if (TOTEM_REGISTER_ISGC(dst)) totemExecState_DecRefCount(state, dst->Value.GCObject);
+
+totemExecStatus totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	memcpy((dst), (src), sizeof(totemRegister));
+
+	if (TOTEM_REGISTER_ISGC(dst))
+	{
+		TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
+	}
+
+	return totemExecStatus_Continue;
+}
+
+void totemExecState_AssignInt(totemExecState *state, totemRegister *dst, totemInt newVal)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	dst->DataType = totemPrivateDataType_Int;
+	dst->Value.Int = newVal;
+}
+
+void totemExecState_AssignFloat(totemExecState *state, totemRegister *dst, totemFloat newVal)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	dst->DataType = totemPrivateDataType_Float;
+	dst->Value.Float = newVal;
+}
+
+void totemExecState_AssignType(totemExecState *state, totemRegister *dst, totemPublicDataType newVal)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	dst->DataType = totemPrivateDataType_Type;
+	dst->Value.DataType = newVal;
+}
+
+void totemExecState_AssignFunctionPointer(totemExecState *state, totemRegister *dst, totemOperandXUnsigned addr, totemFunctionType type)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	dst->DataType = totemPrivateDataType_Function;
+	dst->Value.FunctionPointer.Address = addr;
+	dst->Value.FunctionPointer.Type = type;
+}
+
+totemExecStatus totemExecState_AssignArray(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	dst->DataType = totemPrivateDataType_Array;
+	dst->Value.GCObject = newVal;
+
+	TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
+
+	return totemExecStatus_Continue;
+}
+
+totemExecStatus totemExecState_AssignCoroutine(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	dst->DataType = totemPrivateDataType_Coroutine;
+	dst->Value.GCObject = newVal;
+
+	TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
+
+	return totemExecStatus_Continue;
+}
+
+totemExecStatus totemExecState_AssignObject(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	dst->DataType = totemPrivateDataType_Object;
+	dst->Value.GCObject = newVal;
+
+	TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
+
+	return totemExecStatus_Continue;
+}
+
+void totemExecState_AssignString(totemExecState *state, totemRegister *dst, totemRegister *src)
+{
+	TOTEM_REGISTER_DECIFGC(dst);
+	memcpy((dst), (src), sizeof(totemRegister));
+}
 
 totemExecStatus totemExecState_ConcatStrings(totemExecState *state, totemRegister *str1, totemRegister *str2, totemRegister *strOut)
 {
@@ -19,14 +101,12 @@ totemExecStatus totemExecState_ConcatStrings(totemExecState *state, totemRegiste
     
     if (len1 + len2 <= TOTEM_MINISTRING_MAXLENGTH)
     {
-        TOTEM_REGISTER_ASSIGN(state, strOut,
-                              {
-                                  strOut->DataType = totemPrivateDataType_MiniString;
-                                  memset(strOut->Value.MiniString.Value, 0, sizeof(strOut->Value.MiniString.Value));
-                                  memcpy(strOut->Value.MiniString.Value, str1Val, len1);
-                                  memcpy(strOut->Value.MiniString.Value + len1, str2Val, len2);
-                              });
-        
+		TOTEM_REGISTER_DECIFGC(strOut);
+		strOut->DataType = totemPrivateDataType_MiniString;
+		memset(strOut->Value.MiniString.Value, 0, sizeof(strOut->Value.MiniString.Value));
+		memcpy(strOut->Value.MiniString.Value, str1Val, len1);
+		memcpy(strOut->Value.MiniString.Value + len1, str2Val, len2);
+
         return totemExecStatus_Continue;
     }
     
@@ -124,6 +204,10 @@ totemExecStatus totemExecState_TypeToString(totemExecState *state, totemPublicDa
             totemString_FromLiteral(&str, "coroutine");
             break;
             
+        case totemPublicDataType_Object:
+            totemString_FromLiteral(&str, "object");
+            break;
+            
         default:
             return totemExecState_EmptyString(state, strOut);
     }
@@ -159,7 +243,7 @@ totemExecStatus totemExecState_FunctionPointerToString(totemExecState *state, to
         }
     }
     
-    TOTEM_REGISTER_ASSIGN_GENERIC(state, strOut, result);
+	TOTEM_EXEC_CHECKRETURN(totemExecState_Assign(state, strOut, result));
     return totemExecStatus_Continue;
 }
 
@@ -272,7 +356,7 @@ totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, to
     totemOperandXUnsigned addr = 0;
     if (totemRuntime_GetNativeFunctionAddress(state->Runtime, &lookup, &addr))
     {
-        TOTEM_REGISTER_ASSIGN_FUNC(state, dst, addr, totemFunctionType_Native);
+		totemExecState_AssignFunctionPointer(state, dst, addr, totemFunctionType_Native);
     }
     else
     {
@@ -280,11 +364,11 @@ totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, to
         if (entry)
         {
             addr = (totemOperandXUnsigned)entry->Value;
-            TOTEM_REGISTER_ASSIGN_FUNC(state, dst, addr, totemFunctionType_Script);
+			totemExecState_AssignFunctionPointer(state, dst, addr, totemFunctionType_Script);
         }
         else
         {
-            TOTEM_REGISTER_ASSIGN_NULL(state, dst);
+			return totemExecStatus_Break(totemExecStatus_ScriptFunctionNotFound);
         }
     }
     
@@ -321,7 +405,7 @@ totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, to
     
     for (uint32_t i = 0; i < numRegisters; i++)
     {
-        TOTEM_REGISTER_ASSIGN_GENERIC(state, &(*gcOut)->Array->Registers[i], &registers[i]);
+		TOTEM_EXEC_CHECKRETURN(totemExecState_Assign(state, &(*gcOut)->Array->Registers[i], &registers[i]));
     }
     
     return totemExecStatus_Continue;

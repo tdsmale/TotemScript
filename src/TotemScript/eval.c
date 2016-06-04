@@ -1066,7 +1066,7 @@ totemEvalStatus totemBuildPrototype_EvalType(totemBuildPrototype *build, totemPu
 
 totemEvalStatus totemFunctionCallPrototype_EvalValues(totemFunctionCallPrototype *call, totemBuildPrototype *build)
 {
-    for(totemExpressionPrototype *exp = call->ParametersStart; exp != NULL; exp = exp->Next)
+	for(totemExpressionPrototype *exp = call->ParametersStart; exp != NULL; exp = exp->Next)
     {
         TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(exp, build, totemEvalVariableFlag_MustBeDefined));
     }

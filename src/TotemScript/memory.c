@@ -30,6 +30,7 @@ totemMemoryPage;
 
 typedef struct
 {
+	totemLock Lock;
     totemMemoryPage *HeadPage;
     totemMemoryPageObject *HeadObject;
     size_t ObjectSize;
@@ -41,52 +42,58 @@ static totemMemoryFreeList s_FreeLists[TOTEM_MEM_NUM_FREELISTS];
 static totemMallocCb mallocCb = NULL;
 static totemFreeCb freeCb = NULL;
 
+//size_t allocs = 0;
+
+void *totem_Malloc(size_t len)
+{
+	//printf("allocating %zu %zu\n", allocs++, len);
+	if (mallocCb)
+	{
+		return mallocCb(len);
+	}
+
+	return malloc(len);
+}
+
+void totem_Free(void *mem)
+{
+	//printf("freeing %zu\n", --allocs);
+	if (freeCb)
+	{
+		freeCb(mem);
+	}
+	else
+	{
+		free(mem);
+	}
+}
+
 void totem_InitMemory()
 {
     memset(&s_FreeLists, 0, sizeof(s_FreeLists));
+	for (size_t i = 0; i < TOTEM_MEM_NUM_FREELISTS; i++)
+	{
+		totemLock_Init(&s_FreeLists[i].Lock);
+	}
     
     mallocCb = NULL;
     freeCb = NULL;
 }
 
-//size_t allocs = 0;
-
-void *totem_Malloc(size_t len)
-{
-    //printf("allocating %zu %zu\n", allocs++, len);
-    if(mallocCb)
-    {
-        return mallocCb(len);
-    }
-    
-    return malloc(len);
-}
-
-void totem_Free(void *mem)
-{
-    //printf("freeing %zu\n", --allocs);
-    if(freeCb)
-    {
-        freeCb(mem);
-    }
-    else
-    {
-        free(mem);
-    }
-}
-
 void totem_CleanupMemory()
 {
-    for(size_t i = 0; i < TOTEM_MEM_NUM_FREELISTS; i++)
-    {
-        totemMemoryFreeList *freeList = &s_FreeLists[i];
-        for(totemMemoryPage *page = freeList->HeadPage; page != NULL; /* nada */)
-        {
-            totemMemoryPage *next = page->Next;
-            totem_Free(page);
-            page = next;
-        }
-    }
+	for (size_t i = 0; i < TOTEM_MEM_NUM_FREELISTS; i++)
+	{
+		totemMemoryFreeList *freeList = &s_FreeLists[i];
+		for (totemMemoryPage *page = freeList->HeadPage; page != NULL; /* nada */)
+		{
+			totemMemoryPage *next = page->Next;
+			totem_Free(page);
+			page = next;
+		}
+
+		totemLock_Cleanup(&freeList->Lock);
+	}
 }
 
 void totem_SetMemoryCallbacks(totemMallocCb newMallocCb, totemFreeCb newFreeCb)
@@ -117,8 +124,8 @@ totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount)
     index -= (sizeof(totemMemoryPageObject) / TOTEM_MEM_FREELIST_DIVISOR);
     
     totemMemoryFreeList *list = &s_FreeLists[index];
+	
     list->ObjectSize = actualAmount;
-    
     return &s_FreeLists[index];
 }
 
@@ -128,10 +135,12 @@ void *totem_CacheMalloc(size_t amount)
     {
         return totem_Malloc(amount);
     }
-    
+
+	void *ptr = NULL;
     totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount);
     if(freeList)
     {
+		totemLock_Acquire(&freeList->Lock);
         totemMemoryPageObject *head = freeList->HeadObject;
         
         //printf("cache alloc %zu, actual %zu\n", amount, actualAmount);
@@ -141,7 +150,7 @@ void *totem_CacheMalloc(size_t amount)
         {
             totemMemoryPageObject *obj = head;
             freeList->HeadObject = obj->Next;
-            return obj;
+			ptr = obj;
         }
         else
         {
@@ -153,25 +162,29 @@ void *totem_CacheMalloc(size_t amount)
                 {
                     totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
                     page->NumAllocated++;
-                    return obj;
+					ptr = obj;
                 }
             }
             
-            // grab a new page & allocate from that
-            totemMemoryPage *newPage = totem_Malloc(sizeof(totemMemoryPage));
-            if(newPage != NULL)
-            {
-                newPage->NumTotal = TOTEM_MEM_PAGESIZE / freeList->ObjectSize;
-                newPage->Next = freeList->HeadPage;
-                freeList->HeadPage = newPage;
-                newPage->NumAllocated = 1;
-                return newPage->Data;
-            }
+			if (!ptr)
+			{
+				// grab a new page & allocate from that
+				totemMemoryPage *newPage = totem_Malloc(sizeof(totemMemoryPage));
+				if (newPage != NULL)
+				{
+					newPage->NumTotal = TOTEM_MEM_PAGESIZE / freeList->ObjectSize;
+					newPage->Next = freeList->HeadPage;
+					freeList->HeadPage = newPage;
+					newPage->NumAllocated = 1;
+					ptr = newPage->Data;
+				}
+			}
         }
+
+		totemLock_Release(&freeList->Lock);
     }
     
-    // no more memory!
-    return NULL;
+    return ptr;
 }
 
 void totem_CacheFree(void *ptr, size_t amount)
