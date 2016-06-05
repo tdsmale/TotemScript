@@ -330,3 +330,9 @@ function userDataTest()
 
 	print("---");
 }
+
+function localTest()
+{
+    local $y = "This is a string!";
+    print($y);
+}

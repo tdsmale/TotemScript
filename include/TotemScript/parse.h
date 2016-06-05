@@ -89,6 +89,14 @@ extern "C" {
     
     typedef enum
     {
+        totemVariablePrototypeFlag_None = 0,
+        totemVariablePrototypeFlag_IsConst = 1,
+        totemVariablePrototypeFlag_IsLocal = 1 << 1
+    }
+    totemVariablePrototypeFlag;
+    
+    typedef enum
+    {
         totemArgumentType_Variable = 1,
         totemArgumentType_String,
         totemArgumentType_Number,
@@ -236,6 +244,7 @@ extern "C" {
         totemTokenType_As,
         totemTokenType_At,
         totemTokenType_Coroutine,
+        totemTokenType_Local,
         totemTokenType_Max
     }
     totemTokenType;
@@ -279,7 +288,7 @@ extern "C" {
         totemString Identifier;
         totemBufferPositionInfo Position;
         struct totemVariablePrototype *Next;
-        totemBool IsConst;
+        totemVariablePrototypeFlag Flags;
     }
     totemVariablePrototype;
     

@@ -2079,7 +2079,29 @@ totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, to
 {
     totemBool justCreated = totemBool_False;
     
-    if(!totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &variable->Identifier, index))
+    // check local scope first
+    totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
+    if(!totemRegisterListPrototype_GetVariable(localScope, &variable->Identifier, index))
+    {
+        // check global second
+        if(!TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsLocal) && totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &variable->Identifier, index))
+        {
+            // HAS to be local? eep.
+            if(TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
+            {
+                return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
+            }
+        }
+        else
+        {
+            // create local
+            justCreated = totemBool_True;
+            TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddVariable(localScope, &variable->Identifier, index));
+        }
+    }
+    
+    /*
+    if(TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsLocal) || !totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &variable->Identifier, index))
     {
         totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
         
@@ -2097,13 +2119,13 @@ totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, to
     else if(TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
     {
         return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
-    }
+    }*/
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_GlobalAssocCheck(build, index));
     
     totemRegisterListPrototype *scope = totemBuildPrototype_GetRegisterList(build, index->RegisterScopeType);
     
-    if(variable->IsConst)
+    if(TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsConst))
     {
         if(!justCreated)
         {

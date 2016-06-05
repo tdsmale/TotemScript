@@ -78,7 +78,8 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD( totemTokenType_Type, "type" ),
     TOTEM_DESC_TOKEN_WORD( totemTokenType_As, "as" ),
     TOTEM_DESC_TOKEN_WORD( totemTokenType_Coroutine, "coroutine" ),
-    TOTEM_DESC_TOKEN_WORD( totemTokenType_Object, "object" )
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Object, "object" ),
+    TOTEM_DESC_TOKEN_WORD( totemTokenType_Local, "local" )
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -1416,15 +1417,28 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
     TOTEM_PARSE_COPYPOSITION(tree->CurrentToken, variable);
     
-    if(tree->CurrentToken->Type == totemTokenType_Const)
+    variable->Flags = totemVariablePrototypeFlag_None;
+    
+    for(totemBool loop = totemBool_True; loop; )
     {
-        variable->IsConst = totemBool_True;
-        TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-        TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-    }
-    else
-    {
-        variable->IsConst = totemBool_False;
+        switch(tree->CurrentToken->Type)
+        {
+            case totemTokenType_Const:
+                TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsConst);
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+                TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+                break;
+                
+            case totemTokenType_Local:
+                TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsLocal);
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+                TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+                break;
+                
+            default:
+                loop = totemBool_False;
+                break;
+        }
     }
     
     TOTEM_PARSE_ENFORCETOKEN(tree->CurrentToken, totemTokenType_Variable);
@@ -1565,6 +1579,7 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             // variable
         case totemTokenType_Variable:
         case totemTokenType_Const:
+        case totemTokenType_Local:
             argument->Type = totemArgumentType_Variable;
             TOTEM_PARSE_ALLOC(argument->Variable, totemVariablePrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemVariablePrototype_Parse(argument->Variable, tree));
@@ -1764,6 +1779,7 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_LBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_LCBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_LessThan);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Local);
             TOTEM_STRINGIFY_CASE(totemTokenType_LSBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_Max);
             TOTEM_STRINGIFY_CASE(totemTokenType_Minus);

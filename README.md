@@ -12,6 +12,7 @@ Variables are dynamically-typed, supporting the following types:
 * array - Garbage-collected Arrays
 * coroutine - First-class, garbage collected coroutines
 * type - Type objects (e.g. int, float, type etc.)
+* userdata - Garbage-collected data supplied by native C functions
 ```
 // variables can be declared and redeclared at any point
 $var = 123;
@@ -168,7 +169,6 @@ $co = 123;
 ```
 ### Feature Creep
 #### Language Features
-* local keyword, to force variable to be local regardless of global vars
 * object as string
 * object as array
 * array as object
@@ -200,5 +200,5 @@ $co = 123;
   * gc-object creation, collection & ref-cycle detection isolated to individual exec states
   * synchronise channels
  * function pointers must reference actor
-* use setjmp/longjmp to break instruction execution instead of checking return value
- * allows simple subroutine threading
+* JIT
+ * replace instruction loop with subroutine threaded asm
