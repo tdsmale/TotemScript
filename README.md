@@ -46,6 +46,10 @@ function localTest()
     {
         return $a; // scope error
     }
+
+    // global variable names can be overridden with the "local" keyword
+    // this will prevent global vars of the same name from being overwritten
+    local $global = 123;
 }
 
 ```
