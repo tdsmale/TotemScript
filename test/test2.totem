@@ -318,3 +318,15 @@ function objectTest()
 
 	print($obj);
 }
+
+function userDataTest()
+{
+	print("userdata test");
+	print("---");
+
+	$file = fopen();
+	$test = $file;
+	$file = 123;
+
+	print("---");
+}

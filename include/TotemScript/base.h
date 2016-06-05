@@ -153,6 +153,7 @@ extern "C" {
     
     void totemString_FromLiteral(totemString *strOut, const char *str);
     totemBool totemString_Equals(totemString *a, totemString *b);
+#define TOTEM_STRING_VAL(x) {x, strlen(x)}
     
     enum
     {
@@ -188,13 +189,14 @@ extern "C" {
         totemPrivateDataType_Int = 0,
         totemPrivateDataType_Float = 1,
         totemPrivateDataType_InternedString = 2,
-        totemPrivateDataType_Array = 3,
-        totemPrivateDataType_Type = 4,
-        totemPrivateDataType_Function = 5,
-        totemPrivateDataType_MiniString = 6,
+        totemPrivateDataType_Type = 3,
+        totemPrivateDataType_Function = 4,
+        totemPrivateDataType_MiniString = 5,
+        totemPrivateDataType_Array = 6,
         totemPrivateDataType_Coroutine = 7,
         totemPrivateDataType_Object = 8,
-        totemPrivateDataType_Max = 9
+        totemPrivateDataType_Userdata = 9,
+        totemPrivateDataType_Max = 10
     };
     typedef uint8_t totemPrivateDataType;
     
@@ -212,7 +214,8 @@ extern "C" {
         totemPublicDataType_Function = 5,
         totemPublicDataType_Coroutine = 6,
         totemPublicDataType_Object = 7,
-        totemPublicDataType_Max = 8
+        totemPublicDataType_Userdata = 8,
+        totemPublicDataType_Max = 9
     }
     totemPublicDataType;
     

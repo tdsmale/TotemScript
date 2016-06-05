@@ -24,28 +24,28 @@ totemExecStatus totemExecState_Assign(totemExecState *state, totemRegister *dst,
     return totemExecStatus_Continue;
 }
 
-void totemExecState_AssignInt(totemExecState *state, totemRegister *dst, totemInt newVal)
+void totemExecState_AssignNewInt(totemExecState *state, totemRegister *dst, totemInt newVal)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Int;
     dst->Value.Int = newVal;
 }
 
-void totemExecState_AssignFloat(totemExecState *state, totemRegister *dst, totemFloat newVal)
+void totemExecState_AssignNewFloat(totemExecState *state, totemRegister *dst, totemFloat newVal)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Float;
     dst->Value.Float = newVal;
 }
 
-void totemExecState_AssignType(totemExecState *state, totemRegister *dst, totemPublicDataType newVal)
+void totemExecState_AssignNewType(totemExecState *state, totemRegister *dst, totemPublicDataType newVal)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Type;
     dst->Value.DataType = newVal;
 }
 
-void totemExecState_AssignFunctionPointer(totemExecState *state, totemRegister *dst, totemOperandXUnsigned addr, totemFunctionType type)
+void totemExecState_AssignNewFunctionPointer(totemExecState *state, totemRegister *dst, totemOperandXUnsigned addr, totemFunctionType type)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Function;
@@ -53,40 +53,43 @@ void totemExecState_AssignFunctionPointer(totemExecState *state, totemRegister *
     dst->Value.FunctionPointer.Type = type;
 }
 
-totemExecStatus totemExecState_AssignArray(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+void totemExecState_AssignNewArray(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Array;
     dst->Value.GCObject = newVal;
     
-    TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
-    
-    return totemExecStatus_Continue;
+    totemExecState_IncRefCount(state, dst->Value.GCObject);
 }
 
-totemExecStatus totemExecState_AssignCoroutine(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+void totemExecState_AssignNewCoroutine(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Coroutine;
     dst->Value.GCObject = newVal;
     
-    TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
-    
-    return totemExecStatus_Continue;
+    totemExecState_IncRefCount(state, dst->Value.GCObject);
 }
 
-totemExecStatus totemExecState_AssignObject(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+void totemExecState_AssignNewObject(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Object;
     dst->Value.GCObject = newVal;
     
-    TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
-    
-    return totemExecStatus_Continue;
+    totemExecState_IncRefCount(state, dst->Value.GCObject);
 }
 
-void totemExecState_AssignString(totemExecState *state, totemRegister *dst, totemRegister *src)
+void totemExecState_AssignNewUserdata(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+{
+    TOTEM_REGISTER_DECIFGC(dst);
+    dst->DataType = totemPrivateDataType_Userdata;
+    dst->Value.GCObject = newVal;
+    
+    totemExecState_IncRefCount(state, dst->Value.GCObject);
+}
+
+void totemExecState_AssignNewString(totemExecState *state, totemRegister *dst, totemRegister *src)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     memcpy((dst), (src), sizeof(totemRegister));
@@ -356,7 +359,7 @@ totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, to
     totemOperandXUnsigned addr = 0;
     if (totemRuntime_GetNativeFunctionAddress(state->Runtime, &lookup, &addr))
     {
-        totemExecState_AssignFunctionPointer(state, dst, addr, totemFunctionType_Native);
+        totemExecState_AssignNewFunctionPointer(state, dst, addr, totemFunctionType_Native);
     }
     else
     {
@@ -364,7 +367,7 @@ totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, to
         if (entry)
         {
             addr = (totemOperandXUnsigned)entry->Value;
-            totemExecState_AssignFunctionPointer(state, dst, addr, totemFunctionType_Script);
+            totemExecState_AssignNewFunctionPointer(state, dst, addr, totemFunctionType_Script);
         }
         else
         {
@@ -476,6 +479,29 @@ totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOpera
     return totemExecStatus_Continue;
 }
 
+totemExecStatus totemExecState_CreateUserdata(totemExecState *state, uint64_t data, totemUserdataDestructor destructor, totemGCObject **gcOut)
+{
+    totemUserdata *obj = totem_CacheMalloc(sizeof(totemUserdata));
+    if (!obj)
+    {
+        return totemExecStatus_Break(totemExecStatus_OutOfMemory);
+    }
+    
+    obj->Data = data;
+    obj->Destructor = destructor;
+    
+    totemGCObject *gc = totemExecState_CreateGCObject(state, totemGCObjectType_Userdata);
+    if (!gc)
+    {
+        totem_CacheFree(obj, sizeof(*obj));
+        return totemExecStatus_Break(totemExecStatus_OutOfMemory);
+    }
+    
+    gc->Userdata = obj;
+    *gcOut = gc;
+    return totemExecStatus_Continue;
+}
+
 void totemExecState_DestroyArray(totemExecState *state, totemArray *arr)
 {
     totemExecState_CleanupRegisterList(state, arr->Registers, arr->NumRegisters);
@@ -496,4 +522,14 @@ void totemExecState_DestroyObject(totemExecState *state, totemObject *obj)
     totemHashMap_Cleanup(&obj->Lookup);
     totemMemoryBuffer_Cleanup(&obj->Registers);
     totem_CacheFree(obj, sizeof(totemObject));
+}
+
+void totemExecState_DestroyUserdata(totemExecState *state, totemUserdata *data)
+{
+    if (data->Destructor)
+    {
+        data->Destructor(state, data);
+    }
+    
+    totem_CacheFree(data, sizeof(totemUserdata));
 }

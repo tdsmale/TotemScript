@@ -8,12 +8,12 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 
-//static int gc = 0;
+//static int gccount = 0;
 
 totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type)
 {
-    //gc++;
-    //printf("add %i\n", gc);
+    //gccount++;
+    //printf("add %i\n", gccount);
     
     totemGCObject *hdr = totem_CacheMalloc(sizeof(totemGCObject));
     if (!hdr)
@@ -30,8 +30,8 @@ totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjec
 
 void totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *obj)
 {
-    //gc--;
-    //printf("kill %i\n", gc);
+    //gccount--;
+    //printf("kill %i\n", gccount);
     totem_CacheFree(obj, sizeof(totemGCObject));
 }
 
@@ -41,6 +41,8 @@ totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject 
     {
         return totemExecStatus_Break(totemExecStatus_RefCountOverflow);
     }
+    
+    //printf("ref count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
     
     return totemExecStatus_Continue;
 }
@@ -67,8 +69,26 @@ void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc)
             case totemGCObjectType_Object:
                 totemExecState_DestroyObject(state, gc->Object);
                 break;
+                
+            case totemGCObjectType_Userdata:
+                totemExecState_DestroyUserdata(state, gc->Userdata);
+                break;
         }
         
         totemExecState_DestroyGCObject(state, gc);
+    }
+    
+    //printf("ref count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
+}
+
+const char *totemGCObjectType_Describe(totemGCObjectType type)
+{
+    switch (type)
+    {
+            TOTEM_STRINGIFY_CASE(totemGCObjectType_Array);
+            TOTEM_STRINGIFY_CASE(totemGCObjectType_Coroutine);
+            TOTEM_STRINGIFY_CASE(totemGCObjectType_Object);
+            TOTEM_STRINGIFY_CASE(totemGCObjectType_Userdata);
+        default:return "UNKNOWN";
     }
 }

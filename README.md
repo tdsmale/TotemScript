@@ -168,11 +168,11 @@ $co = 123;
 ```
 ### Feature Creep
 #### Language Features
+* local keyword, to force variable to be local regardless of global vars
 * object as string
 * object as array
 * array as object
 * string as object
-* garbage-collected lua-like userdata with destructors
 * FIFO message channels, e.g. $channel = <>; $channel push $x; $channel pop $y;
 * function error handlers, catch runtime errors e.g. function x($a, $b) { causeAnError(); } unless { somethingBadHappened(); }
 * operator precedence reordering
@@ -184,6 +184,7 @@ $co = 123;
 * switch statement
 
 #### Runtime Improvements
+* function pointers need to eval'd as values
 * ref-cycle detection
 * bytecode serialisation
  * check register & function addresses, function arguments

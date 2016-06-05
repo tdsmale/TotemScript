@@ -123,6 +123,7 @@ const char *totemPublicDataType_Describe(totemPublicDataType type)
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Function);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Object);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Userdata);
         default: return "UNKNOWN";
     }
 }
@@ -140,6 +141,7 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_InternedString);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Object);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Userdata);
         default: return "UNKNOWN";
     }
 }
@@ -172,6 +174,9 @@ totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
             
         case totemPrivateDataType_Object:
             return totemPublicDataType_Object;
+            
+        case totemPrivateDataType_Userdata:
+            return totemPublicDataType_Userdata;
     }
     
     return totemPublicDataType_Max;
