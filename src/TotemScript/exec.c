@@ -19,7 +19,7 @@
 
 #define TOTEM_EXEC_BREAK(x, state) { totemExecStatus status = x; if(status != totemExecStatus_Continue) totemExecState_Break(state, status); }
 
-#if 1
+#if 0
 #define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, state) \
 { \
     totemInstruction_Print(stdout, (ins)); \
@@ -524,6 +524,13 @@ void totemExecState_Cleanup(totemExecState *state)
         totemFunctionCall *call = state->FunctionCallFreeList;
         state->FunctionCallFreeList = call->Prev;
         totem_CacheFree(call, sizeof(totemFunctionCall));
+    }
+    
+    while (state->GCFreeList)
+    {
+        totemGCObject *gc = state->GCFreeList;
+        state->GCFreeList = gc->Next;
+        totem_CacheFree(gc, sizeof(totemGCObject));
     }
 }
 

@@ -38,6 +38,7 @@ extern "C" {
     totemEvalStatus;
     
     const char *totemEvalStatus_Describe(totemEvalStatus status);
+    totemEvalStatus totemEvalStatus_Break(totemEvalStatus status);
     
     typedef enum
     {
@@ -128,6 +129,8 @@ extern "C" {
     totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPrototype *list, totemString *number, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPrototype *list, totemString *buffer, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemFunctionPointer *value, totemOperandRegisterPrototype *operand);
+    totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *list, totemPublicDataType type, totemOperandRegisterPrototype *op);
+    
     totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand);
     
     typedef struct
@@ -195,7 +198,9 @@ extern "C" {
     totemEvalStatus totemInstruction_SetBxSigned(totemInstruction *instruction, totemOperandXSigned bx);
     totemEvalStatus totemInstruction_SetBxUnsigned(totemInstruction *instruction, totemOperandXUnsigned bx);
     totemEvalStatus totemInstruction_SetAxSigned(totemInstruction *instruction, totemOperandXSigned ax);
-    totemEvalStatus totemInstruction_SetAxunsigned(totemInstruction *instruction, totemOperandXUnsigned ax);
+    totemEvalStatus totemInstruction_SetAxUnsigned(totemInstruction *instruction, totemOperandXUnsigned ax);
+    
+#define TOTEM_EVAL_CHECKRETURN(exp) { totemEvalStatus status = exp; if(status != totemEvalStatus_Success) return status; }
     
 #ifdef __cplusplus
 }

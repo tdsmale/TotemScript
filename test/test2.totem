@@ -4,15 +4,16 @@ $y = 0;
 
 for($y = 0; $y < 10; $y++)
 {
-    print($y);
+	$sgdghdf = 1;
+    //print($y);
 }
 
 function includeTest($z)
 {
     print("INCLUDE TEST");
     print("---");
-    print($z);
-    print($y);
+    //print($z);
+    //print($y);
     print("---");
 }
 
@@ -21,7 +22,7 @@ function constTest()
     print("CONST TEST");
     print("---");
     const $xw = 123;
-    print($xw);
+    //print($xw);
 
     assert($xw == 123);
 
@@ -48,10 +49,10 @@ function arrayTest()
 
     $d = $r[0];
 
-    print($r);
-    print($b);
-    print($a);
-    print($d);
+    //print($r);
+    //print($b);
+    //print($a);
+    //print($d);
 
     assert($r[3] == 12);
     assert($r[4][15] == 12345);
@@ -80,7 +81,7 @@ function stringTest()
     print("---");
 
     $d = "This is an interned string!";
-    print($d);
+    //print($d);
     assert($d == "This is an interned string!");
 
     $e = " Ain't this great?";
@@ -102,13 +103,13 @@ function moveToLocalTest()
     print("---");
 
     $e = $y;
-    print($y);
+    //print($y);
     assert($e == $y);
 
     $e = 0;
     $y = $e;
-    print($y);
-    print($e);
+    //print($y);
+    //print($e);
     assert($e == $y);
 
     print("---");
@@ -120,17 +121,17 @@ function dataTypeTest()
     print("---");
     $a = float;
     $b = 3.75;
-    print($a);
-    print($b);
-    print($b is int);
+    //print($a);
+    //print($b);
+    //print($b is int);
 
     assert(!($b is int));
 
     $d = int;
     $c = $b as $d;
-    print($d);
-    print($c);
-    print($b);
+    //print($d);
+    //print($c);
+    //print($b);
 
     assert($c == 3);
 
@@ -189,13 +190,14 @@ function dataTypeTest()
 
 function funcPointerTestChild($b, $c)
 {
-    print("HUZZAH!");
+    //print("HUZZAH!");
     return $b + $c;
 }
 
 $rtygh = function()
 {
-    print("DOOP");
+	$a = 1;
+    //print("DOOP");
 };
 
 function funcPointerTest()
@@ -217,18 +219,18 @@ function funcPointerTest()
     assert($e == @print);
     assert($f[5][2] == $e);
 
-    $e($a);
-    $e($b);
-    $e($c);
-    $e($d);
-    $e($e);
-    $f[5][2]($f[5][2]);
-    @print($d);
-    @print(function);
+    //$e($a);
+    //$e($b);
+    //$e($c);
+    //$e($d);
+    //$e($e);
+    //$f[5][2]($f[5][2]);
+    //@print($d);
+    //@print(function);
 
     $g = function($rt, $as, $we)
     {
-        print("GOOD LORD!");
+        //print("GOOD LORD!");
         return $rt + $as + $we;
     };
 
@@ -260,19 +262,19 @@ function coroutineTest()
     $end = 20;
     $maxLoops = $end - $start;
 
-	print("loop 1");
+	//print("loop 1");
 
     for($numLoops = 0; $val = $co($start, $end); $numLoops++)
     {
-        print($val);
+        //print($val);
 		assert($val == ($start + $numLoops + $start + $end));
     }
 
-	print("loop 2");
+	//print("loop 2");
 
 	for($numLoops = 0; $val = $co($start, $end); $numLoops++)
     {
-        print($val);
+        //print($val);
 		assert($val == ($start + $numLoops + $start + $end));
     }
 
@@ -287,17 +289,17 @@ function objectTest()
 	print("object test");
 	print("---");
 
-	$obj = {};
+	local $obj = {};
 	$obj["test"] = 123;
 	$obj["test2"] = 456;
 	$obj["test3"] = 789;
-	$a = $obj["test"];
-	$b = $obj["test2"];
-	$c = $obj["test3"];
+	local $a = $obj["test"];
+	local $b = $obj["test2"];
+	local $c = $obj["test3"];
 
 	$obj["test4"] = {};
 	$obj["test4"]["what"] = "hello!";
-	$d = $obj["test4"]["what"];
+	local $d = $obj["test4"]["what"];
 
 	$obj["test5"] = [2];
 	$obj["test5"][1] = "Doop!";
@@ -316,7 +318,8 @@ function objectTest()
 	assert($c == 789);
 	assert($d == "hello!");
 
-	print($obj);
+	//print($obj);
+	print("---");
 }
 
 function userDataTest()
@@ -326,7 +329,11 @@ function userDataTest()
 
 	$file = fopen();
 	$test = $file;
+	assert($file is userdata);
+
 	$file = 123;
+	assert($file is int);
+	assert($test is userdata);
 
 	print("---");
 }
@@ -334,5 +341,17 @@ function userDataTest()
 function localTest()
 {
     local $y = "This is a string!";
-    print($y);
+    //print($y);
+}
+
+function refCycleTest()
+{
+	print("ref cycle test");
+	print("---");
+
+	local $y = [1];
+	$y[0] = [1];
+	$y[0][0] = $y;
+
+	print("---");
 }

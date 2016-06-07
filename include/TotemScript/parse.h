@@ -245,6 +245,7 @@ extern "C" {
         totemTokenType_At,
         totemTokenType_Coroutine,
         totemTokenType_Local,
+        totemTokenType_Userdata,
         totemTokenType_Max
     }
     totemTokenType;

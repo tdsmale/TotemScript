@@ -13,26 +13,99 @@
 totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type)
 {
     //gccount++;
-    //printf("add %i\n", gccount);
+    //printf("add %i %s\n", gccount, totemGCObjectType_Describe(type));
     
-    totemGCObject *hdr = totem_CacheMalloc(sizeof(totemGCObject));
-    if (!hdr)
+    totemGCObject *hdr = NULL;
+    
+    if (state->GCFreeList)
     {
-        return NULL;
+        hdr = state->GCFreeList;
+        state->GCFreeList = hdr->Next;
+    }
+    else
+    {
+        hdr = totem_CacheMalloc(sizeof(totemGCObject));
+        if (!hdr)
+        {
+            return NULL;
+        }
     }
     
     hdr->RefCount = 0;
     hdr->Type = type;
     hdr->CycleDetectCount = 0;
     hdr->Array = NULL;
+    hdr->ExecState = state;
+    hdr->Prev = NULL;
+    hdr->Next = NULL;
+    
+    if (state->GCStart)
+    {
+        state->GCStart->Prev = hdr;
+    }
+    
+    hdr->Next = state->GCStart;
+    state->GCStart = hdr;
+    
     return hdr;
 }
 
-void totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *obj)
+totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *obj)
 {
+    totemGCObjectType type = obj->Type;
+    obj->Type = totemGCObjectType_Deleting;
+    
+    switch (type)
+    {
+        case totemGCObjectType_Array:
+            totemExecState_DestroyArray(state, obj->Array);
+            break;
+            
+        case totemGCObjectType_Coroutine:
+            totemExecState_DestroyCoroutine(state, obj->Coroutine);
+            break;
+            
+        case totemGCObjectType_Object:
+            totemExecState_DestroyObject(state, obj->Object);
+            break;
+            
+        case totemGCObjectType_Userdata:
+            totemExecState_DestroyUserdata(state, obj->Userdata);
+            break;
+            
+        case totemGCObjectType_Deleting:
+            return NULL;
+    }
+    
     //gccount--;
-    //printf("kill %i\n", gccount);
-    totem_CacheFree(obj, sizeof(totemGCObject));
+    //printf("kill %i %p %s\n", gccount, obj, totemGCObjectType_Describe(obj->Type));
+    totemGCObject *next = obj->Next;
+    
+    if (obj->Prev)
+    {
+        obj->Prev->Next = obj->Next;
+    }
+    
+    if (obj->Next)
+    {
+        obj->Next->Prev = obj->Prev;
+    }
+    
+    if (state->GCStart == obj)
+    {
+        state->GCStart = obj->Next;
+    }
+    
+    obj->Next = NULL;
+    obj->Prev = NULL;
+    
+    if (state->GCFreeList)
+    {
+        obj->Next = state->GCFreeList;
+    }
+    
+    state->GCFreeList = obj;
+    return next;
 }
 
 totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc)
@@ -42,7 +115,7 @@ totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject 
         return totemExecStatus_Break(totemExecStatus_RefCountOverflow);
     }
     
-    //printf("ref count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
+    //printf("inc count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
     
     return totemExecStatus_Continue;
 }
@@ -56,29 +129,109 @@ void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc)
     
     if (totem_AtomicDec64(&gc->RefCount) == 0)
     {
-        switch (gc->Type)
+        if (gc->ExecState == state)
         {
-            case totemGCObjectType_Array:
-                totemExecState_DestroyArray(state, gc->Array);
-                break;
-                
-            case totemGCObjectType_Coroutine:
-                totemExecState_DestroyCoroutine(state, gc->Coroutine);
-                break;
-                
-            case totemGCObjectType_Object:
-                totemExecState_DestroyObject(state, gc->Object);
-                break;
-                
-            case totemGCObjectType_Userdata:
-                totemExecState_DestroyUserdata(state, gc->Userdata);
-                break;
+            totemExecState_DestroyGCObject(state, gc);
         }
-        
-        totemExecState_DestroyGCObject(state, gc);
     }
     
-    //printf("ref count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
+    //printf("dec count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
+}
+
+void totemExecState_CycleDetect(totemExecState *state, totemGCObject *gc)
+{
+    totemRegister *regs = NULL;
+    
+    size_t numRegs = 0;
+    
+    switch (gc->Type)
+    {
+        case totemGCObjectType_Array:
+            regs = gc->Array->Registers;
+            numRegs = gc->Array->NumRegisters;
+            break;
+            
+        case totemGCObjectType_Coroutine:
+            regs = gc->Coroutine->FrameStart;
+            numRegs = gc->Coroutine->NumRegisters;
+            break;
+            
+        case totemGCObjectType_Object:
+            regs = totemMemoryBuffer_Bottom(&gc->Object->Registers);
+            numRegs = totemMemoryBuffer_GetNumObjects(&gc->Object->Registers);
+            break;
+            
+        case totemGCObjectType_Userdata:
+            break;
+    }
+    
+    if (regs)
+    {
+        for (size_t i = 0; i < numRegs; i++)
+        {
+            totemRegister *reg = &regs[i];
+            
+            if (TOTEM_REGISTER_ISGC(reg))
+            {
+                totemGCObject *childGC = reg->Value.GCObject;
+                
+                if (childGC->CycleDetectCount > 0 && childGC->ExecState == state)
+                {
+                    totem_AtomicDec64(&childGC->CycleDetectCount);
+                    //printf("cycle count %s %i\n", totemGCObjectType_Describe(childGC->Type), childGC->CycleDetectCount);
+                }
+            }
+        }
+    }
+}
+
+void totemExecState_CollectGarbage(totemExecState *state)
+{
+    //int count = 0;
+    
+    for (totemGCObject *obj = state->GCStart; obj;)
+    {
+        //printf("%p %p\n", obj, obj->Next);
+        
+        //count++;
+        
+        if (obj->RefCount <= 0)
+        {
+            obj = totemExecState_DestroyGCObject(state, obj);
+        }
+        else
+        {
+            totem_AtomicSet64(&obj->CycleDetectCount, obj->RefCount);
+            obj = obj->Next;
+        }
+    }
+    
+    //printf("%i\n", count);
+    //count = 0;
+    
+    for (totemGCObject *obj = state->GCStart; obj;)
+    {
+        //printf("%p %p\n", obj, obj->Next);
+        //count++;
+        totemExecState_CycleDetect(state, obj);
+        obj = obj->Next;
+    }
+    
+    //printf("%i\n", count);
+    //count = 0;
+    
+    for (totemGCObject *obj = state->GCStart; obj;)
+    {
+        //printf("%p %p\n", obj, obj->Next);
+        if (obj->CycleDetectCount <= 0)
+        {
+            obj = totemExecState_DestroyGCObject(state, obj);
+        }
+        else
+        {
+            obj = obj->Next;
+        }
+    }
 }
 
 const char *totemGCObjectType_Describe(totemGCObjectType type)
@@ -89,6 +242,7 @@ const char *totemGCObjectType_Describe(totemGCObjectType type)
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Object);
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Userdata);
+            TOTEM_STRINGIFY_CASE(totemGCObjectType_Deleting);
         default:return "UNKNOWN";
     }
 }

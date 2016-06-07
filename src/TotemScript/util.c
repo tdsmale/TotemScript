@@ -359,6 +359,11 @@ const char *totemRegister_GetStringValue(totemRegister *reg)
 
 void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
 {
+    if (indent > 50)
+    {
+        return;
+    }
+    
     switch(reg->DataType)
     {
         case totemPrivateDataType_Function:
@@ -681,5 +686,22 @@ int64_t totem_AtomicDec64(volatile int64_t *val)
     return InterlockedDecrement64(val);
 #else
     return OSAtomicDecrement64(val);
+#endif
+}
+
+int64_t totem_AtomicSet64(volatile int64_t *val, int64_t set)
+{
+#ifdef _WIN32
+    return InterlockedExchange64(val, set);
+#else
+    int64_t old;
+    
+    do
+    {
+        old = *val;
+    }
+    while(!OSAtomicCompareAndSwap64(old, set, val));
+    
+    return old + set;
 #endif
 }

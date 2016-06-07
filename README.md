@@ -189,7 +189,6 @@ $co = 123;
 
 #### Runtime Improvements
 * function pointers need to eval'd as values
-* ref-cycle detection
 * bytecode serialisation
  * check register & function addresses, function arguments
 * debug information for scripts
@@ -200,9 +199,9 @@ $co = 123;
  * call user-supplied callback, then execute original instruction
 * line/char/len numbers for eval, link & exec errors
 * better built-in support for concurrency
- * memory
-  * gc-object creation, collection & ref-cycle detection isolated to individual exec states
-  * synchronise channels
+ * gc-object creation, collection & ref-cycle detection isolated to individual exec states
+ * synchronise channels
  * function pointers must reference actor
 * JIT
  * replace instruction loop with subroutine threaded asm
+* vs plugin

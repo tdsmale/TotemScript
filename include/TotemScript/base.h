@@ -498,6 +498,7 @@ extern "C" {
     
     int64_t totem_AtomicInc64(volatile int64_t *val);
     int64_t totem_AtomicDec64(volatile int64_t *val);
+    int64_t totem_AtomicSet64(volatile int64_t *val, int64_t add);
     
 #define totem_setjmp(jmp) setjmp((int*)jmp)
 #define totem_longjmp(jmp) longjmp((int*)jmp, 1)

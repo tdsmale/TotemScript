@@ -32,35 +32,41 @@ totemExecStatus totemAssert(totemExecState *state)
 
 void totemFileTestDestructor(totemExecState *state, totemUserdata *data)
 {
-	FILE *f = (FILE*)data->Data;
-	fclose(f);
+    FILE *f = (FILE*)data->Data;
+    fclose(f);
 }
 
 totemExecStatus totemFileTest(totemExecState *state)
 {
-	FILE *f = totem_fopen("test.totem", "r");
-	if (!f)
-	{
-		return totemExecStatus_Stop;
-	}
+    FILE *f = totem_fopen("test.totem", "r");
+    if (!f)
+    {
+        return totemExecStatus_Stop;
+    }
+    
+    totemGCObject *gc = NULL;
+    totemExecStatus status = totemExecState_CreateUserdata(state, (uint64_t)f, totemFileTestDestructor, &gc);
+    if (status != totemExecStatus_Continue)
+    {
+        fclose(f);
+        return status;
+    }
+    
+    totemExecState_AssignNewUserdata(state, state->CallStack->ReturnRegister, gc);
+    return status;
+}
 
-	totemGCObject *gc = NULL;
-	totemExecStatus status = totemExecState_CreateUserdata(state, (uint64_t)f, totemFileTestDestructor, &gc);
-	if (status != totemExecStatus_Continue)
-	{
-		fclose(f);
-		return status;
-	}
-
-	totemExecState_AssignNewUserdata(state, state->CallStack->ReturnRegister, gc);
-	return status;
+totemExecStatus totemGCTest(totemExecState *state)
+{
+    totemExecState_CollectGarbage(state);
+    return totemExecStatus_Continue;
 }
 
 typedef struct
 {
-	totemString Name;
-	totemNativeFunction Func;
-	totemOperandXUnsigned Addr;
+    totemString Name;
+    totemNativeFunction Func;
+    totemOperandXUnsigned Addr;
 }
 totemFunctionToRegister;
 
@@ -93,25 +99,26 @@ int main(int argc, const char * argv[])
     totemRuntime runtime;
     totemRuntime_Init(&runtime);
     
-	// link functions
-	totemFunctionToRegister funcs[] = 
-	{
-		{ TOTEM_STRING_VAL("print"), totemPrint, 0 },
-		{ TOTEM_STRING_VAL("assert"), totemAssert, 0 },
-		{ TOTEM_STRING_VAL("fopen"), totemFileTest, 0 },
-	};
-
-	for (size_t i = 0; i < TOTEM_ARRAYSIZE(funcs); i++)
-	{
-		totemFunctionToRegister *func = &funcs[i];
-
-		totemLinkStatus linkStatus = totemRuntime_LinkNativeFunction(&runtime, func->Func, &func->Name, &func->Addr);
-		if (linkStatus != totemLinkStatus_Success)
-		{
-			printf("Could not register %.*s: %s\n", func->Name.Length, func->Name.Value, totemLinkStatus_Describe(linkStatus));
-			return EXIT_FAILURE;
-		}
-	}
+    // link functions
+    totemFunctionToRegister funcs[] =
+    {
+        { TOTEM_STRING_VAL("print"), totemPrint, 0 },
+        { TOTEM_STRING_VAL("assert"), totemAssert, 0 },
+        { TOTEM_STRING_VAL("fopen"), totemFileTest, 0 },
+        { TOTEM_STRING_VAL("collectGC"), totemGCTest, 0 }
+    };
+    
+    for (size_t i = 0; i < TOTEM_ARRAYSIZE(funcs); i++)
+    {
+        totemFunctionToRegister *func = &funcs[i];
+        
+        totemLinkStatus linkStatus = totemRuntime_LinkNativeFunction(&runtime, func->Func, &func->Name, &func->Addr);
+        if (linkStatus != totemLinkStatus_Success)
+        {
+            printf("Could not register %.*s: %s\n", func->Name.Length, func->Name.Value, totemLinkStatus_Describe(linkStatus));
+            return EXIT_FAILURE;
+        }
+    }
     
     // lex
     totemTokenList tokens;

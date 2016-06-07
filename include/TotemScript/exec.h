@@ -128,6 +128,8 @@ extern "C" {
     }
     totemRuntime;
     
+    struct totemGCObject;
+    
     typedef struct totemExecState
     {
         totemFunctionCall *CallStack;
@@ -136,6 +138,8 @@ extern "C" {
         totemRegister *Registers[2];
         size_t MaxLocalRegisters;
         size_t UsedLocalRegisters;
+        struct totemGCObject *GCStart;
+        struct totemGCObject *GCFreeList;
         totemFunctionCall *FunctionCallFreeList;
     }
     totemExecState;
@@ -189,10 +193,11 @@ extern "C" {
     
     enum
     {
+        totemGCObjectType_Deleting = 0,
         totemGCObjectType_Array,
         totemGCObjectType_Coroutine,
         totemGCObjectType_Object,
-        totemGCObjectType_Userdata
+        totemGCObjectType_Userdata,
     };
     typedef uint8_t totemGCObjectType;
     const char *totemGCObjectType_Describe(totemGCObjectType);
@@ -231,13 +236,16 @@ extern "C" {
             totemUserdata *Userdata;
         };
         volatile int64_t RefCount;
-        int64_t CycleDetectCount;
+        volatile int64_t CycleDetectCount;
+        struct totemGCObject *Prev;
+        struct totemGCObject *Next;
+        totemExecState *ExecState;
         totemGCObjectType Type;
     }
     totemGCObject;
     
     totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type);
-    void totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *gc);
+    totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *gc);
     totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOperandXUnsigned functionAddress, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateObject(totemExecState *state, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateArray(totemExecState *state, uint32_t numRegisters, totemGCObject **objOut);
@@ -249,8 +257,8 @@ extern "C" {
     void totemExecState_DestroyCoroutine(totemExecState *state, totemFunctionCall *co);
     void totemExecState_DestroyObject(totemExecState *state, totemObject *obj);
     void totemExecState_DestroyUserdata(totemExecState *state, totemUserdata *obj);
-    
     totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut);
+    void totemExecState_CollectGarbage(totemExecState *state);
     
     /**
      * Execute bytecode
