@@ -9,11 +9,11 @@ function whileLoop()
 
     while($c)
     {
-        //print($c);
+        print($c);
         $c--;
     }
 
-    //print($c);
+    print($c);
     assert($c == 0);
 
     print("---");
@@ -29,12 +29,12 @@ function doWhileLoop()
 
     do
     {
-        //print($a);
+        print($a);
         $a--;
     }
     while($a);
 
-    //print($a);
+    print($a);
     assert($a == 0);
 
     print("---");
@@ -48,7 +48,7 @@ function forLoop()
     for($i = 0; $i < 30; $i++)
     {
 		$a = 1;
-        //print($i);
+        print($i);
     }
 
     assert($i == 30);
@@ -65,17 +65,17 @@ function ifBlock()
     if($x < 0)
     {
 		$a = 1;
-        //print("Less Than");
+        print("Less Than");
     }
     else if($x > 0)
     {
 		$a = 1;
-        //print("More Than");
+        print("More Than");
     }
     else
     {
 		$a = 1;
-        //print("Equals");
+        print("Equals");
     }
 
     print("---");
@@ -86,18 +86,18 @@ function intFloat()
     print("Int Float Test");
     print("---");
     $f = 1;
-    //print($f);
+    print($f);
 
     $b = $f + 0.5;
-    //print($b);
+    print($b);
 
     assert($b == 1.5);
 
     $c = 12.4;
-    //print($c);
+    print($c);
 
     $d = $c + 5;
-    //print($d);
+    print($d);
 
     assert($d == 17.4);
 
@@ -109,7 +109,7 @@ function nullTest()
     print("Null Test");
     print("---");
     $g = null;
-    //print($g);
+    print($g);
 
     assert($g == null);
 
@@ -136,7 +136,9 @@ function test()
 	userDataTest();
 
     localTest();
-    //print($y);
+    print($y);
+
+	channelTest();
 
 	refCycleTest();
 	collectGC();

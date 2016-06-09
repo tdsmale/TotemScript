@@ -786,6 +786,16 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             *type = totemBinaryOperatorType_AsType;
             return totemParseStatus_Success;
             
+        case totemTokenType_Push:
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            *type = totemBinaryOperatorType_Push;
+            return totemParseStatus_Success;
+            
+        case totemTokenType_Pop:
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            *type = totemBinaryOperatorType_Pop;
+            return totemParseStatus_Success;
+            
         case totemTokenType_Not:
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             
@@ -964,6 +974,12 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             break;
             
+        case totemTokenType_Channel:
+            argument->DataType = totemPublicDataType_Channel;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
             // new object
         case totemTokenType_LCBracket:
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
@@ -978,6 +994,15 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             argument->Type = totemArgumentType_NewArray;
             TOTEM_PARSE_ALLOC(argument->NewArray, totemNewArrayPrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemNewArrayPrototype_Parse(argument->NewArray, tree));
+            break;
+            
+            // new channel
+        case totemTokenType_LessThan:
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            TOTEM_PARSE_ENFORCETOKEN(tree->CurrentToken, totemTokenType_MoreThan);
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            argument->Type = totemArgumentType_NewChannel;
             break;
             
             // variable

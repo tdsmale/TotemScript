@@ -13,6 +13,7 @@ Variables are dynamically-typed, supporting the following types:
 * coroutine - First-class, garbage collected coroutines
 * type - Type objects (e.g. int, float, type etc.)
 * userdata - Garbage-collected data supplied by native C functions
+* channel - Garbage-collected, thread-safe queues
 ```
 // variables can be declared and redeclared at any point
 $var = 123;
@@ -171,24 +172,40 @@ for($numLoops = 0; $val = $co($start + 1, $end + 1); $numLoops++)
 // Coroutines are also garbage-collected, just like Arrays - when no longer referenced, they are destroyed
 $co = 123;
 ```
+#### Channels
+```
+// Channels are the only built-in data structure safe to use in concurrent applications
+// Channels operate like queues - first-in, first-out
+
+// Create new channel
+$channel = <>;
+
+// Push messages in the order they should be received
+$channel push "This is the first message!";
+$channel push "123.45;
+
+$func = function($ch)
+{
+    $msg pop $ch;
+    print($msg);
+    $msg pop $ch;
+    print($msg);
+    $ch push "All done!";
+};
+
+createThreadExample($func, $channel);
+
+```
 ### Feature Creep
 #### Language Features
-* object as string
-* object as array
-* array as object
-* string as object
-* FIFO message channels, e.g. $channel = <>; $channel push $x; $channel pop $y;
 * function error handlers, catch runtime errors e.g. function x($a, $b) { causeAnError(); } unless { somethingBadHappened(); }
 * operator precedence reordering
 * initializer lists for arrays & objects, both with and without indices/names e.g. $a = { "x":1.75, "y":1.45 }; $b = [$a, 123, "456"];
-* loop scope for vars
 * function arg improvements
  * default arguments for functions e.g. function call($x: 123, $y: 456);
  * specify argument name in direct function calls, e.g. $x = call($y: 123, $x: 456);
-* switch statement
 
 #### Runtime Improvements
-* function pointers need to eval'd as values
 * bytecode serialisation
  * check register & function addresses, function arguments
 * debug information for scripts
@@ -199,9 +216,4 @@ $co = 123;
  * call user-supplied callback, then execute original instruction
 * line/char/len numbers for eval, link & exec errors
 * better built-in support for concurrency
- * gc-object creation, collection & ref-cycle detection isolated to individual exec states
- * synchronise channels
  * function pointers must reference actor
-* JIT
- * replace instruction loop with subroutine threaded asm
-* vs plugin

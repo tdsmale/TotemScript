@@ -73,6 +73,10 @@ totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObje
             totemExecState_DestroyUserdata(state, obj->Userdata);
             break;
             
+        case totemGCObjectType_Channel:
+            totemExecState_DestroyChannel(state, obj->Channel);
+            break;
+            
         case totemGCObjectType_Deleting:
             return NULL;
     }
@@ -161,7 +165,7 @@ void totemExecState_CycleDetect(totemExecState *state, totemGCObject *gc)
             numRegs = totemMemoryBuffer_GetNumObjects(&gc->Object->Registers);
             break;
             
-        case totemGCObjectType_Userdata:
+        default:
             break;
     }
     
@@ -177,7 +181,7 @@ void totemExecState_CycleDetect(totemExecState *state, totemGCObject *gc)
                 
                 if (childGC->CycleDetectCount > 0 && childGC->ExecState == state)
                 {
-                    totem_AtomicDec64(&childGC->CycleDetectCount);
+                    childGC->CycleDetectCount--;
                     //printf("cycle count %s %i\n", totemGCObjectType_Describe(childGC->Type), childGC->CycleDetectCount);
                 }
             }
@@ -201,7 +205,7 @@ void totemExecState_CollectGarbage(totemExecState *state)
         }
         else
         {
-            totem_AtomicSet64(&obj->CycleDetectCount, obj->RefCount);
+            obj->CycleDetectCount = obj->RefCount;
             obj = obj->Next;
         }
     }

@@ -12,28 +12,7 @@
 #include <string.h>
 #include <errno.h>
 
-#ifdef _WIN32
-#include <Windows.h>
-#include <direct.h>
-#include <io.h>
-#include <Shlwapi.h>
-
-#define getcwd _getcwd
-#define PATH_MAX (_MAX_PATH)
-
-#endif
-
-#ifdef __APPLE__
-#include <unistd.h>
-#include <sys/syslimits.h>
-#include <fcntl.h>
-#include <sys/param.h>
-#include <dirent.h>
-#include <libkern/OSAtomic.h>
-
-#endif
-
-#define TOTEM_SCOPE_CHAR(x) (x) == totemOperandType_GlobalRegister ? 'g' : 'l'
+#define TOTEM_SCOPE_CHAR(x) ((x) == totemOperandType_GlobalRegister ? 'g' : 'l')
 
 static totemHashCb hashCb = NULL;
 
@@ -98,14 +77,17 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_NotEquals);
             TOTEM_STRINGIFY_CASE(totemOperationType_Return);
             TOTEM_STRINGIFY_CASE(totemOperationType_Subtract);
-            TOTEM_STRINGIFY_CASE(totemOperationType_ArrayGet);
-            TOTEM_STRINGIFY_CASE(totemOperationType_ArraySet);
+            TOTEM_STRINGIFY_CASE(totemOperationType_ComplexGet);
+            TOTEM_STRINGIFY_CASE(totemOperationType_ComplexSet);
             TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
             TOTEM_STRINGIFY_CASE(totemOperationType_FunctionPointer);
             TOTEM_STRINGIFY_CASE(totemOperationType_As);
             TOTEM_STRINGIFY_CASE(totemOperationType_Is);
+            TOTEM_STRINGIFY_CASE(totemOperationType_NewChannel);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Push);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Pop);
     }
     
     return "UNKNOWN";
@@ -124,6 +106,7 @@ const char *totemPublicDataType_Describe(totemPublicDataType type)
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Object);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Userdata);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Channel);
         default: return "UNKNOWN";
     }
 }
@@ -142,6 +125,7 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Object);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Userdata);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Channel);
         default: return "UNKNOWN";
     }
 }
@@ -177,6 +161,9 @@ totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
             
         case totemPrivateDataType_Userdata:
             return totemPublicDataType_Userdata;
+            
+        case totemPrivateDataType_Channel:
+            return totemPublicDataType_Channel;
     }
     
     return totemPublicDataType_Max;
@@ -467,6 +454,10 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
             fprintf(file, "%s %lli\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Int);
             break;
             
+        case totemPrivateDataType_Channel:
+            fprintf(file, "%s: %i values\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.GCObject->Channel->Count);
+            break;
+            
         default:
             fprintf(file, "%s %d %f %lli %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.GCObject->Array);
             break;
@@ -534,6 +525,14 @@ void totem_Init()
     TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values expected to be 8 bytes");
     TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction expected to be 4 bytes");
     
+#ifdef TOTEM_X86
+    TOTEM_STATIC_ASSERT(sizeof(void*) == 4, "Expected pointer size to be 4 bytes");
+#endif
+    
+#ifdef TOTEM_X64
+    TOTEM_STATIC_ASSERT(sizeof(void*) == 8, "Expected pointer size to be 8 bytes");
+#endif
+    
     totem_InitMemory();
 }
 
@@ -544,7 +543,7 @@ void totem_Cleanup()
 
 FILE *totem_fopen(const char *path, const char *mode)
 {
-#ifdef _WIN32
+#ifdef TOTEM_WIN
     FILE *result = NULL;
     if(fopen_s(&result, path, mode) == 0)
     {
@@ -559,7 +558,7 @@ FILE *totem_fopen(const char *path, const char *mode)
 
 totemBool totem_chdir(const char *str)
 {
-#ifdef _WIN32
+#ifdef TOTEM_WIN
     return _chdir(str) == 0;
 #else
     return chdir(str) == 0;
@@ -568,7 +567,7 @@ totemBool totem_chdir(const char *str)
 
 totemBool totem_fchdir(FILE *file)
 {
-#ifdef _WIN32
+#ifdef TOTEM_WIN
     HANDLE handle = (HANDLE)_get_osfhandle(_fileno(file));
     if (handle == INVALID_HANDLE_VALUE)
     {
@@ -608,7 +607,7 @@ totemBool totem_fchdir(FILE *file)
     
     return totemBool_False;
 #endif
-#ifdef __APPLE__
+#ifdef TOTEM_APPLE
     int no = fileno(file);
     
     char filePath[MAXPATHLEN];
@@ -632,76 +631,5 @@ totemBool totem_fchdir(FILE *file)
     }
     
     return totemBool_False;
-#endif
-}
-
-void totemLock_Init(totemLock *lock)
-{
-#ifdef _WIN32
-    InitializeCriticalSection(&lock->Lock);
-#else
-    pthread_mutex_init(&lock->Lock, NULL);
-#endif
-}
-
-void totemLock_Cleanup(totemLock *lock)
-{
-#ifdef _WIN32
-    DeleteCriticalSection(&lock->Lock);
-#else
-    pthread_mutex_destroy(&lock->Lock);
-#endif
-}
-
-void totemLock_Acquire(totemLock *lock)
-{
-#ifdef _WIN32
-    EnterCriticalSection(&lock->Lock);
-#else
-    pthread_mutex_lock(&lock->Lock);
-#endif
-}
-
-void totemLock_Release(totemLock *lock)
-{
-#ifdef _WIN32
-    LeaveCriticalSection(&lock->Lock);
-#else
-    pthread_mutex_unlock(&lock->Lock);
-#endif
-}
-
-int64_t totem_AtomicInc64(volatile int64_t *val)
-{
-#ifdef _WIN32
-    return InterlockedIncrement64(val);
-#else
-    return OSAtomicIncrement64(val);
-#endif
-}
-
-int64_t totem_AtomicDec64(volatile int64_t *val)
-{
-#ifdef _WIN32
-    return InterlockedDecrement64(val);
-#else
-    return OSAtomicDecrement64(val);
-#endif
-}
-
-int64_t totem_AtomicSet64(volatile int64_t *val, int64_t set)
-{
-#ifdef _WIN32
-    return InterlockedExchange64(val, set);
-#else
-    int64_t old;
-    
-    do
-    {
-        old = *val;
-    }
-    while(!OSAtomicCompareAndSwap64(old, set, val));
-    
-    return old + set;
 #endif
 }

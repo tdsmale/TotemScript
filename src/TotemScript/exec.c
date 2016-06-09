@@ -757,11 +757,11 @@ totemExecStatus totemExecState_ExecuteInstructions(totemExecState *state)
                     totemExecState_ExecNewArray(state);
                     break;
                     
-                case totemOperationType_ArrayGet:
+                case totemOperationType_ComplexGet:
                     totemExecState_ExecArrayGet(state);
                     break;
                     
-                case totemOperationType_ArraySet:
+                case totemOperationType_ComplexSet:
                     totemExecState_ExecArraySet(state);
                     break;
                     
@@ -787,6 +787,18 @@ totemExecStatus totemExecState_ExecuteInstructions(totemExecState *state)
                     
                 case totemOperationType_NewObject:
                     totemExecState_ExecNewObject(state);
+                    break;
+                    
+                case totemOperationType_NewChannel:
+                    totemExecState_ExecNewChannel(state);
+                    break;
+                    
+                case totemOperationType_Push:
+                    totemExecState_ExecPush(state);
+                    break;
+                    
+                case totemOperationType_Pop:
+                    totemExecState_ExecPop(state);
                     break;
                     
                 default:
@@ -860,6 +872,50 @@ totemExecStatus totemExecState_ExecNative(totemExecState *state, totemActor *act
     totemExecStatus status = (*function)(state);
     totemExecState_PopRoutine(state);
     return status;
+}
+
+void totemExecState_ExecNewChannel(totemExecState *state)
+{
+    totemInstruction instruction = *state->CurrentInstruction;
+    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    
+    totemGCObject *gc = NULL;
+    TOTEM_EXEC_BREAK(totemExecState_CreateChannel(state, &gc), state);
+    totemExecState_AssignNewChannel(state, dst, gc);
+    
+    state->CurrentInstruction++;
+}
+
+void totemExecState_ExecPush(totemExecState *state)
+{
+    totemInstruction instruction = *state->CurrentInstruction;
+    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
+    
+    if (dst->DataType != totemPrivateDataType_Channel)
+    {
+        totemExecState_Break(state, totemExecStatus_UnexpectedDataType);
+    }
+    
+    TOTEM_EXEC_BREAK(totemExecState_PushToChannel(state, dst->Value.GCObject->Channel, src), state);
+    
+    state->CurrentInstruction++;
+}
+
+void totemExecState_ExecPop(totemExecState *state)
+{
+    totemInstruction instruction = *state->CurrentInstruction;
+    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
+    
+    if (src->DataType != totemPrivateDataType_Channel)
+    {
+        totemExecState_Break(state, totemEvalStatus_InvalidDataType);
+    }
+    
+    TOTEM_EXEC_BREAK(totemExecState_PopFromChannel(state, src->Value.GCObject->Channel, dst), state);
+    
+    state->CurrentInstruction++;
 }
 
 void totemExecState_ExecNewObject(totemExecState *state)

@@ -5,15 +5,15 @@ $y = 0;
 for($y = 0; $y < 10; $y++)
 {
 	$sgdghdf = 1;
-    //print($y);
+    print($y);
 }
 
 function includeTest($z)
 {
     print("INCLUDE TEST");
     print("---");
-    //print($z);
-    //print($y);
+    print($z);
+    print($y);
     print("---");
 }
 
@@ -22,7 +22,7 @@ function constTest()
     print("CONST TEST");
     print("---");
     const $xw = 123;
-    //print($xw);
+    print($xw);
 
     assert($xw == 123);
 
@@ -49,10 +49,10 @@ function arrayTest()
 
     $d = $r[0];
 
-    //print($r);
-    //print($b);
-    //print($a);
-    //print($d);
+    print($r);
+    print($b);
+    print($a);
+    print($d);
 
     assert($r[3] == 12);
     assert($r[4][15] == 12345);
@@ -81,7 +81,7 @@ function stringTest()
     print("---");
 
     $d = "This is an interned string!";
-    //print($d);
+    print($d);
     assert($d == "This is an interned string!");
 
     $e = " Ain't this great?";
@@ -103,7 +103,7 @@ function moveToLocalTest()
     print("---");
 
     $e = $y;
-    //print($y);
+    print($y);
     assert($e == $y);
 
     $e = 0;
@@ -121,17 +121,17 @@ function dataTypeTest()
     print("---");
     $a = float;
     $b = 3.75;
-    //print($a);
-    //print($b);
-    //print($b is int);
+    print($a);
+    print($b);
+    print($b is int);
 
     assert(!($b is int));
 
     $d = int;
     $c = $b as $d;
-    //print($d);
-    //print($c);
-    //print($b);
+    print($d);
+    print($c);
+    print($b);
 
     assert($c == 3);
 
@@ -190,14 +190,14 @@ function dataTypeTest()
 
 function funcPointerTestChild($b, $c)
 {
-    //print("HUZZAH!");
+    print("HUZZAH!");
     return $b + $c;
 }
 
 $rtygh = function()
 {
 	$a = 1;
-    //print("DOOP");
+    print("DOOP");
 };
 
 function funcPointerTest()
@@ -219,14 +219,14 @@ function funcPointerTest()
     assert($e == @print);
     assert($f[5][2] == $e);
 
-    //$e($a);
-    //$e($b);
-    //$e($c);
-    //$e($d);
-    //$e($e);
-    //$f[5][2]($f[5][2]);
-    //@print($d);
-    //@print(function);
+    $e($a);
+    $e($b);
+    $e($c);
+    $e($d);
+    $e($e);
+    $f[5][2]($f[5][2]);
+    @print($d);
+    @print(function);
 
     $g = function($rt, $as, $we)
     {
@@ -318,7 +318,7 @@ function objectTest()
 	assert($c == 789);
 	assert($d == "hello!");
 
-	//print($obj);
+	print($obj);
 	print("---");
 }
 
@@ -341,7 +341,7 @@ function userDataTest()
 function localTest()
 {
     local $y = "This is a string!";
-    //print($y);
+    print($y);
 }
 
 function refCycleTest()
@@ -354,4 +354,20 @@ function refCycleTest()
 	$y[0][0] = $y;
 
 	print("---");
+}
+
+function channelTest()
+{
+	local $x = <>;
+	$x push 456;
+	$x push "This is a string!";
+	$x push [1];
+
+	local $first pop $x;
+	local $second pop $x;
+	local $third pop $x;
+
+	assert ($first == 456);
+	assert ($second == "This is a string!");
+	assert ($third is array);
 }

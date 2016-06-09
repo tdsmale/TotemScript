@@ -198,6 +198,7 @@ extern "C" {
         totemGCObjectType_Coroutine,
         totemGCObjectType_Object,
         totemGCObjectType_Userdata,
+        totemGCObjectType_Channel,
     };
     typedef uint8_t totemGCObjectType;
     const char *totemGCObjectType_Describe(totemGCObjectType);
@@ -226,6 +227,22 @@ extern "C" {
     }
     totemUserdata;
     
+    typedef struct totemChannelNode
+    {
+        totemRegister Value;
+        struct totemChannelNode *Next;
+    }
+    totemChannelNode;
+    
+    typedef struct
+    {
+        totemLock Lock;
+        totemChannelNode *Head;
+        totemChannelNode *Tail;
+        size_t Count;
+    }
+    totemChannel;
+    
     typedef struct totemGCObject
     {
         union
@@ -234,6 +251,7 @@ extern "C" {
             totemFunctionCall *Coroutine;
             totemObject *Object;
             totemUserdata *Userdata;
+            totemChannel *Channel;
         };
         volatile int64_t RefCount;
         volatile int64_t CycleDetectCount;
@@ -249,6 +267,7 @@ extern "C" {
     totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOperandXUnsigned functionAddress, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateObject(totemExecState *state, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateArray(totemExecState *state, uint32_t numRegisters, totemGCObject **objOut);
+    totemExecStatus totemExecState_CreateChannel(totemExecState *state, totemGCObject **gcOut);
     totemExecStatus totemExecState_CreateUserdata(totemExecState *state, uint64_t data, totemUserdataDestructor destructor, totemGCObject **gcOut);
     totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, totemRegister *registers, uint32_t numRegisters, totemGCObject **objOut);
     totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc);
@@ -257,7 +276,7 @@ extern "C" {
     void totemExecState_DestroyCoroutine(totemExecState *state, totemFunctionCall *co);
     void totemExecState_DestroyObject(totemExecState *state, totemObject *obj);
     void totemExecState_DestroyUserdata(totemExecState *state, totemUserdata *obj);
-    totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut);
+    void totemExecState_DestroyChannel(totemExecState *state, totemChannel *obj);
     void totemExecState_CollectGarbage(totemExecState *state);
     
     /**
@@ -293,6 +312,9 @@ extern "C" {
     void totemExecState_ExecIs(totemExecState *state);
     void totemExecState_ExecAs(totemExecState *state);
     void totemExecState_ExecFunctionPointer(totemExecState *state);
+    void totemExecState_ExecNewChannel(totemExecState *state);
+    void totemExecState_ExecPop(totemExecState *state);
+    void totemExecState_ExecPush(totemExecState *state);
     
     totemFunctionCall *totemExecState_SecureFunctionCall(totemExecState *state);
     void totemExecState_FreeFunctionCall(totemExecState *state, totemFunctionCall *call);
@@ -310,6 +332,10 @@ extern "C" {
     totemExecStatus totemExecState_FunctionPointerToString(totemExecState *state, totemFunctionPointer *ptr, totemRegister *strOut);
     totemExecStatus totemExecState_ArrayToString(totemExecState *state, totemArray *arr, totemRegister *strOut);
     totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, totemRegister *src, totemRegister *dst);
+    totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut);
+    
+    totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel *dst, totemRegister *src);
+    totemExecStatus totemExecState_PopFromChannel(totemExecState *state, totemChannel *src, totemRegister *dst);
     
     totemExecStatus totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src);
     void totemExecState_AssignNewInt(totemExecState *state, totemRegister *dst, totemInt newVal);
@@ -322,8 +348,9 @@ extern "C" {
     void totemExecState_AssignNewCoroutine(totemExecState *state, totemRegister *dst, totemGCObject *newVal);
     void totemExecState_AssignNewObject(totemExecState *state, totemRegister *dst, totemGCObject *newVal);
     void totemExecState_AssignNewUserdata(totemExecState *state, totemRegister *dst, totemGCObject *newVal);
+    void totemExecState_AssignNewChannel(totemExecState *state, totemRegister *dst, totemGCObject *newVal);
     
-#define TOTEM_REGISTER_ISGC(x) ((x)->DataType >= totemPrivateDataType_Array && (x)->DataType <= totemPrivateDataType_Userdata)
+#define TOTEM_REGISTER_ISGC(x) ((x)->DataType >= totemPrivateDataType_Array && (x)->DataType <= totemPrivateDataType_Channel)
 #define TOTEM_EXEC_CHECKRETURN(x) { totemExecStatus status = x; if(status != totemExecStatus_Continue) return status; }
     
 #ifdef __cplusplus

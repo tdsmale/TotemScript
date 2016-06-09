@@ -13,12 +13,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
-
-#if _WIN32
-#include <Windows.h>
-#else
-#include <pthread.h>
-#endif
+#include <TotemScript/platform.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -196,7 +191,8 @@ extern "C" {
         totemPrivateDataType_Coroutine = 7,
         totemPrivateDataType_Object = 8,
         totemPrivateDataType_Userdata = 9,
-        totemPrivateDataType_Max = 10
+        totemPrivateDataType_Channel = 10,
+        totemPrivateDataType_Max = 11
     };
     typedef uint8_t totemPrivateDataType;
     
@@ -215,7 +211,8 @@ extern "C" {
         totemPublicDataType_Coroutine = 6,
         totemPublicDataType_Object = 7,
         totemPublicDataType_Userdata = 8,
-        totemPublicDataType_Max = 9
+        totemPublicDataType_Channel = 9,
+        totemPublicDataType_Max = 10
     }
     totemPublicDataType;
     
@@ -268,14 +265,17 @@ extern "C" {
         totemOperationType_FunctionArg = 15,        // A is register to pass, Bx is number of arguments total
         totemOperationType_Return = 16,             // return A,
         totemOperationType_NewArray = 17,           // A = array of size B
-        totemOperationType_ArrayGet = 18,           // A = B[C]
-        totemOperationType_ArraySet = 19,           // A[B] = C
+        totemOperationType_ComplexGet = 18,         // A = B[C]
+        totemOperationType_ComplexSet = 19,         // A[B] = C
         totemOperationType_MoveToLocal = 20,        // A = Bx
         totemOperationType_MoveToGlobal = 21,       // Bx = A
         totemOperationType_Is = 22,                 // A = B is C
         totemOperationType_As = 23,                 // A = B as C
         totemOperationType_FunctionPointer = 24,	// A = B()
         totemOperationType_NewObject = 25,			// A = new object
+        totemOperationType_NewChannel = 26,			// A = new channel
+        totemOperationType_Push = 27,				// A << B
+        totemOperationType_Pop = 28,				// A >> B
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;
@@ -470,35 +470,6 @@ extern "C" {
     FILE *totem_fopen(const char *str, const char *mode);
     totemBool totem_fchdir(FILE *file);
     totemBool totem_chdir(const char *str);
-    
-#if _WIN32
-#define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
-#else
-#define totem_snprintf snprintf
-#endif
-    
-#if _WIN32
-    typedef struct
-    {
-        CRITICAL_SECTION Lock;
-    }
-    totemLock;
-#else
-    typedef struct
-    {
-        pthread_mutex_t Lock;
-    }
-    totemLock;
-#endif
-    
-    void totemLock_Init(totemLock *lock);
-    void totemLock_Cleanup(totemLock *lock);
-    void totemLock_Acquire(totemLock *lock);
-    void totemLock_Release(totemLock *lock);
-    
-    int64_t totem_AtomicInc64(volatile int64_t *val);
-    int64_t totem_AtomicDec64(volatile int64_t *val);
-    int64_t totem_AtomicSet64(volatile int64_t *val, int64_t add);
     
 #define totem_setjmp(jmp) setjmp((int*)jmp)
 #define totem_longjmp(jmp) longjmp((int*)jmp, 1)

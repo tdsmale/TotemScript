@@ -480,6 +480,7 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
             
         case totemArgumentType_NewArray:
         case totemArgumentType_NewObject:
+        case totemArgumentType_NewChannel:
             break;
     }
     
@@ -843,7 +844,7 @@ totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement,
 
 totemEvalStatus totemBuildPrototype_EvalArrayAccessEnd(totemBuildPrototype *build, totemOperandRegisterPrototype *lValue, totemOperandRegisterPrototype *lValueSrc, totemOperandRegisterPrototype *arrIndex)
 {
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, lValueSrc, arrIndex, lValue, totemOperationType_ArraySet));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, lValueSrc, arrIndex, lValue, totemOperationType_ComplexSet));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, arrIndex));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, lValueSrc));
     
@@ -1000,7 +1001,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, &lValue));
                 }
                 
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &lValueSrc, &arrIndex, totemOperationType_ArrayGet));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &lValueSrc, &arrIndex, totemOperationType_ComplexGet));
                 
                 lValueScope = totemBuildPrototype_GetRegisterList(build, lValue.RegisterScopeType);
                 totemRegisterListPrototype_GetRegisterFlags(lValueScope, lValue.RegisterIndex, &lValueFlags);
@@ -1166,6 +1167,18 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
             
             switch(expression->BinaryOperator)
             {
+                case totemBinaryOperatorType_Push:
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &rValue, &rValue, totemOperationType_Push));
+                    memcpy(result, &lValue, sizeof(totemOperandRegisterPrototype));
+                    break;
+                    
+                case totemBinaryOperatorType_Pop:
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &rValue, &rValue, totemOperationType_Pop));
+                    memcpy(result, &lValue, sizeof(totemOperandRegisterPrototype));
+                    break;
+                    
                 case totemBinaryOperatorType_Plus:
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, result, &lValue, &rValue, totemOperationType_Add));
@@ -1304,6 +1317,20 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     return totemEvalStatus_Success;
 }
 
+totemEvalStatus totemArgumentPrototype_EvalHint(totemBuildPrototype *build, totemOperandRegisterPrototype *value, totemOperandRegisterPrototype *hint)
+{
+    if (hint)
+    {
+        memcpy(value, hint, sizeof(totemOperandRegisterPrototype));
+    }
+    else
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, value));
+    }
+    
+    return totemEvalStatus_Success;
+}
+
 totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemOperandRegisterPrototype *hint,  totemOperandRegisterPrototype *value, totemEvalVariableFlag flags)
 {
     // evaluate argument to register
@@ -1342,8 +1369,12 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
             return totemNewArrayPrototype_Eval(argument->NewArray, build, hint, value);
             
         case totemArgumentType_NewObject:
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, value));
+            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalHint(build, value, hint));
             return totemBuildPrototype_EvalAbcInstruction(build, value, value, value, totemOperationType_NewObject);
+            
+        case totemArgumentType_NewChannel:
+            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalHint(build, value, hint));
+            return totemBuildPrototype_EvalAbcInstruction(build, value, value, value, totemOperationType_NewChannel);
     }
     
     return totemEvalStatus_Success;
@@ -1355,16 +1386,7 @@ totemEvalStatus totemNewArrayPrototype_Eval(totemNewArrayPrototype *newArray, to
     memset(&c, 0, sizeof(totemOperandRegisterPrototype));
     
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(newArray->Accessor, build, NULL, &arraySize, totemEvalVariableFlag_None));
-    
-    if(hint)
-    {
-        memcpy(value, hint, sizeof(totemOperandRegisterPrototype));
-    }
-    else
-    {
-        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, value));
-    }
-    
+    TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalHint(build, value, hint));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &arraySize, &c, totemOperationType_NewArray));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &arraySize));
     
@@ -1538,15 +1560,7 @@ totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *func
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionName(build, &functionCall->Identifier, &funcInfo));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionPointer(build, &funcInfo, &funcPtrReg));
     
-    if(hint)
-    {
-        memcpy(result, hint, sizeof(totemOperandRegisterPrototype));
-    }
-    else
-    {
-        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
-    }
-    
+    TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalHint(build, result, hint));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionArgumentsBegin(build, functionCall->ParametersStart));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, result, &funcPtrReg, &funcPtrReg, totemOperationType_FunctionPointer));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionArgumentsEnd(build));

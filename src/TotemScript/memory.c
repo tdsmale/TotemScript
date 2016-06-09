@@ -102,6 +102,12 @@ void totem_SetMemoryCallbacks(totemMallocCb newMallocCb, totemFreeCb newFreeCb)
     freeCb = newFreeCb;
 }
 
+void *totem_memcpy(char *dst, const void *src, size_t len)
+{
+    memcpy((void*)dst, src, len);
+    return dst + len;
+}
+
 totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount)
 {
     if(amount > TOTEM_MEM_PAGESIZE)

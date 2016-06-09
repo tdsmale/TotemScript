@@ -9,7 +9,7 @@
 #include <string.h>
 
 #define TOTEM_EXEC_ARRAYSIZE(numRegisters) (sizeof(totemArray) + (sizeof(totemRegister) * (numRegisters - 1)))
-#define TOTEM_REGISTER_DECIFGC(dst) if (TOTEM_REGISTER_ISGC(dst)) totemExecState_DecRefCount(state, dst->Value.GCObject);
+#define TOTEM_REGISTER_DECIFGC(dst) if (TOTEM_REGISTER_ISGC(dst)) totemExecState_DecRefCount(state, (dst)->Value.GCObject);
 
 totemExecStatus totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src)
 {
@@ -84,6 +84,15 @@ void totemExecState_AssignNewUserdata(totemExecState *state, totemRegister *dst,
 {
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Userdata;
+    dst->Value.GCObject = newVal;
+    
+    totemExecState_IncRefCount(state, dst->Value.GCObject);
+}
+
+void totemExecState_AssignNewChannel(totemExecState *state, totemRegister *dst, totemGCObject *newVal)
+{
+    TOTEM_REGISTER_DECIFGC(dst);
+    dst->DataType = totemPrivateDataType_Channel;
     dst->Value.GCObject = newVal;
     
     totemExecState_IncRefCount(state, dst->Value.GCObject);
@@ -209,6 +218,10 @@ totemExecStatus totemExecState_TypeToString(totemExecState *state, totemPublicDa
             
         case totemPublicDataType_Object:
             totemString_FromLiteral(&str, "object");
+            break;
+            
+        case totemPublicDataType_Channel:
+            totemString_FromLiteral(&str, "channel");
             break;
             
         default:
@@ -437,6 +450,29 @@ totemExecStatus totemExecState_CreateObject(totemExecState *state, totemGCObject
     return totemExecStatus_Continue;
 }
 
+totemExecStatus totemExecState_CreateChannel(totemExecState *state, totemGCObject **gcOut)
+{
+    totemChannel *obj = totem_CacheMalloc(sizeof(totemChannel));
+    if (!obj)
+    {
+        return totemExecStatus_Break(totemExecStatus_OutOfMemory);
+    }
+    
+    memset(obj, 0, sizeof(*obj));
+    totemLock_Init(&obj->Lock);
+    
+    totemGCObject *gc = totemExecState_CreateGCObject(state, totemGCObjectType_Channel);
+    if (!gc)
+    {
+        totem_CacheFree(obj, sizeof(*obj));
+        return totemExecStatus_Break(totemExecStatus_OutOfMemory);
+    }
+    
+    gc->Channel = obj;
+    *gcOut = gc;
+    return totemExecStatus_Continue;
+}
+
 totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOperandXUnsigned address, totemGCObject **gcOut)
 {
     totemScriptFunction *func = totemMemoryBuffer_Get(&state->CallStack->CurrentActor->Script->Functions, address);
@@ -532,4 +568,83 @@ void totemExecState_DestroyUserdata(totemExecState *state, totemUserdata *data)
     }
     
     totem_CacheFree(data, sizeof(totemUserdata));
+}
+
+totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel *dst, totemRegister *src)
+{
+    totemExecStatus status = totemExecStatus_Continue;
+    totemLock_Acquire(&dst->Lock);
+    
+    totemChannelNode *newNode = totem_CacheMalloc(sizeof(totemChannelNode));
+    if (!newNode)
+    {
+        status = totemExecStatus_OutOfMemory;
+    }
+    else
+    {
+        memset(newNode, 0, sizeof(*newNode));
+        status = totemExecState_Assign(state, &newNode->Value, src);
+        if (status != totemExecStatus_Continue)
+        {
+            totem_CacheFree(newNode, sizeof(*newNode));
+        }
+        else
+        {
+            if (dst->Tail)
+            {
+                dst->Tail->Next = newNode;
+            }
+            
+            dst->Tail = newNode;
+            dst->Count++;
+            
+            if (!dst->Head)
+            {
+                dst->Head = newNode;
+            }
+        }
+    }
+    
+    totemLock_Release(&dst->Lock);
+    return status;
+}
+
+totemExecStatus totemExecState_PopFromChannel(totemExecState *state, totemChannel *src, totemRegister *dst)
+{
+    totemExecStatus status = totemExecStatus_Continue;
+    totemLock_Acquire(&src->Lock);
+    
+    if (src->Head)
+    {
+        totemChannelNode *node = src->Head;
+        src->Head = node->Next;
+        src->Count--;
+        
+        if (!src->Head)
+        {
+            src->Tail = NULL;
+        }
+        
+        status = totemExecState_Assign(state, dst, &node->Value);
+        TOTEM_REGISTER_DECIFGC(&node->Value);
+        totem_CacheFree(node, sizeof(*node));
+    }
+    
+    totemLock_Release(&src->Lock);
+    return status;
+}
+
+void totemExecState_DestroyChannel(totemExecState *state, totemChannel *obj)
+{
+    while (obj->Head)
+    {
+        totemChannelNode *node = obj->Head;
+        obj->Head = node->Next;
+        
+        TOTEM_REGISTER_DECIFGC(&node->Value);
+        totem_CacheFree(node, sizeof(totemChannelNode));
+    }
+    
+    totemLock_Cleanup(&obj->Lock);
+    totem_CacheFree(obj, sizeof(totemChannel));
 }
