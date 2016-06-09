@@ -573,7 +573,6 @@ void totemExecState_DestroyUserdata(totemExecState *state, totemUserdata *data)
 totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel *dst, totemRegister *src)
 {
     totemExecStatus status = totemExecStatus_Continue;
-    totemLock_Acquire(&dst->Lock);
     
     totemChannelNode *newNode = totem_CacheMalloc(sizeof(totemChannelNode));
     if (!newNode)
@@ -590,6 +589,8 @@ totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel
         }
         else
         {
+			totemLock_Acquire(&dst->Lock);
+
             if (dst->Tail)
             {
                 dst->Tail->Next = newNode;
@@ -602,35 +603,43 @@ totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel
             {
                 dst->Head = newNode;
             }
+
+			totemLock_Release(&dst->Lock);
         }
     }
     
-    totemLock_Release(&dst->Lock);
     return status;
 }
 
 totemExecStatus totemExecState_PopFromChannel(totemExecState *state, totemChannel *src, totemRegister *dst)
 {
     totemExecStatus status = totemExecStatus_Continue;
-    totemLock_Acquire(&src->Lock);
-    
+	totemChannelNode *node = NULL;
+
+	totemLock_Acquire(&src->Lock);
+
     if (src->Head)
     {
         totemChannelNode *node = src->Head;
-        src->Head = node->Next;
-        src->Count--;
-        
-        if (!src->Head)
-        {
-            src->Tail = NULL;
-        }
-        
-        status = totemExecState_Assign(state, dst, &node->Value);
-        TOTEM_REGISTER_DECIFGC(&node->Value);
-        totem_CacheFree(node, sizeof(*node));
+		
+		src->Head = node->Next;
+		src->Count--;
+
+		if (!src->Head)
+		{
+			src->Tail = NULL;
+		}
     }
+
+	totemLock_Release(&src->Lock);
+
+	if (node)
+	{
+		status = totemExecState_Assign(state, dst, &node->Value);
+		TOTEM_REGISTER_DECIFGC(&node->Value);
+		totem_CacheFree(node, sizeof(*node));
+	}
     
-    totemLock_Release(&src->Lock);
     return status;
 }
 

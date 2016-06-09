@@ -191,7 +191,7 @@ $func = function($ch)
     print($msg);
     $msg << $ch;
     print($msg);
-    $ch push "All done!";
+    $ch << "All done!";
 };
 
 createThreadExample($func, $channel);
