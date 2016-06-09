@@ -80,9 +80,6 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Object, "object"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Local, "local"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Userdata, "userdata"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Push, "push"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Pop, "pop"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Peek, "peek"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Channel, "channel"),
 };
 
@@ -447,9 +444,6 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_While);
             TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
             TOTEM_STRINGIFY_CASE(totemTokenType_Channel);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Push);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Peek);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Pop);
     }
     
     return "UNKNOWN";

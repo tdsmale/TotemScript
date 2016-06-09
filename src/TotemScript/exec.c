@@ -19,7 +19,7 @@
 
 #define TOTEM_EXEC_BREAK(x, state) { totemExecStatus status = x; if(status != totemExecStatus_Continue) totemExecState_Break(state, status); }
 
-#if 0
+#if 1
 #define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, state) \
 { \
     totemInstruction_Print(stdout, (ins)); \
@@ -889,8 +889,8 @@ void totemExecState_ExecNewChannel(totemExecState *state)
 void totemExecState_ExecPush(totemExecState *state)
 {
     totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
-    totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
+    totemRegister *src = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
+    totemRegister *dst = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
     
     if (dst->DataType != totemPrivateDataType_Channel)
     {
@@ -910,7 +910,7 @@ void totemExecState_ExecPop(totemExecState *state)
     
     if (src->DataType != totemPrivateDataType_Channel)
     {
-        totemExecState_Break(state, totemEvalStatus_InvalidDataType);
+        totemExecState_Break(state, totemExecStatus_UnexpectedDataType);
     }
     
     TOTEM_EXEC_BREAK(totemExecState_PopFromChannel(state, src->Value.GCObject->Channel, dst), state);

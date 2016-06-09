@@ -250,9 +250,6 @@ extern "C" {
         totemTokenType_Coroutine,
         totemTokenType_Local,
         totemTokenType_Userdata,
-        totemTokenType_Push,
-        totemTokenType_Pop,
-        totemTokenType_Peek,
         totemTokenType_Channel,
         totemTokenType_Max
     }

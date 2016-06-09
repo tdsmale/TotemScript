@@ -359,13 +359,14 @@ function refCycleTest()
 function channelTest()
 {
 	local $x = <>;
-	$x push 456;
-	$x push "This is a string!";
-	$x push [1];
 
-	local $first pop $x;
-	local $second pop $x;
-	local $third pop $x;
+    456 >> $x;
+    "This is a string!" >> $x;
+    [1] >> $x;
+
+	local $first << $x;
+	local $second << $x;
+	local $third << $x;
 
 	assert ($first == 456);
 	assert ($second == "This is a string!");

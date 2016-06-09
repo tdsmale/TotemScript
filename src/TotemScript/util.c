@@ -455,7 +455,7 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
             break;
             
         case totemPrivateDataType_Channel:
-            fprintf(file, "%s: %i values\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.GCObject->Channel->Count);
+            fprintf(file, "%s: %i values\n", totemPrivateDataType_Describe(reg->DataType), (int)reg->Value.GCObject->Channel->Count);
             break;
             
         default:

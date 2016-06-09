@@ -181,14 +181,15 @@ $co = 123;
 $channel = <>;
 
 // Push messages in the order they should be received
-$channel push "This is the first message!";
-$channel push "123.45;
+"This is the first message!" >> $channel;
+123.45 >> $channel;
 
 $func = function($ch)
 {
-    $msg pop $ch;
+    // Pop messages off channel in the order they were sent
+    $msg << $ch;
     print($msg);
-    $msg pop $ch;
+    $msg << $ch;
     print($msg);
     $ch push "All done!";
 };

@@ -670,6 +670,11 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
                 *type = totemBinaryOperatorType_MoreThanEquals;
                 break;
                 
+            case totemTokenType_MoreThan:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+                *type = totemBinaryOperatorType_Push;
+                break;
+                
             default:
                 *type = totemBinaryOperatorType_MoreThan;
                 break;
@@ -685,6 +690,11 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             case totemTokenType_Assign:
                 TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
                 *type = totemBinaryOperatorType_LessThanEquals;
+                break;
+                
+            case totemTokenType_LessThan:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+                *type = totemBinaryOperatorType_Pop;
                 break;
                 
             default:
@@ -784,16 +794,6 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
         case totemTokenType_As:
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             *type = totemBinaryOperatorType_AsType;
-            return totemParseStatus_Success;
-            
-        case totemTokenType_Push:
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-            *type = totemBinaryOperatorType_Push;
-            return totemParseStatus_Success;
-            
-        case totemTokenType_Pop:
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-            *type = totemBinaryOperatorType_Pop;
             return totemParseStatus_Success;
             
         case totemTokenType_Not:
