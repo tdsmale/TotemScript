@@ -63,6 +63,19 @@
 #define TOTEM_POSIX
 #endif // linux
 
+// visual studio compiler
+#ifdef _MSC_VER
+#define TOTEM_INLINE __forceinline
+#define TOTEM_CDECL _cdecl
+#endif
+
+// clang
+#ifdef __clang__
+#define TOTEM_INLINE __attribute__((always_inline))
+#define TOTEM_CDECL __attribute__((cdecl))
+#endif
+
+// winlib
 #ifdef TOTEM_WIN
 #include <Windows.h>
 #include <direct.h>
@@ -84,6 +97,7 @@
 #define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
 #endif
 
+// apple
 #ifdef TOTEM_APPLE
 #include <sys/syslimits.h>
 #include <fcntl.h>
@@ -94,6 +108,7 @@
 #define totem_snprintf snprintf
 #endif
 
+// posix
 #ifdef TOTEM_POSIX
 #include <pthread.h>
 #include <unistd.h>

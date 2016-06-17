@@ -181,15 +181,15 @@ $co = 123;
 $channel = <>;
 
 // Push messages in the order they should be received
-"This is the first message!" >> $channel;
-123.45 >> $channel;
+$channel << "This is the first message!";
+$channel << 123.45;
 
 $func = function($ch)
 {
     // Pop messages off channel in the order they were sent
-    $msg << $ch;
+    $ch >> local $msg;
     print($msg);
-    $msg << $ch;
+    $ch >> $msg;
     print($msg);
     $ch << "All done!";
 };
@@ -205,7 +205,7 @@ createThreadExample($func, $channel);
 * function arg improvements
  * default arguments for functions e.g. function call($x: 123, $y: 456);
  * specify argument name in direct function calls, e.g. $x = call($y: 123, $x: 456);
-
+ 
 #### Runtime Improvements
 * bytecode serialisation
  * check register & function addresses, function arguments
@@ -216,5 +216,3 @@ createThreadExample($func, $channel);
  * lookup first instruction at given line of source code, replace with breakpoint instruction, store original
  * call user-supplied callback, then execute original instruction
 * line/char/len numbers for eval, link & exec errors
-* better built-in support for concurrency
- * function pointers must reference actor

@@ -360,13 +360,13 @@ function channelTest()
 {
 	local $x = <>;
 
-    456 >> $x;
-    "This is a string!" >> $x;
-    [1] >> $x;
+	$x << 456;
+    $x << "This is a string!";
+    $x << [1];
 
-	local $first << $x;
-	local $second << $x;
-	local $third << $x;
+	$x >> local $first;
+	$x >> local $second;
+	$x >> local $third;
 
 	assert ($first == 456);
 	assert ($second == "This is a string!");

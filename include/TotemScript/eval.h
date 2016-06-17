@@ -71,7 +71,22 @@ extern "C" {
     
     typedef struct
     {
-        totemRegisterValue Value;
+        totemOperandXUnsigned Address;
+        totemFunctionType Type;
+    }
+    totemFunctionPointerPrototype;
+    
+    typedef struct
+    {
+        union
+        {
+            totemFloat Float;
+            totemInt Int;
+            totemString *String;
+            totemFunctionPointerPrototype FunctionPointer;
+            totemPublicDataType TypeValue;
+        };
+        //totemRegisterValue Value;
         size_t RefCount;
         totemOperandXUnsigned GlobalAssoc;
         totemPublicDataType DataType;
@@ -128,7 +143,7 @@ extern "C" {
     totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *prototype);
     totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPrototype *list, totemString *number, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPrototype *list, totemString *buffer, totemOperandRegisterPrototype *operand);
-    totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemFunctionPointer *value, totemOperandRegisterPrototype *operand);
+    totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemFunctionPointerPrototype *value, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *list, totemPublicDataType type, totemOperandRegisterPrototype *op);
     
     totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand);
@@ -170,6 +185,14 @@ extern "C" {
     totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, totemBuildPrototype *build, totemEvalVariableFlag varFlags);
     totemEvalStatus totemFunctionCallPrototype_EvalValues(totemFunctionCallPrototype *call, totemBuildPrototype *build);
     totemEvalStatus totemVariablePrototype_EvalValues(totemVariablePrototype *call, totemBuildPrototype *build, totemEvalVariableFlag varFlags);
+    
+    totemEvalStatus totemBuildPrototype_EvalNumber(totemBuildPrototype *build, totemString *number, totemOperandRegisterPrototype *operand);
+    totemEvalStatus totemBuildPrototype_EvalString(totemBuildPrototype *build, totemString *buffer, totemOperandRegisterPrototype *operand);
+    totemEvalStatus totemBuildPrototype_EvalFunctionName(totemBuildPrototype *build, totemString *name, totemFunctionPointerPrototype *func);
+    totemEvalStatus totemBuildPrototype_EvalFunctionPointer(totemBuildPrototype *build, totemFunctionPointerPrototype *value, totemOperandRegisterPrototype *op);
+    totemEvalStatus totemBuildPrototype_EvalAnonymousFunction(totemBuildPrototype *build, totemFunctionDeclarationPrototype *func, totemOperandRegisterPrototype *op);
+    totemEvalStatus totemBuildPrototype_EvalNamedFunctionPointer(totemBuildPrototype *build, totemString *name, totemOperandRegisterPrototype *op);
+    totemEvalStatus totemBuildPrototype_EvalType(totemBuildPrototype *build, totemPublicDataType type, totemOperandRegisterPrototype *operand);
     
     totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationPrototype *function, totemBuildPrototype *build);
     totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement, totemBuildPrototype *build);

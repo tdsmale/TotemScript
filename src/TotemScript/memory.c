@@ -102,12 +102,6 @@ void totem_SetMemoryCallbacks(totemMallocCb newMallocCb, totemFreeCb newFreeCb)
     freeCb = newFreeCb;
 }
 
-void *totem_memcpy(char *dst, const void *src, size_t len)
-{
-    memcpy((void*)dst, src, len);
-    return dst + len;
-}
-
 totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount)
 {
     if(amount > TOTEM_MEM_PAGESIZE)
@@ -209,8 +203,10 @@ void totem_CacheFree(void *ptr, size_t amount)
     totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount);
     totemMemoryPageObject *obj = ptr;
     
+    totemLock_Acquire(&freeList->Lock);
     obj->Next = freeList->HeadObject;
     freeList->HeadObject = obj;
+    totemLock_Release(&freeList->Lock);
 }
 
 void totemMemoryBlock_Cleanup(totemMemoryBlock **blockHead)

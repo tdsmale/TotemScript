@@ -18,13 +18,15 @@
 extern "C" {
 #endif
     
+#define TOTEM_EXECSTEP TOTEM_INLINE void TOTEM_CDECL
+    
     typedef enum
     {
         totemExecStatus_Continue,
         totemExecStatus_Return,
         totemExecStatus_Stop,
         totemExecStatus_ScriptNotFound,
-        totemExecStatus_ScriptFunctionNotFound,
+        totemExecStatus_InstanceFunctionNotFound,
         totemExecStatus_NativeFunctionNotFound,
         totemExecStatus_UnexpectedDataType,
         totemExecStatus_InvalidKey,
@@ -80,17 +82,36 @@ extern "C" {
     
     typedef struct
     {
+        totemMemoryBuffer LocalFunctions;
         totemMemoryBuffer GlobalRegisters;
         totemScript *Script;
     }
-    totemActor;
+    totemInstance;
     
-    typedef struct
+    typedef struct totemScriptFunction
     {
         size_t InstructionsStart;
+        totemOperandXUnsigned Address;
         uint8_t RegistersNeeded;
     }
     totemScriptFunction;
+    
+    typedef struct
+    {
+        totemScriptFunction *Function;
+        totemInstance *Instance;
+    }
+    totemInstanceFunction;
+    
+    struct totemExecState;
+    typedef totemExecStatus(*totemNativeFunctionCb)(struct totemExecState*);
+    
+    typedef struct
+    {
+        totemNativeFunctionCb Callback;
+        totemOperandXUnsigned Address;
+    }
+    totemNativeFunction;
     
     typedef enum
     {
@@ -100,17 +121,70 @@ extern "C" {
     }
     totemFunctionCallFlag;
     
+    enum
+    {
+        totemPrivateDataType_Int = 0,
+        totemPrivateDataType_Float = 1,
+        totemPrivateDataType_InternedString = 2,
+        totemPrivateDataType_Type = 3,
+        totemPrivateDataType_NativeFunction = 4,
+        totemPrivateDataType_InstanceFunction = 5,
+        totemPrivateDataType_MiniString = 6,
+        totemPrivateDataType_Array = 7,
+        totemPrivateDataType_Coroutine = 8,
+        totemPrivateDataType_Object = 9,
+        totemPrivateDataType_Userdata = 10,
+        totemPrivateDataType_Channel = 11,
+        totemPrivateDataType_Max = 12
+    };
+    typedef uint8_t totemPrivateDataType;
+    
+    const char *totemPrivateDataType_Describe(totemPrivateDataType type);
+#define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
+    
+    totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type);
+    
+    typedef union
+    {
+        totemFloat Float;
+        totemInt Int;
+        totemInternedStringHeader *InternedString;
+        totemRuntimeMiniString MiniString;
+        struct totemGCObject *GCObject;
+        uint64_t Data;
+        totemNativeFunction *NativeFunction;
+        totemInstanceFunction *InstanceFunction;
+        totemPublicDataType DataType;
+    }
+    totemRegisterValue;
+    
+    typedef struct totemRegister
+    {
+        totemRegisterValue Value;
+        totemPrivateDataType DataType;
+    }
+    totemRegister;
+    
+    const char *totemRegister_GetStringValue(totemRegister *reg);
+    totemStringLength totemRegister_GetStringLength(totemRegister *reg);
+    totemHash totemRegister_GetStringHash(totemRegister *reg);
+    
     typedef struct totemFunctionCall
     {
         int *Break;
         totemExecStatus BreakStatus;
         struct totemFunctionCall *Prev;
-        totemActor *CurrentActor;
+        totemInstance *CurrentInstance;
         totemRegister *ReturnRegister;
         totemRegister *PreviousFrameStart;
         totemRegister *FrameStart;
         totemInstruction *ResumeAt;
-        totemOperandXUnsigned FunctionHandle;
+        union
+        {
+            totemInstanceFunction *InstanceFunction;
+            totemNativeFunction *NativeFunction;
+            void *Function;
+        };
         totemFunctionType Type;
         totemFunctionCallFlag Flags;
         uint8_t NumRegisters;
@@ -171,25 +245,25 @@ extern "C" {
     }
     totemInterpreter;
     
-    typedef totemExecStatus(*totemNativeFunction)(totemExecState*);
-    
-    void totemActor_Init(totemActor *actor);
-    void totemActor_Reset(totemActor *actor);
-    void totemActor_Cleanup(totemActor *actor);
+    void totemInstance_Init(totemInstance *instance);
+    void totemInstance_Reset(totemInstance *instance);
+    void totemInstance_Cleanup(totemInstance *instance);
     
     void totemScript_Init(totemScript *script);
     void totemScript_Reset(totemScript *script);
     void totemScript_Cleanup(totemScript *script);
-    totemLinkStatus totemScript_LinkActor(totemScript *script, totemActor *actor);
+    totemBool totemScript_GetFunctionName(totemScript *script, totemOperandXUnsigned addr, totemRegisterValue *valOut, totemPrivateDataType *dataTypeOut);
+    totemLinkStatus totemScript_LinkInstance(totemScript *script, totemInstance *instance);
     
     void totemRuntime_Init(totemRuntime *runtime);
     void totemRuntime_Reset(totemRuntime *runtime);
     void totemRuntime_Cleanup(totemRuntime *runtime);
     totemLinkStatus totemRuntime_LinkExecState(totemRuntime *runtime, totemExecState *state, size_t numRegisters);
     totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemScript *scriptOut);
-    totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunction func, totemString *name, totemOperandXUnsigned *addressOut);
+    totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunctionCb func, totemString *name, totemOperandXUnsigned *addressOut);
     totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegisterValue *valOut, totemPrivateDataType *typeOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, totemOperandXUnsigned *addressOut);
+    totemBool totemRuntime_GetNativeFunctionName(totemRuntime *runtime, totemOperandXUnsigned addr, totemRegisterValue *valOut, totemPrivateDataType *typeOut);
     
     enum
     {
@@ -254,7 +328,7 @@ extern "C" {
             totemChannel *Channel;
         };
         volatile int64_t RefCount;
-        volatile int64_t CycleDetectCount;
+        int64_t CycleDetectCount;
         struct totemGCObject *Prev;
         struct totemGCObject *Next;
         totemExecState *ExecState;
@@ -264,7 +338,7 @@ extern "C" {
     
     totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type);
     totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *gc);
-    totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemOperandXUnsigned functionAddress, totemGCObject **objOut);
+    totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemInstanceFunction *function, totemGCObject **gcOut);
     totemExecStatus totemExecState_CreateObject(totemExecState *state, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateArray(totemExecState *state, uint32_t numRegisters, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateChannel(totemExecState *state, totemGCObject **gcOut);
@@ -284,65 +358,68 @@ extern "C" {
      */
     void totemExecState_Init(totemExecState *state);
     void totemExecState_Cleanup(totemExecState *state);
-    totemExecStatus totemExecState_Exec(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionAddress, totemRegister *returnRegister);
-    totemExecStatus totemExecState_ExecNative(totemExecState *state, totemActor *actor, totemOperandXUnsigned functionHandle, totemRegister *returnRegister);
-    void totemExecState_ExecMove(totemExecState *state);
-    void totemExecState_ExecMoveToGlobal(totemExecState *state);
-    void totemExecState_ExecMoveToLocal(totemExecState *state);
-    void totemExecState_ExecAdd(totemExecState *state);
-    void totemExecState_ExecSubtract(totemExecState *state);
-    void totemExecState_ExecMultiply(totemExecState *state);
-    void totemExecState_ExecDivide(totemExecState *state);
-    void totemExecState_ExecPower(totemExecState *state);
-    void totemExecState_ExecEquals(totemExecState *state);
-    void totemExecState_ExecNotEquals(totemExecState *state);
-    void totemExecState_ExecLessThan(totemExecState *state);
-    void totemExecState_ExecLessThanEquals(totemExecState *state);
-    void totemExecState_ExecMoreThan(totemExecState *state);
-    void totemExecState_ExecMoreThanEquals(totemExecState *state);
-    void totemExecState_ExecReturn(totemExecState *state);
-    void totemExecState_ExecGoto(totemExecState *state);
-    void totemExecState_ExecConditionalGoto(totemExecState *state);
-    void totemExecState_ExecNativeFunction(totemExecState *state);
-    void totemExecState_ExecScriptFunction(totemExecState *state);
-    void totemExecState_ExecNewArray(totemExecState *state);
-    void totemExecState_ExecNewObject(totemExecState *state);
-    void totemExecState_ExecArrayGet(totemExecState *state);
-    void totemExecState_ExecArraySet(totemExecState *state);
-    void totemExecState_ExecIs(totemExecState *state);
-    void totemExecState_ExecAs(totemExecState *state);
-    void totemExecState_ExecFunctionPointer(totemExecState *state);
-    void totemExecState_ExecNewChannel(totemExecState *state);
-    void totemExecState_ExecPop(totemExecState *state);
-    void totemExecState_ExecPush(totemExecState *state);
+    totemExecStatus totemExecState_Exec(totemExecState *state, totemInstanceFunction *function, totemRegister *returnRegister);
+    totemExecStatus totemExecState_ExecNative(totemExecState *state, totemNativeFunction *function, totemRegister *returnRegister);
+    TOTEM_EXECSTEP totemExecState_ExecMove(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecMoveToGlobal(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecMoveToLocal(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecAdd(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecSubtract(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecMultiply(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecDivide(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecPower(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecEquals(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecNotEquals(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecLessThan(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecLessThanEquals(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecMoreThan(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecMoreThanEquals(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecReturn(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecGoto(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecConditionalGoto(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecNewArray(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecNewObject(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecComplexGet(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecComplexSet(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecIs(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecAs(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecFunction(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecNewChannel(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecPop(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecPush(totemExecState *state);
     
     totemFunctionCall *totemExecState_SecureFunctionCall(totemExecState *state);
     void totemExecState_FreeFunctionCall(totemExecState *state, totemFunctionCall *call);
     
     void totemExecState_CleanupRegisterList(totemExecState *state, totemRegister *regs, uint32_t num);
     
-    void totemRegister_Print(FILE *file, totemRegister *reg);
-    void totemRegister_PrintList(FILE *file, totemRegister *regs, size_t numRegisters);
+    void totemExecState_PrintRegister(totemExecState *state, FILE *file, totemRegister *reg);
+    void totemExecState_PrintRegisterList(totemExecState *state, FILE *file, totemRegister *regs, size_t numRegisters);
     
     totemExecStatus totemExecState_ConcatStrings(totemExecState *state, totemRegister *str1, totemRegister *str2, totemRegister *strOut);
     totemExecStatus totemExecState_EmptyString(totemExecState *state, totemRegister *strOut);
     totemExecStatus totemExecState_IntToString(totemExecState *state, totemInt val, totemRegister *strOut);
     totemExecStatus totemExecState_FloatToString(totemExecState *state, totemFloat val, totemRegister *strOut);
     totemExecStatus totemExecState_TypeToString(totemExecState *state, totemPublicDataType type, totemRegister *strOut);
-    totemExecStatus totemExecState_FunctionPointerToString(totemExecState *state, totemFunctionPointer *ptr, totemRegister *strOut);
+    totemExecStatus totemExecState_NativeFunctionToString(totemExecState *state, totemNativeFunction *func, totemRegister *strOut);
+    totemExecStatus totemExecState_InstanceFunctionToString(totemExecState *state, totemInstanceFunction *func, totemRegister *strOut);
     totemExecStatus totemExecState_ArrayToString(totemExecState *state, totemArray *arr, totemRegister *strOut);
-    totemExecStatus totemExecState_StringToFunctionPointer(totemExecState *state, totemRegister *src, totemRegister *dst);
+    totemExecStatus totemExecState_ChannelToString(totemExecState *state, totemChannel *channel, totemRegister *strOut);
+    totemExecStatus totemExecState_CoroutineToString(totemExecState *state, totemFunctionCall *cr, totemRegister *strOut);
+    totemExecStatus totemExecState_StringToFunction(totemExecState *state, totemRegister *src, totemRegister *dst);
     totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut);
     
     totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel *dst, totemRegister *src);
     totemExecStatus totemExecState_PopFromChannel(totemExecState *state, totemChannel *src, totemRegister *dst);
     
     totemExecStatus totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src);
+    void totemExecState_AssignQuick(totemExecState *state, totemRegister *dst, totemRegister *src);
     void totemExecState_AssignNewInt(totemExecState *state, totemRegister *dst, totemInt newVal);
     void totemExecState_AssignNewFloat(totemExecState *state, totemRegister *dst, totemFloat newVal);
     void totemExecState_AssignNewType(totemExecState *state, totemRegister *dst, totemPublicDataType newVal);
     void totemExecState_AssignNewInternedString(totemExecState *state, totemRegister *dst, totemInternedStringHeader *newVal);
-    void totemExecState_AssignNewFunctionPointer(totemExecState *state, totemRegister *dst, totemOperandXUnsigned addr, totemFunctionType type);
+    void totemExecState_AssignNewNativeFunction(totemExecState *state, totemRegister *dst, totemNativeFunction *func);
+    void totemExecState_AssignNewInstanceFunction(totemExecState *state, totemRegister *dst, totemInstanceFunction *func);
     void totemExecState_AssignNewString(totemExecState *state, totemRegister *dst, totemRegister *src);
     void totemExecState_AssignNewArray(totemExecState *state, totemRegister *dst, totemGCObject *newVal);
     void totemExecState_AssignNewCoroutine(totemExecState *state, totemRegister *dst, totemGCObject *newVal);

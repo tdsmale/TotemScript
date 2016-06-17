@@ -43,7 +43,7 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
         }
     }
     
-    reg->Value.Data = 0;
+    reg->Int = 0;
     reg->RefCount = 1;
     reg->GlobalAssoc = 0;
     reg->DataType = totemPublicDataType_Int;
@@ -225,7 +225,7 @@ totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *l
     
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, op->RegisterIndex);
     reg->DataType = totemPublicDataType_Type;
-    reg->Value.DataType = type;
+    reg->TypeValue = type;
     
     list->DataTypes[type] = op->RegisterIndex;
     list->HasDataType[type] = totemBool_True;
@@ -257,7 +257,7 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
         
         reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
         reg->DataType = totemPublicDataType_String;
-        reg->Value.InternedString = (void*)str;
+        reg->String = str;
         TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
         TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
         
@@ -330,12 +330,12 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
         
         if (memchr(number->Value, '.', number->Length) != NULL)
         {
-            reg->Value.Float = atof(number->Value);
+            reg->Float = atof(number->Value);
             reg->DataType = totemPublicDataType_Float;
         }
         else
         {
-            reg->Value.Int = atoi(number->Value);
+            reg->Int = atoi(number->Value);
             reg->DataType = totemPublicDataType_Int;
         }
         
@@ -346,9 +346,9 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemFunctionPointer *value, totemOperandRegisterPrototype *operand)
+totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemFunctionPointerPrototype *value, totemOperandRegisterPrototype *operand)
 {
-    totemHashMapEntry *result = totemHashMap_Find(&list->FunctionPointers, value, sizeof(totemFunctionPointer));
+    totemHashMapEntry *result = totemHashMap_Find(&list->FunctionPointers, value, sizeof(totemFunctionPointerPrototype));
     if (result)
     {
         operand->RegisterIndex = (totemOperandXUnsigned)result->Value;
@@ -363,13 +363,13 @@ totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListP
         return status;
     }
     
-    if (!totemHashMap_Insert(&list->FunctionPointers, value, sizeof(totemFunctionPointer), operand->RegisterIndex))
+    if (!totemHashMap_Insert(&list->FunctionPointers, value, sizeof(totemFunctionPointerPrototype), operand->RegisterIndex))
     {
         return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
     
     totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
-    reg->Value.FunctionPointer = *value;
+    reg->FunctionPointer = *value;
     reg->DataType = totemPublicDataType_Function;
     
     TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);

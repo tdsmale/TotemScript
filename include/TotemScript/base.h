@@ -20,23 +20,9 @@ extern "C" {
 #endif
     
     /**
-     * Register-based
+     Register-based
+     32-bit instruction size
      
-     * Registers are 64-bit & can store:
-     *  - 64-bit floating point number
-     *  - 64-bit int
-     *  - reference to immutable string, stored in global lookup table
-     *  - reference to fixed-sized, garbage-collected, bounds-checked array
-     *  - function pointer
-     *  - null
-     *
-     * Basic arithmetic can only be applied to numbers
-     *
-     * String constants are stored as normal C strings, but are immutable, and are accessed via reference
-     * Registers are passed by value
-     *
-     * 32-bit instruction size
-     *
      -----------------------------------------------------------------------
      |0    4|5                 13|14                22|23                31|
      -----------------------------------------------------------------------
@@ -45,9 +31,7 @@ extern "C" {
      |5     |9                   |9                   |9                   |
      -----------------------------------------------------------------------
      
-     Operands can have two formats:
-     
-     1. Registers:
+     Operands
      ---------------------------
      |0        1|2            9|
      ---------------------------
@@ -57,26 +41,6 @@ extern "C" {
      ---------------------------
      first bit indicates if it is a global register or not
      next eight bits are the register index
-     
-     2. Values:
-     ---------------------------
-     |0                       9|
-     ---------------------------
-     |VALUE                    |
-     ---------------------------
-     |9                        |
-     ---------------------------
-     some operations prefer to utilise the entire 9 bit value
-     
-     
-     Register Headers
-     -------------------------------
-     |0      3|4                 15|
-     -------------------------------
-     |DATATYPE|STACKSIZE           |
-     -------------------------------
-     |4       |12                  |
-     -------------------------------
      
      -----------------------------------------------------------------------
      |0    4|5                                                           31|
@@ -159,13 +123,6 @@ extern "C" {
     
     typedef struct
     {
-        totemOperandXUnsigned Address;
-        totemFunctionType Type;
-    }
-    totemFunctionPointer;
-    
-    typedef struct
-    {
         totemHash Hash;
         totemStringLength Length;
         char Data[1];
@@ -179,27 +136,6 @@ extern "C" {
     }
     totemRuntimeMiniString;
     
-    enum
-    {
-        totemPrivateDataType_Int = 0,
-        totemPrivateDataType_Float = 1,
-        totemPrivateDataType_InternedString = 2,
-        totemPrivateDataType_Type = 3,
-        totemPrivateDataType_Function = 4,
-        totemPrivateDataType_MiniString = 5,
-        totemPrivateDataType_Array = 6,
-        totemPrivateDataType_Coroutine = 7,
-        totemPrivateDataType_Object = 8,
-        totemPrivateDataType_Userdata = 9,
-        totemPrivateDataType_Channel = 10,
-        totemPrivateDataType_Max = 11
-    };
-    typedef uint8_t totemPrivateDataType;
-    
-    const char *totemPrivateDataType_Describe(totemPrivateDataType type);
-#define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
-    
-    // we differentiate between private & public data types so we can have more than one representation of each data type
     typedef enum
     {
         totemPublicDataType_Int = 0,
@@ -215,32 +151,6 @@ extern "C" {
         totemPublicDataType_Max = 10
     }
     totemPublicDataType;
-    
-    totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type);
-    
-    typedef union
-    {
-        totemFloat Float;
-        totemInt Int;
-        totemInternedStringHeader *InternedString;
-        totemRuntimeMiniString MiniString;
-        struct totemGCObject *GCObject;
-        uint64_t Data;
-        totemFunctionPointer FunctionPointer;
-        totemPublicDataType DataType;
-    }
-    totemRegisterValue;
-    
-    typedef struct totemRegister
-    {
-        totemRegisterValue Value;
-        totemPrivateDataType DataType;
-    }
-    totemRegister;
-    
-    const char *totemRegister_GetStringValue(totemRegister *reg);
-    totemStringLength totemRegister_GetStringLength(totemRegister *reg);
-    totemHash totemRegister_GetStringHash(totemRegister *reg);
     
     /**
      * Operation Types
@@ -271,7 +181,7 @@ extern "C" {
         totemOperationType_MoveToGlobal = 21,       // Bx = A
         totemOperationType_Is = 22,                 // A = B is C
         totemOperationType_As = 23,                 // A = B as C
-        totemOperationType_FunctionPointer = 24,	// A = B()
+        totemOperationType_Function = 24,			// A = B()
         totemOperationType_NewObject = 25,			// A = new object
         totemOperationType_NewChannel = 26,			// A = new channel
         totemOperationType_Push = 27,				// A << B

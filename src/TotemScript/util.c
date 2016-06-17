@@ -82,7 +82,7 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
-            TOTEM_STRINGIFY_CASE(totemOperationType_FunctionPointer);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Function);
             TOTEM_STRINGIFY_CASE(totemOperationType_As);
             TOTEM_STRINGIFY_CASE(totemOperationType_Is);
             TOTEM_STRINGIFY_CASE(totemOperationType_NewChannel);
@@ -119,7 +119,8 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Type);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Array);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Float);
-            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Function);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_NativeFunction);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_InstanceFunction);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_MiniString);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_InternedString);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Coroutine);
@@ -147,7 +148,8 @@ totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
         case totemPrivateDataType_Int:
             return totemPublicDataType_Int;
             
-        case totemPrivateDataType_Function:
+        case totemPrivateDataType_NativeFunction:
+        case totemPrivateDataType_InstanceFunction:
             return totemPublicDataType_Function;
             
         case totemPrivateDataType_Array:
@@ -344,7 +346,7 @@ const char *totemRegister_GetStringValue(totemRegister *reg)
     }
 }
 
-void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
+void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, totemRegister *reg, size_t indent)
 {
     if (indent > 50)
     {
@@ -353,13 +355,36 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
     
     switch(reg->DataType)
     {
-        case totemPrivateDataType_Function:
-            fprintf(file, "%s: %d:%d\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.FunctionPointer.Type, reg->Value.FunctionPointer.Address);
+        case totemPrivateDataType_NativeFunction:
+        {
+            totemRegister val;
+            if (totemRuntime_GetNativeFunctionName(state->Runtime, reg->Value.NativeFunction->Address, &val.Value, &val.DataType))
+            {
+                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
+            }
             break;
+        }
+            
+        case totemPrivateDataType_InstanceFunction:
+        {
+            totemRegister val;
+            if (totemScript_GetFunctionName(reg->Value.InstanceFunction->Instance->Script, reg->Value.InstanceFunction->Function->Address, &val.Value, &val.DataType))
+            {
+                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
+            }
+            break;
+        }
             
         case totemPrivateDataType_Coroutine:
-            fprintf(file, "%s: %d\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.GCObject->Coroutine->FunctionHandle);
+        {
+            totemFunctionCall *cr = reg->Value.GCObject->Coroutine;
+            totemRegister val;
+            if (totemScript_GetFunctionName(cr->InstanceFunction->Instance->Script, cr->InstanceFunction->Function->Address, &val.Value, &val.DataType))
+            {
+                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
+            }
             break;
+        }
             
         case totemPrivateDataType_Type:
             fprintf(file, "%s: %s\n", totemPrivateDataType_Describe(reg->DataType), totemPublicDataType_Describe(reg->Value.DataType));
@@ -396,7 +421,7 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
                     totemRegister *val = totemMemoryBuffer_Get(&obj->Registers, entry->Value);
                     if (val)
                     {
-                        totemRegister_PrintRecursive(file, val, indent);
+                        totemExecState_PrintRegisterRecursive(state, file, val, indent);
                     }
                     
                     entry = entry->Next;
@@ -432,7 +457,7 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
                 fprintf(file, "%lld: ", i);
                 
                 totemRegister *val = &arr->Registers[i];
-                totemRegister_PrintRecursive(file, val, indent);
+                totemExecState_PrintRegisterRecursive(state, file, val, indent);
             }
             
             indent -= 5;
@@ -464,16 +489,16 @@ void totemRegister_PrintRecursive(FILE *file, totemRegister *reg, size_t indent)
     }
 }
 
-void totemRegister_Print(FILE *file, totemRegister *reg)
+void totemExecState_PrintRegister(totemExecState *state, FILE *file, totemRegister *reg)
 {
-    totemRegister_PrintRecursive(file, reg, 0);
+    totemExecState_PrintRegisterRecursive(state, file, reg, 0);
 }
 
-void totemRegister_PrintList(FILE *file, totemRegister *regs, size_t numRegs)
+void totemExecState_PrintRegisterList(totemExecState *state, FILE *file, totemRegister *regs, size_t numRegisters)
 {
-    for(size_t i = 0; i < numRegs; i++)
+    for (size_t i = 0; i < numRegisters; i++)
     {
-        totemRegister_Print(file, &regs[i]);
+        totemExecState_PrintRegister(state, file, &regs[i]);
     }
 }
 

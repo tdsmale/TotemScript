@@ -13,7 +13,7 @@
 totemExecStatus totemPrint(totemExecState *state)
 {
     totemRegister *reg = &state->Registers[totemOperandType_LocalRegister][0];
-    totemRegister_Print(stdout, reg);
+    totemExecState_PrintRegister(state, stdout, reg);
     return totemExecStatus_Continue;
 }
 
@@ -65,7 +65,7 @@ totemExecStatus totemGCTest(totemExecState *state)
 typedef struct
 {
     totemString Name;
-    totemNativeFunction Func;
+    totemNativeFunctionCb Func;
     totemOperandXUnsigned Addr;
 }
 totemFunctionToRegister;
@@ -174,29 +174,29 @@ int main(int argc, const char * argv[])
     totemInstruction_PrintList(stdout, totemMemoryBuffer_Get(&build.Instructions, 0), totemMemoryBuffer_GetNumObjects(&build.Instructions));
     printf("\n");
     
-    // init actor
-    totemActor actor;
-    totemActor_Init(&actor);
-    if (totemScript_LinkActor(&script, &actor) != totemLinkStatus_Success)
+    // init instance
+    totemInstance instance;
+    totemInstance_Init(&instance);
+    if (totemScript_LinkInstance(&script, &instance) != totemLinkStatus_Success)
     {
-        printf("Could not create actor\n");
+        printf("Could not create instance\n");
+        return EXIT_FAILURE;
+    }
+    
+    // init exec state
+    totemExecState execState;
+    totemExecState_Init(&execState);
+    if (totemRuntime_LinkExecState(&runtime, &execState, 128) != totemLinkStatus_Success)
+    {
+        printf("Could not create exec state\n");
         return EXIT_FAILURE;
     }
     
     printf("******\n");
     printf("Globals:\n");
     printf("******\n");
-    totemRegister_PrintList(stdout, totemMemoryBuffer_Get(&actor.GlobalRegisters, 0), totemMemoryBuffer_GetNumObjects(&actor.GlobalRegisters));
+    totemExecState_PrintRegisterList(&execState, stdout, totemMemoryBuffer_Get(&instance.GlobalRegisters, 0), totemMemoryBuffer_GetNumObjects(&instance.GlobalRegisters));
     printf("\n");
-    
-    // init exec state
-    totemExecState execState;
-    totemExecState_Init(&execState);
-    if(totemRuntime_LinkExecState(&runtime, &execState, 128) != totemLinkStatus_Success)
-    {
-        printf("Could not create exec state\n");
-        return EXIT_FAILURE;
-    }
     
     totemRegister returnRegister;
     memset(&returnRegister, 0, sizeof(totemRegister));
@@ -206,7 +206,8 @@ int main(int argc, const char * argv[])
     printf("******\n");
     
     // run script
-    totemExecStatus execStatus = totemExecState_Exec(&execState, &actor, 0, &returnRegister);
+    totemInstanceFunction *func = totemMemoryBuffer_Get(&instance.LocalFunctions, 0);
+    totemExecStatus execStatus = totemExecState_Exec(&execState, func, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));
@@ -215,7 +216,7 @@ int main(int argc, const char * argv[])
     
     // free
     totemExecState_Cleanup(&execState);
-    totemActor_Cleanup(&actor);
+    totemInstance_Cleanup(&instance);
     totemScript_Cleanup(&script);
     
     totemBuildPrototype_Cleanup(&build);

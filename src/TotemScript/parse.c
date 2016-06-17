@@ -672,7 +672,7 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
                 
             case totemTokenType_MoreThan:
                 TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-                *type = totemBinaryOperatorType_Push;
+                *type = totemBinaryOperatorType_Pop;
                 break;
                 
             default:
@@ -694,7 +694,7 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
                 
             case totemTokenType_LessThan:
                 TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-                *type = totemBinaryOperatorType_Pop;
+                *type = totemBinaryOperatorType_Push;
                 break;
                 
             default:
