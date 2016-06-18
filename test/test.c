@@ -58,7 +58,7 @@ totemExecStatus totemFileTest(totemExecState *state)
 
 totemExecStatus totemGCTest(totemExecState *state)
 {
-    totemExecState_CollectGarbage(state);
+    totemExecState_CollectGarbage(state, totemBool_True);
     return totemExecStatus_Continue;
 }
 
@@ -72,6 +72,8 @@ totemFunctionToRegister;
 
 int main(int argc, const char * argv[])
 {
+    //freopen("test.txt", "w", stdout);
+    
     totem_Init();
     
     // load file
@@ -85,15 +87,17 @@ int main(int argc, const char * argv[])
         return EXIT_FAILURE;
     }
     
-    printf("******\n");
-    printf("Script:\n");
-    printf("******\n");
-    for(size_t i = 0; i < scriptContents.Buffer.Length; i++)
-    {
-        printf("%c", scriptContents.Buffer.Data[i]);
-    }
-    
-    printf("\n");
+    /*
+     printf("******\n");
+     printf("Script:\n");
+     printf("******\n");
+     for(size_t i = 0; i < scriptContents.Buffer.Length; i++)
+     {
+     printf("%c", scriptContents.Buffer.Data[i]);
+     }
+     
+     printf("\n");
+     */
     
     // init runtime
     totemRuntime runtime;
@@ -131,10 +135,12 @@ int main(int argc, const char * argv[])
         return EXIT_FAILURE;
     }
     
-    printf("******\n");
-    printf("Tokens:\n");
-    printf("******\n");
-    totemToken_PrintList(stdout, (totemToken*)tokens.Tokens.Data, totemMemoryBuffer_GetNumObjects(&tokens.Tokens));
+    /*
+     printf("******\n");
+     printf("Tokens:\n");
+     printf("******\n");
+     totemToken_PrintList(stdout, (totemToken*)tokens.Tokens.Data, totemMemoryBuffer_GetNumObjects(&tokens.Tokens));
+     */
     
     // parse
     totemParseTree parseTree;
@@ -192,11 +198,13 @@ int main(int argc, const char * argv[])
         return EXIT_FAILURE;
     }
     
-    printf("******\n");
-    printf("Globals:\n");
-    printf("******\n");
-    totemExecState_PrintRegisterList(&execState, stdout, totemMemoryBuffer_Get(&instance.GlobalRegisters, 0), totemMemoryBuffer_GetNumObjects(&instance.GlobalRegisters));
-    printf("\n");
+    /*
+     printf("******\n");
+     printf("Globals:\n");
+     printf("******\n");
+     totemExecState_PrintRegisterList(&execState, stdout, totemMemoryBuffer_Get(&instance.GlobalRegisters, 0), totemMemoryBuffer_GetNumObjects(&instance.GlobalRegisters));
+     printf("\n");
+     */
     
     totemRegister returnRegister;
     memset(&returnRegister, 0, sizeof(totemRegister));
@@ -227,6 +235,8 @@ int main(int argc, const char * argv[])
     totemScriptFile_Cleanup(&scriptContents);
     
     totem_Cleanup();
+    
+    //fclose(stdout);
     
     return 0;
 }

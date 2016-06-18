@@ -4,8 +4,8 @@ $y = 0;
 
 for($y = 0; $y < 10; $y++)
 {
-	$sgdghdf = 1;
-    print($y);
+    $sgdghdf = 1;
+    //print($y);
 }
 
 function includeTest($z)
@@ -69,9 +69,6 @@ function arrayTest()
 
     assert((($s + $t) as string) == "123456");
 
-    assert(($s + 123)[3] == 123);
-    assert(($s + "456")[1] == 2);
-
     print("---");
 }
 
@@ -88,9 +85,9 @@ function stringTest()
     assert(($d + $e) == "This is an interned string! Ain't this great?");
 
     assert(("123" + "456" + "789") == "123456789");
-	assert(("123" + "456" + "789")[3] == "4");
-	assert(("123" + "456")[3] == "4");
-	assert($e[3] == "n");
+    assert(("123" + "456" + "789")[3] == "4");
+    assert(("123" + "456")[3] == "4");
+    assert($e[3] == "n");
 
     print("---");
 }
@@ -140,30 +137,30 @@ function dataTypeTest()
     assert((123 as array)[0] == 123);
     assert((123 as float) == 123.00);
     assert((123 as type) == int);
-	
+
     assert((123.45 as float) == 123.45);
     assert((123.45 as string) == "123.45");
     assert((123.45 as array)[0] == 123.45);
     assert((123.45 as int) == 123);
     assert((123.45 as type) == float);
-	
+
     $rep = [2];
     $rep[0] = 456;
     $rep[1] = 789;
-	
+
     assert(($rep as array)[0] == $rep[0]);
     assert(($rep as array)[0] == 456);
     assert(($rep as int) == 2);
     assert(($rep as float) == 2.00);
     assert(($rep as string) == "456789");
     assert(($rep as type) == array);
-	
+
     assert((array as array)[0] == array);
     assert((array as type) == type);
     assert((array as string) == "array");
-	assert(((array as array) as int) == 1);
-	assert(((array as array) as float) == 1.0);
-	
+    assert(((array as array) as int) == 1);
+    assert(((array as array) as float) == 1.0);
+
     assert(("6664" as int) == 6664);
     assert(("567.123" as float) == 567.123);
     assert(("45.123" as int) == 45);
@@ -171,20 +168,20 @@ function dataTypeTest()
     assert(("str" as type) == string);
     assert(("str" as string) == "str");
     assert(("print" as function) == @print);
-	
-	$x = @dataTypeTest as coroutine;
-	assert(($x as function) == @dataTypeTest);
-	assert(($x as string) == "dataTypeTest");
-	assert((($x as coroutine) as function) == @dataTypeTest);
-	assert(($x as coroutine) != $x);
-	assert(($x as coroutine) is coroutine);
-	
-	$x = {};
-	$x["what"] = 123;
-	assert(($x as type) == object);
-	assert(($x as int) == 1);
-	assert(($x as float) == 1.0);
-	
+
+    $x = @dataTypeTest as coroutine;
+    assert(($x as function) == @dataTypeTest);
+    assert(($x as string) == "dataTypeTest");
+    assert((($x as coroutine) as function) == @dataTypeTest);
+    assert(($x as coroutine) != $x);
+    assert(($x as coroutine) is coroutine);
+
+    $x = {};
+    $x["what"] = 123;
+    assert(($x as type) == object);
+    assert(($x as int) == 1);
+    assert(($x as float) == 1.0);
+
     print("---");
 }
 
@@ -196,7 +193,7 @@ function funcPointerTestChild($b, $c)
 
 $rtygh = function()
 {
-	$a = 1;
+    $a = 1;
     print("DOOP");
 };
 
@@ -254,88 +251,88 @@ function generatorTest($start, $end)
 
 function coroutineTest()
 {
-	print("coroutine test");
-	print("---");
+    print("coroutine test");
+    print("---");
 
     $co = @generatorTest as coroutine;
     $start = 11;
     $end = 20;
     $maxLoops = $end - $start;
 
-	//print("loop 1");
+    //print("loop 1");
 
     for($numLoops = 0; $val = $co($start, $end); $numLoops++)
     {
         //print($val);
-		assert($val == ($start + $numLoops + $start + $end));
+        assert($val == ($start + $numLoops + $start + $end));
     }
 
-	//print("loop 2");
+    //print("loop 2");
 
-	for($numLoops = 0; $val = $co($start, $end); $numLoops++)
+    for($numLoops = 0; $val = $co($start, $end); $numLoops++)
     {
         //print($val);
-		assert($val == ($start + $numLoops + $start + $end));
+        assert($val == ($start + $numLoops + $start + $end));
     }
 
     assert($numLoops == $maxLoops);
     assert($val == 0);
 
-	print("---");
+    print("---");
 }
 
 function objectTest()
 {
-	print("object test");
-	print("---");
+    print("object test");
+    print("---");
 
-	local $obj = {};
-	$obj["test"] = 123;
-	$obj["test2"] = 456;
-	$obj["test3"] = 789;
-	local $a = $obj["test"];
-	local $b = $obj["test2"];
-	local $c = $obj["test3"];
+    local $obj = {};
+    $obj["test"] = 123;
+    $obj["test2"] = 456;
+    $obj["test3"] = 789;
+    local $a = $obj["test"];
+    local $b = $obj["test2"];
+    local $c = $obj["test3"];
 
-	$obj["test4"] = {};
-	$obj["test4"]["what"] = "hello!";
-	local $d = $obj["test4"]["what"];
+    $obj["test4"] = {};
+    $obj["test4"]["what"] = "hello!";
+    local $d = $obj["test4"]["what"];
 
-	$obj["test5"] = [2];
-	$obj["test5"][1] = "Doop!";
+    $obj["test5"] = [2];
+    $obj["test5"][1] = "Doop!";
 
-	assert($obj["test"] == $a);
-	assert($obj["test2"] == $b);
-	assert($obj["test3"] == $c);
+    assert($obj["test"] == $a);
+    assert($obj["test2"] == $b);
+    assert($obj["test3"] == $c);
 
-	assert($obj["test4"] is object);
-	assert($obj["test4"]["what"] == $d);
-	assert($obj["test5"] is array);
-	assert($obj["test5"][1] == "Doop!");
+    assert($obj["test4"] is object);
+    assert($obj["test4"]["what"] == $d);
+    assert($obj["test5"] is array);
+    assert($obj["test5"][1] == "Doop!");
 
-	assert($a == 123);
-	assert($b == 456);
-	assert($c == 789);
-	assert($d == "hello!");
+    assert($a == 123);
+    assert($b == 456);
+    assert($c == 789);
+    assert($d == "hello!");
 
-	print($obj);
-	print("---");
+    print($obj);
+    print("---");
 }
 
 function userDataTest()
 {
-	print("userdata test");
-	print("---");
+    print("userdata test");
+    print("---");
 
-	$file = fopen();
-	$test = $file;
-	assert($file is userdata);
+    $file = fopen();
+    $test = $file;
+    assert($file is userdata);
 
-	$file = 123;
-	assert($file is int);
-	assert($test is userdata);
+    $file = 123;
+    assert($file is int);
+    assert($test is userdata);
 
-	print("---");
+    print("---");
 }
 
 function localTest()
@@ -346,29 +343,34 @@ function localTest()
 
 function refCycleTest()
 {
-	print("ref cycle test");
-	print("---");
+    print("ref cycle test");
+    print("---");
 
-	local $y = [1];
-	$y[0] = [1];
-	$y[0][0] = $y;
+    local $y = [1];
+    $y[0] = [1];
+    $y[0][0] = $y;
 
-	print("---");
+    print("---");
 }
 
 function channelTest()
 {
-	local $x = <>;
+    print("channel test");
+    print("---");
 
-	$x << 456;
+    local $x = <>;
+
+    $x << 456;
     $x << "This is a string!";
     $x << [1];
 
-	$x >> local $first;
-	$x >> local $second;
-	$x >> local $third;
+    $x >> local $first;
+    $x >> local $second;
+    $x >> local $third;
 
-	assert ($first == 456);
-	assert ($second == "This is a string!");
-	assert ($third is array);
+    assert ($first == 456);
+    assert ($second == "This is a string!");
+    assert ($third is array);
+
+    print("---");
 }

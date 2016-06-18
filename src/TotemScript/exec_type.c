@@ -134,7 +134,7 @@ totemExecStatus totemExecState_ConcatStrings(totemExecState *state, totemRegiste
         return totemExecStatus_Continue;
     }
     
-    char *buffer = totem_CacheMalloc(len1 + len2);
+	char *buffer = totemExecState_Alloc(state, len1 + len2);
     if (!buffer)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
@@ -278,7 +278,7 @@ totemExecStatus totemExecState_ArrayToString(totemExecState *state, totemArray *
         return totemExecState_EmptyString(state, strOut);
     }
     
-    totemRegister *strings = totem_CacheMalloc(sizeof(totemRegister) * arr->NumRegisters);
+	totemRegister *strings = totemExecState_Alloc(state, sizeof(totemRegister) * arr->NumRegisters);
     if (!strings)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
@@ -351,7 +351,7 @@ totemExecStatus totemExecState_ArrayToString(totemExecState *state, totemArray *
         return totemExecState_EmptyString(state, strOut);
     }
     
-    char *buffer = totem_CacheMalloc(totalLen + 1);
+	char *buffer = totemExecState_Alloc(state, totalLen + 1);
     if (!buffer)
     {
         totem_CacheFree(strings, sizeof(totemRegister) * arr->NumRegisters);
@@ -378,6 +378,29 @@ totemExecStatus totemExecState_ArrayToString(totemExecState *state, totemArray *
     totem_CacheFree(buffer, totalLen + 1);
     
     return status;
+}
+
+totemExecStatus totemExecState_ConcatArrays(totemExecState *state, totemRegister *src1, totemRegister *src2, totemRegister *dst)
+{
+	totemGCObject *gc = NULL;
+	TOTEM_EXEC_CHECKRETURN(totemExecState_CreateArray(state, src1->Value.GCObject->Array->NumRegisters + src2->Value.GCObject->Array->NumRegisters, &gc));
+
+	totemRegister *newRegs = gc->Array->Registers;
+	totemRegister *source1Regs = src1->Value.GCObject->Array->Registers;
+
+	for (size_t i = 0; i < src1->Value.GCObject->Array->NumRegisters; i++)
+	{
+		TOTEM_EXEC_CHECKRETURN(totemExecState_Assign(state, &newRegs[i], &source1Regs[i]));
+	}
+
+	totemRegister *source2Regs = src2->Value.GCObject->Array->Registers;
+	for (size_t i = src1->Value.GCObject->Array->NumRegisters; i < gc->Array->NumRegisters; i++)
+	{
+		TOTEM_EXEC_CHECKRETURN(totemExecState_Assign(state, &newRegs[i], &source2Regs[i - src1->Value.GCObject->Array->NumRegisters]));
+	}
+
+	totemExecState_AssignNewArray(state, dst, gc);
+	return totemExecStatus_Continue;
 }
 
 totemExecStatus totemExecState_StringToFunction(totemExecState *state, totemRegister *src, totemRegister *dst)
@@ -422,7 +445,7 @@ totemExecStatus totemExecState_StringToFunction(totemExecState *state, totemRegi
 totemExecStatus totemExecState_CreateArray(totemExecState *state, uint32_t numRegisters, totemGCObject **gcOut)
 {
     size_t toAllocate = TOTEM_EXEC_ARRAYSIZE(numRegisters);
-    totemArray *arr = totem_CacheMalloc(toAllocate);
+	totemArray *arr = totemExecState_Alloc(state, toAllocate);
     if (!arr)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
@@ -457,7 +480,7 @@ totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, to
 
 totemExecStatus totemExecState_CreateObject(totemExecState *state, totemGCObject **gcOut)
 {
-    totemObject *obj = totem_CacheMalloc(sizeof(totemObject));
+	totemObject *obj = totemExecState_Alloc(state, sizeof(totemObject));
     if (!obj)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
@@ -480,7 +503,7 @@ totemExecStatus totemExecState_CreateObject(totemExecState *state, totemGCObject
 
 totemExecStatus totemExecState_CreateChannel(totemExecState *state, totemGCObject **gcOut)
 {
-    totemChannel *obj = totem_CacheMalloc(sizeof(totemChannel));
+	totemChannel *obj = totemExecState_Alloc(state, sizeof(totemChannel));
     if (!obj)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
@@ -503,35 +526,36 @@ totemExecStatus totemExecState_CreateChannel(totemExecState *state, totemGCObjec
 
 totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemInstanceFunction *function, totemGCObject **gcOut)
 {
-    totemGCObject *gc = totemExecState_CreateGCObject(state, totemGCObjectType_Coroutine);
-    if (!gc)
+    totemFunctionCall *coroutine = totemExecState_SecureFunctionCall(state);
+	if (!coroutine)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
     
-    gc->Coroutine = totemExecState_SecureFunctionCall(state);
-    if (!gc->Coroutine)
+    memset(coroutine, 0, sizeof(totemFunctionCall));
+    coroutine->Function = function;
+    coroutine->Type = totemFunctionType_Script;
+    coroutine->CurrentInstance = state->CallStack->CurrentInstance;
+    coroutine->Flags = totemFunctionCallFlag_IsCoroutine | totemFunctionCallFlag_FreeStack;
+    coroutine->NumRegisters = function->Function->RegistersNeeded;
+	coroutine->FrameStart = totemExecState_Alloc(state, sizeof(totemRegister) * function->Function->RegistersNeeded);
+    
+    if (!coroutine->FrameStart)
     {
-        totemExecState_DestroyGCObject(state, gc);
+		totemExecState_FreeFunctionCall(state, coroutine);
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
     
-    memset(gc->Coroutine, 0, sizeof(totemFunctionCall));
-    gc->Coroutine->Function = function;
-    gc->Coroutine->Type = totemFunctionType_Script;
-    gc->Coroutine->CurrentInstance = state->CallStack->CurrentInstance;
-    gc->Coroutine->Flags = totemFunctionCallFlag_IsCoroutine | totemFunctionCallFlag_FreeStack;
-    gc->Coroutine->NumRegisters = function->Function->RegistersNeeded;
-    gc->Coroutine->FrameStart = totem_CacheMalloc(sizeof(totemRegister) * function->Function->RegistersNeeded);
-    
-    if (!gc->Coroutine->FrameStart)
-    {
-        totemExecState_FreeFunctionCall(state, gc->Coroutine);
-        totemExecState_DestroyGCObject(state, gc);
-        return totemExecStatus_Break(totemExecStatus_OutOfMemory);
-    }
-    
-    memset(gc->Coroutine->FrameStart, 0, sizeof(totemRegister) * function->Function->RegistersNeeded);
+    memset(coroutine->FrameStart, 0, sizeof(totemRegister) * function->Function->RegistersNeeded);
+
+	totemGCObject *gc = totemExecState_CreateGCObject(state, totemGCObjectType_Coroutine);
+	if (!gc)
+	{
+		totemExecState_FreeFunctionCall(state, coroutine);
+		return totemExecStatus_Break(totemExecStatus_OutOfMemory);
+	}
+
+	gc->Coroutine = coroutine;
     
     *gcOut = gc;
     return totemExecStatus_Continue;
@@ -539,7 +563,7 @@ totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemInsta
 
 totemExecStatus totemExecState_CreateUserdata(totemExecState *state, uint64_t data, totemUserdataDestructor destructor, totemGCObject **gcOut)
 {
-    totemUserdata *obj = totem_CacheMalloc(sizeof(totemUserdata));
+	totemUserdata *obj = totemExecState_Alloc(state, sizeof(totemUserdata));
     if (!obj)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
@@ -596,7 +620,7 @@ totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel
 {
     totemExecStatus status = totemExecStatus_Continue;
     
-    totemChannelNode *newNode = totem_CacheMalloc(sizeof(totemChannelNode));
+	totemChannelNode *newNode = totemExecState_Alloc(state, sizeof(totemChannelNode));
     if (!newNode)
     {
         status = totemExecStatus_OutOfMemory;
@@ -642,7 +666,7 @@ totemExecStatus totemExecState_PopFromChannel(totemExecState *state, totemChanne
     
     if (src->Head)
     {
-        totemChannelNode *node = src->Head;
+        node = src->Head;
         
         src->Head = node->Next;
         src->Count--;

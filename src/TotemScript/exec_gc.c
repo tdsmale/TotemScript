@@ -12,23 +12,10 @@
 
 totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type)
 {
-    //gccount++;
-    //printf("add %i %s\n", gccount, totemGCObjectType_Describe(type));
-    
-    totemGCObject *hdr = NULL;
-    
-    if (state->GCFreeList)
+    totemGCObject *hdr = totemExecState_Alloc(state, sizeof(totemGCObject));
+    if (!hdr)
     {
-        hdr = state->GCFreeList;
-        state->GCFreeList = hdr->Next;
-    }
-    else
-    {
-        hdr = totem_CacheMalloc(sizeof(totemGCObject));
-        if (!hdr)
-        {
-            return NULL;
-        }
+        return NULL;
     }
     
     hdr->RefCount = 0;
@@ -43,9 +30,16 @@ totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjec
     {
         state->GCStart->Prev = hdr;
     }
+    else
+    {
+        state->GCTail = hdr;
+    }
     
     hdr->Next = state->GCStart;
     state->GCStart = hdr;
+    
+    //gccount++;
+    //printf("add %i %p %s %p %p\n", gccount, hdr, totemGCObjectType_Describe(type), state->GCStart, state->GCStart2);
     
     return hdr;
 }
@@ -81,9 +75,10 @@ totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObje
             return NULL;
     }
     
-    //gccount--;
-    //printf("kill %i %p %s\n", gccount, obj, totemGCObjectType_Describe(obj->Type));
+    
     totemGCObject *next = obj->Next;
+    
+    //printf("%p %p %p %p\n", state->GCTail2, state->GCStart, state->GCTail, state->GCStart2);
     
     if (obj->Prev)
     {
@@ -100,15 +95,28 @@ totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObje
         state->GCStart = obj->Next;
     }
     
+    if (state->GCTail == obj)
+    {
+        state->GCTail = obj->Prev;
+    }
+    
+    if (state->GCStart2 == obj)
+    {
+        state->GCStart2 = obj->Next;
+    }
+    
+    if (state->GCTail2 == obj)
+    {
+        state->GCTail2 = obj->Prev;
+    }
+    
     obj->Next = NULL;
     obj->Prev = NULL;
     
-    if (state->GCFreeList)
-    {
-        obj->Next = state->GCFreeList;
-    }
+    //gccount--;
+    //printf("kill %i %p %s %p %p\n", gccount, obj, totemGCObjectType_Describe(obj->Type), state->GCStart, state->GCStart2);
     
-    state->GCFreeList = obj;
+    totem_CacheFree(obj, sizeof(totemGCObject));
     return next;
 }
 
@@ -189,16 +197,15 @@ void totemExecState_CycleDetect(totemExecState *state, totemGCObject *gc)
     }
 }
 
-void totemExecState_CollectGarbage(totemExecState *state)
+void totemExecState_CollectGarbageList(totemExecState *state, totemGCObject **listStart)
 {
-    //int count = 0;
-    
-    for (totemGCObject *obj = state->GCStart; obj;)
+    if (!*listStart)
     {
-        //printf("%p %p\n", obj, obj->Next);
-        
-        //count++;
-        
+        return;
+    }
+    
+    for (totemGCObject *obj = *listStart; obj;)
+    {
         if (obj->RefCount <= 0)
         {
             obj = totemExecState_DestroyGCObject(state, obj);
@@ -210,23 +217,14 @@ void totemExecState_CollectGarbage(totemExecState *state)
         }
     }
     
-    //printf("%i\n", count);
-    //count = 0;
-    
-    for (totemGCObject *obj = state->GCStart; obj;)
+    for (totemGCObject *obj = *listStart; obj;)
     {
-        //printf("%p %p\n", obj, obj->Next);
-        //count++;
         totemExecState_CycleDetect(state, obj);
         obj = obj->Next;
     }
     
-    //printf("%i\n", count);
-    //count = 0;
-    
-    for (totemGCObject *obj = state->GCStart; obj;)
+    for (totemGCObject *obj = *listStart; obj;)
     {
-        //printf("%p %p\n", obj, obj->Next);
         if (obj->CycleDetectCount <= 0)
         {
             obj = totemExecState_DestroyGCObject(state, obj);
@@ -235,6 +233,44 @@ void totemExecState_CollectGarbage(totemExecState *state)
         {
             obj = obj->Next;
         }
+    }
+}
+
+void totemExecState_MigrateGarbage(totemExecState *state)
+{
+    if (state->GCStart)
+    {
+        if (state->GCTail2)
+        {
+            state->GCTail2->Next = state->GCStart;
+            state->GCStart->Prev = state->GCTail2;
+        }
+        else
+        {
+            state->GCStart2 = state->GCStart;
+        }
+        
+        state->GCTail2 = state->GCTail;
+        state->GCStart = NULL;
+        state->GCTail = NULL;
+    }
+}
+
+void totemExecState_CollectGarbage(totemExecState *state, totemBool full)
+{
+    totemGCObject **toCollect = &state->GCStart;
+    
+    if (full)
+    {
+        totemExecState_MigrateGarbage(state);
+        toCollect = &state->GCStart2;
+    }
+    
+    totemExecState_CollectGarbageList(state, toCollect);
+    
+    if (!full)
+    {
+        totemExecState_MigrateGarbage(state);
     }
 }
 
@@ -247,6 +283,7 @@ const char *totemGCObjectType_Describe(totemGCObjectType type)
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Object);
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Userdata);
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Deleting);
+            TOTEM_STRINGIFY_CASE(totemGCObjectType_Channel);
         default:return "UNKNOWN";
     }
 }

@@ -90,7 +90,7 @@ extern "C" {
     
     typedef struct totemScriptFunction
     {
-        size_t InstructionsStart;
+        totemInstruction *InstructionsStart;
         totemOperandXUnsigned Address;
         uint8_t RegistersNeeded;
     }
@@ -213,8 +213,9 @@ extern "C" {
         size_t MaxLocalRegisters;
         size_t UsedLocalRegisters;
         struct totemGCObject *GCStart;
-        struct totemGCObject *GCFreeList;
-        totemFunctionCall *FunctionCallFreeList;
+        struct totemGCObject *GCTail;
+        struct totemGCObject *GCStart2;
+        struct totemGCObject *GCTail2;
     }
     totemExecState;
     
@@ -336,6 +337,7 @@ extern "C" {
     }
     totemGCObject;
     
+    void *totemExecState_Alloc(totemExecState *state, size_t size);
     totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type);
     totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObject *gc);
     totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemInstanceFunction *function, totemGCObject **gcOut);
@@ -351,7 +353,7 @@ extern "C" {
     void totemExecState_DestroyObject(totemExecState *state, totemObject *obj);
     void totemExecState_DestroyUserdata(totemExecState *state, totemUserdata *obj);
     void totemExecState_DestroyChannel(totemExecState *state, totemChannel *obj);
-    void totemExecState_CollectGarbage(totemExecState *state);
+    void totemExecState_CollectGarbage(totemExecState *state, totemBool full);
     
     /**
      * Execute bytecode
@@ -360,6 +362,7 @@ extern "C" {
     void totemExecState_Cleanup(totemExecState *state);
     totemExecStatus totemExecState_Exec(totemExecState *state, totemInstanceFunction *function, totemRegister *returnRegister);
     totemExecStatus totemExecState_ExecNative(totemExecState *state, totemNativeFunction *function, totemRegister *returnRegister);
+    totemExecStatus totemExecState_ResumeCoroutine(totemExecState *state, totemFunctionCall *call);
     TOTEM_EXECSTEP totemExecState_ExecMove(totemExecState *state);
     TOTEM_EXECSTEP totemExecState_ExecMoveToGlobal(totemExecState *state);
     TOTEM_EXECSTEP totemExecState_ExecMoveToLocal(totemExecState *state);
@@ -396,7 +399,6 @@ extern "C" {
     void totemExecState_PrintRegister(totemExecState *state, FILE *file, totemRegister *reg);
     void totemExecState_PrintRegisterList(totemExecState *state, FILE *file, totemRegister *regs, size_t numRegisters);
     
-    totemExecStatus totemExecState_ConcatStrings(totemExecState *state, totemRegister *str1, totemRegister *str2, totemRegister *strOut);
     totemExecStatus totemExecState_EmptyString(totemExecState *state, totemRegister *strOut);
     totemExecStatus totemExecState_IntToString(totemExecState *state, totemInt val, totemRegister *strOut);
     totemExecStatus totemExecState_FloatToString(totemExecState *state, totemFloat val, totemRegister *strOut);
@@ -408,6 +410,9 @@ extern "C" {
     totemExecStatus totemExecState_CoroutineToString(totemExecState *state, totemFunctionCall *cr, totemRegister *strOut);
     totemExecStatus totemExecState_StringToFunction(totemExecState *state, totemRegister *src, totemRegister *dst);
     totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut);
+    
+    totemExecStatus totemExecState_ConcatStrings(totemExecState *state, totemRegister *str1, totemRegister *str2, totemRegister *strOut);
+    totemExecStatus totemExecState_ConcatArrays(totemExecState *state, totemRegister *src1, totemRegister *src2, totemRegister *dst);
     
     totemExecStatus totemExecState_PushToChannel(totemExecState *state, totemChannel *dst, totemRegister *src);
     totemExecStatus totemExecState_PopFromChannel(totemExecState *state, totemChannel *src, totemRegister *dst);

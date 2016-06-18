@@ -47,7 +47,6 @@ function forLoop()
 
     for($i = 0; $i < 30; $i++)
     {
-		$a = 1;
         print($i);
     }
 
@@ -64,17 +63,14 @@ function ifBlock()
 
     if($x < 0)
     {
-		$a = 1;
         print("Less Than");
     }
     else if($x > 0)
     {
-		$a = 1;
         print("More Than");
     }
     else
     {
-		$a = 1;
         print("Equals");
     }
 
@@ -118,7 +114,7 @@ function nullTest()
 
 function test()
 {
-	objectTest();
+    objectTest();
     dataTypeTest();
     moveToLocalTest();
     includeTest(1 + 2);
@@ -132,17 +128,16 @@ function test()
     intFloat();
     nullTest();
     funcPointerTest();
-	coroutineTest();
-	userDataTest();
+    coroutineTest();
+    userDataTest();
 
     localTest();
     print($y);
 
-	channelTest();
+    channelTest();
 
-	refCycleTest();
-	collectGC();
-
+    refCycleTest();
+    collectGC();
 }
 
 test();

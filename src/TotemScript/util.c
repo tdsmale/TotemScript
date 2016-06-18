@@ -194,6 +194,7 @@ void totemInstruction_PrintList(FILE *file, totemInstruction *instructions, size
 {
     for(size_t i = 0; i < num; ++i)
     {
+		fprintf(file, "%i:", i);
         totemInstruction_Print(file, instructions[i]);
     }
 }

@@ -197,22 +197,3 @@ $func = function($ch)
 createThreadExample($func, $channel);
 
 ```
-### Feature Creep
-#### Language Features
-* function error handlers, catch runtime errors e.g. function x($a, $b) { causeAnError(); } unless { somethingBadHappened(); }
-* operator precedence reordering
-* initializer lists for arrays & objects, both with and without indices/names e.g. $a = { "x":1.75, "y":1.45 }; $b = [$a, 123, "456"];
-* function arg improvements
- * default arguments for functions e.g. function call($x: 123, $y: 456);
- * specify argument name in direct function calls, e.g. $x = call($y: 123, $x: 456);
- 
-#### Runtime Improvements
-* bytecode serialisation
- * check register & function addresses, function arguments
-* debug information for scripts
- * line numbers
- * variable->register mappings
-* breakpoints
- * lookup first instruction at given line of source code, replace with breakpoint instruction, store original
- * call user-supplied callback, then execute original instruction
-* line/char/len numbers for eval, link & exec errors
