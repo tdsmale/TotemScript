@@ -3,6 +3,7 @@
 * Heavily inspired by languages like LUA, PHP and JavaScript.
 * Designed to be small, simple and dumb - easily plugged into existing applications.
 * Features dynamic typing, full garbage-collection, cooperative multitasking, and a silly name.
+
 ### Examples
 ```
 print("Hello, World!");
