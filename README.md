@@ -146,7 +146,7 @@ $val["test2"] = function($x, $y)
 
 $val["test2"](123, 456);
 
-// Objects are less efficient than arrays, but don't need to be manually resized
+// Objects are less efficient than arrays, but can hold any amount of values 
 $key = "key";
 $obj[$key] = [20];
 
