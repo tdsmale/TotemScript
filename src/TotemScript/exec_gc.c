@@ -67,10 +67,6 @@ totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObje
             totemExecState_DestroyUserdata(state, obj->Userdata);
             break;
             
-        case totemGCObjectType_Channel:
-            totemExecState_DestroyChannel(state, obj->Channel);
-            break;
-            
         case totemGCObjectType_Deleting:
             return NULL;
     }
@@ -122,7 +118,8 @@ totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObje
 
 totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc)
 {
-    if (totem_AtomicInc64(&gc->RefCount) < 0)
+    gc->RefCount++;
+    if (gc->RefCount < 0)
     {
         return totemExecStatus_Break(totemExecStatus_RefCountOverflow);
     }
@@ -139,7 +136,8 @@ void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc)
         return;
     }
     
-    if (totem_AtomicDec64(&gc->RefCount) == 0)
+    gc->RefCount--;
+    if (gc->RefCount == 0)
     {
         if (gc->ExecState == state)
         {
@@ -283,7 +281,6 @@ const char *totemGCObjectType_Describe(totemGCObjectType type)
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Object);
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Userdata);
             TOTEM_STRINGIFY_CASE(totemGCObjectType_Deleting);
-            TOTEM_STRINGIFY_CASE(totemGCObjectType_Channel);
         default:return "UNKNOWN";
     }
 }

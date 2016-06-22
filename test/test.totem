@@ -134,8 +134,6 @@ function test()
     localTest();
     print($y);
 
-    channelTest();
-
     refCycleTest();
     collectGC();
 }

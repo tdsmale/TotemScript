@@ -860,18 +860,6 @@ totemExecStatus totemExecState_ExecuteInstructions(totemExecState *state)
                     totemExecState_ExecNewObject(state);
                     break;
                     
-                case totemOperationType_NewChannel:
-                    totemExecState_ExecNewChannel(state);
-                    break;
-                    
-                case totemOperationType_Push:
-                    totemExecState_ExecPush(state);
-                    break;
-                    
-                case totemOperationType_Pop:
-                    totemExecState_ExecPop(state);
-                    break;
-                    
                 default:
                     return totemExecStatus_UnrecognisedOperation;
             }
@@ -891,7 +879,6 @@ totemExecStatus totemExecState_Exec(totemExecState *state, totemInstanceFunction
 {
     totemRegister val;
     totemScript_GetFunctionName(function->Instance->Script, function->Function->Address, &val.Value, &val.DataType);
-    const char *str = totemRegister_GetStringValue(&val);
     
     totemFunctionCall *call = NULL;
     TOTEM_EXEC_CHECKRETURN(totemExecState_CreateSubroutine(state, function->Function->RegistersNeeded, function->Instance, returnRegister, totemFunctionType_Script, function, &call));
@@ -963,50 +950,6 @@ totemExecStatus totemExecState_ResumeCoroutine(totemExecState *state, totemFunct
     }
     
     return status;
-}
-
-TOTEM_EXECSTEP totemExecState_ExecNewChannel(totemExecState *state)
-{
-    totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
-    
-    totemGCObject *gc = NULL;
-    TOTEM_EXEC_BREAK(totemExecState_CreateChannel(state, &gc), state);
-    totemExecState_AssignNewChannel(state, dst, gc);
-    
-    state->CurrentInstruction++;
-}
-
-TOTEM_EXECSTEP totemExecState_ExecPush(totemExecState *state)
-{
-    totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *dst = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
-    totemRegister *src = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
-    
-    if (dst->DataType != totemPrivateDataType_Channel)
-    {
-        totemExecState_Break(state, totemExecStatus_UnexpectedDataType);
-    }
-    
-    TOTEM_EXEC_BREAK(totemExecState_PushToChannel(state, dst->Value.GCObject->Channel, src), state);
-    
-    state->CurrentInstruction++;
-}
-
-TOTEM_EXECSTEP totemExecState_ExecPop(totemExecState *state)
-{
-    totemInstruction instruction = *state->CurrentInstruction;
-    totemRegister *src = TOTEM_GET_OPERANDA_REGISTER(state, instruction);
-    totemRegister *dst = TOTEM_GET_OPERANDB_REGISTER(state, instruction);
-    
-    if (src->DataType != totemPrivateDataType_Channel)
-    {
-        totemExecState_Break(state, totemExecStatus_UnexpectedDataType);
-    }
-    
-    TOTEM_EXEC_BREAK(totemExecState_PopFromChannel(state, src->Value.GCObject->Channel, dst), state);
-    
-    state->CurrentInstruction++;
 }
 
 TOTEM_EXECSTEP totemExecState_ExecNewObject(totemExecState *state)

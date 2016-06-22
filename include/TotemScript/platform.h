@@ -91,9 +91,6 @@
 #define totemLock_Acquire EnterCriticalSection
 #define totemLock_Release LeaveCriticalSection
 
-#define totem_AtomicInc64 InterlockedIncrement64
-#define totem_AtomicDec64 InterlockedDecrement64
-
 #define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
 #endif
 
@@ -119,8 +116,6 @@
 #define totemLock_Acquire pthread_mutex_lock
 #define totemLock_Release pthread_mutex_unlock
 
-#define totem_AtomicInc64 OSAtomicIncrement64
-#define totem_AtomicDec64 OSAtomicDecrement64
 #endif
 
 #endif

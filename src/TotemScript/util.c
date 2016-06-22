@@ -85,9 +85,6 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_Function);
             TOTEM_STRINGIFY_CASE(totemOperationType_As);
             TOTEM_STRINGIFY_CASE(totemOperationType_Is);
-            TOTEM_STRINGIFY_CASE(totemOperationType_NewChannel);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Push);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Pop);
     }
     
     return "UNKNOWN";
@@ -106,7 +103,6 @@ const char *totemPublicDataType_Describe(totemPublicDataType type)
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Object);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Userdata);
-            TOTEM_STRINGIFY_CASE(totemPublicDataType_Channel);
         default: return "UNKNOWN";
     }
 }
@@ -126,7 +122,6 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Object);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Userdata);
-            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Channel);
         default: return "UNKNOWN";
     }
 }
@@ -163,9 +158,6 @@ totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
             
         case totemPrivateDataType_Userdata:
             return totemPublicDataType_Userdata;
-            
-        case totemPrivateDataType_Channel:
-            return totemPublicDataType_Channel;
     }
     
     return totemPublicDataType_Max;
@@ -194,7 +186,6 @@ void totemInstruction_PrintList(FILE *file, totemInstruction *instructions, size
 {
     for(size_t i = 0; i < num; ++i)
     {
-		fprintf(file, "%i:", i);
         totemInstruction_Print(file, instructions[i]);
     }
 }
@@ -478,10 +469,6 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             
         case totemPrivateDataType_Int:
             fprintf(file, "%s %lli\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Int);
-            break;
-            
-        case totemPrivateDataType_Channel:
-            fprintf(file, "%s: %i values\n", totemPrivateDataType_Describe(reg->DataType), (int)reg->Value.GCObject->Channel->Count);
             break;
             
         default:

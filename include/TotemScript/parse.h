@@ -28,10 +28,9 @@ extern "C" {
      
      new-array = lsbracket array-accessor rsbracket
      new-object = rbracket lbracket
-     new-channel = lessthan morethan
      array-access = expression lcbracket expression rcbracket
      
-     argument = variable | number-token | string | function-call | new-array | type | function-declaration-body | new-object | new-channel
+     argument = variable | number-token | string | function-call | new-array | type | function-declaration-body | new-object
      
      expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
      
@@ -104,7 +103,6 @@ extern "C" {
         totemArgumentType_FunctionCall,
         totemArgumentType_NewArray,
         totemArgumentType_NewObject,
-        totemArgumentType_NewChannel,
         totemArgumentType_Type,
         totemArgumentType_FunctionPointer,
         totemArgumentType_FunctionDeclaration
@@ -153,8 +151,6 @@ extern "C" {
         totemBinaryOperatorType_LogicalOr,
         totemBinaryOperatorType_IsType,
         totemBinaryOperatorType_AsType,
-        totemBinaryOperatorType_Push,
-        totemBinaryOperatorType_Pop
     }
     totemBinaryOperatorType;
     
@@ -250,7 +246,6 @@ extern "C" {
         totemTokenType_Coroutine,
         totemTokenType_Local,
         totemTokenType_Userdata,
-        totemTokenType_Channel,
         totemTokenType_Max
     }
     totemTokenType;

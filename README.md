@@ -1,4 +1,8 @@
-TotemScript is a light-weight, general-purpose scripting language.
+### TotemScript?
+* A small, accessible language built for no particular reason.
+* Heavily inspired by languages like LUA, PHP and JavaScript.
+* Designed to be small, simple and dumb - easily plugged into existing applications.
+* Features dynamic typing, full garbage-collection, cooperative multitasking, and a silly name.
 ### Examples
 ```
 print("Hello, World!");
@@ -13,7 +17,6 @@ Variables are dynamically-typed, supporting the following types:
 * coroutine - First-class, garbage collected coroutines
 * type - Type objects (e.g. int, float, type etc.)
 * userdata - Garbage-collected data supplied by native C functions
-* channel - Garbage-collected, thread-safe queues
 ```
 // variables can be declared and redeclared at any point
 $var = 123;
@@ -171,29 +174,4 @@ for($numLoops = 0; $val = $co($start + 1, $end + 1); $numLoops++)
 
 // Coroutines are also garbage-collected, just like Arrays - when no longer referenced, they are destroyed
 $co = 123;
-```
-#### Channels
-```
-// Channels are the only built-in data structure safe to use in concurrent applications
-// Channels operate like queues - first-in, first-out
-
-// Create new channel
-$channel = <>;
-
-// Push messages in the order they should be received
-$channel << "This is the first message!";
-$channel << 123.45;
-
-$func = function($ch)
-{
-    // Pop messages off channel in the order they were sent
-    $ch >> local $msg;
-    print($msg);
-    $ch >> $msg;
-    print($msg);
-    $ch << "All done!";
-};
-
-createThreadExample($func, $channel);
-
 ```

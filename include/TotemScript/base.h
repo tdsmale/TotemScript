@@ -147,8 +147,7 @@ extern "C" {
         totemPublicDataType_Coroutine = 6,
         totemPublicDataType_Object = 7,
         totemPublicDataType_Userdata = 8,
-        totemPublicDataType_Channel = 9,
-        totemPublicDataType_Max = 10
+        totemPublicDataType_Max = 9
     }
     totemPublicDataType;
     
@@ -183,9 +182,6 @@ extern "C" {
         totemOperationType_As = 23,                 // A = B as C
         totemOperationType_Function = 24,			// A = B()
         totemOperationType_NewObject = 25,			// A = new object
-        totemOperationType_NewChannel = 26,			// A = new channel
-        totemOperationType_Push = 27,				// A << B
-        totemOperationType_Pop = 28,				// A >> B
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;

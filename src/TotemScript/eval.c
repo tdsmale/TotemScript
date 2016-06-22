@@ -993,18 +993,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
             
             switch(expression->BinaryOperator)
             {
-                case totemBinaryOperatorType_Push:
-                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
-                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &rValue, &rValue, totemOperationType_Push));
-                    memcpy(result, &lValue, sizeof(totemOperandRegisterPrototype));
-                    break;
-                    
-                case totemBinaryOperatorType_Pop:
-                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
-                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, &lValue, &rValue, &rValue, totemOperationType_Pop));
-                    memcpy(result, &lValue, sizeof(totemOperandRegisterPrototype));
-                    break;
-                    
                 case totemBinaryOperatorType_Plus:
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, result));
                     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, result, &lValue, &rValue, totemOperationType_Add));
@@ -1197,10 +1185,6 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
         case totemArgumentType_NewObject:
             TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalHint(build, value, hint));
             return totemBuildPrototype_EvalAbcInstruction(build, value, value, value, totemOperationType_NewObject);
-            
-        case totemArgumentType_NewChannel:
-            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalHint(build, value, hint));
-            return totemBuildPrototype_EvalAbcInstruction(build, value, value, value, totemOperationType_NewChannel);
     }
     
     return totemEvalStatus_Success;

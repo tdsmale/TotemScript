@@ -71,7 +71,6 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
             
         case totemArgumentType_NewArray:
         case totemArgumentType_NewObject:
-        case totemArgumentType_NewChannel:
             break;
     }
     

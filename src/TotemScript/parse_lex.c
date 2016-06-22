@@ -80,7 +80,6 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Object, "object"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Local, "local"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Userdata, "userdata"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Channel, "channel"),
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -443,7 +442,6 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_Variable);
             TOTEM_STRINGIFY_CASE(totemTokenType_While);
             TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Channel);
     }
     
     return "UNKNOWN";
