@@ -30,6 +30,18 @@ function test()
 
     // vars can also be read-only
     const $x = "This variable cannot be modified";
+
+    // values can be typecast
+    $var = 123 as string;
+
+    // can check type at runtime
+    if($var is string)
+    {
+        // var is a string!
+    }
+
+    // can also retrieve type as value
+    $type = $var as type;
 }
 ```
 #### Variable Scope
