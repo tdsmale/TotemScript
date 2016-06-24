@@ -475,6 +475,71 @@ void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, t
     }
 }
 
+totemBool totemHashMap_InsertPrecomputedWithoutSearch(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash)
+{
+    if (hashmap->NumKeys >= hashmap->NumBuckets)
+    {
+        // buckets realloc
+        size_t newNumBuckets = 0;
+        if (hashmap->NumKeys == 0)
+        {
+            newNumBuckets = 32;
+        }
+        else
+        {
+            newNumBuckets = hashmap->NumKeys * 2;
+        }
+        
+        totemHashMapEntry **newBuckets = totem_CacheMalloc(sizeof(totemHashMapEntry**) * newNumBuckets);
+        if (!newBuckets)
+        {
+            return totemBool_False;
+        }
+        
+        // reassign
+        memset(newBuckets, 0, newNumBuckets * sizeof(totemHashMapEntry**));
+        for (size_t i = 0; i < hashmap->NumBuckets; i++)
+        {
+            totemHashMapEntry *next = NULL;
+            for (totemHashMapEntry *entry = hashmap->Buckets[i]; entry != NULL; entry = next)
+            {
+                next = entry->Next;
+                entry->Next = NULL;
+                totemHashMap_InsertDirect(newBuckets, newNumBuckets, entry);
+            }
+        }
+        
+        // replace buckets
+        totem_CacheFree(hashmap->Buckets, sizeof(totemHashMapEntry**) * hashmap->NumBuckets);
+        hashmap->Buckets = newBuckets;
+        hashmap->NumBuckets = newNumBuckets;
+    }
+    
+    totemHashMapEntry *entry = totemHashMap_SecureEntry(hashmap);
+    if (!entry)
+    {
+        return totemBool_False;
+    }
+    
+    void *persistKey = totem_CacheMalloc(keyLen);
+    if (!persistKey)
+    {
+        return totemBool_False;
+    }
+    
+    memcpy(persistKey, key, keyLen);
+    
+    entry->Next = NULL;
+    entry->Value = value;
+    entry->Key = persistKey;
+    entry->KeyLen = keyLen;
+    entry->Hash = hash == 0 ? totem_Hash(key, keyLen) : hash;
+    totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
+    
+    hashmap->NumKeys++;
+    return totemBool_True;
+}
+
 totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash)
 {
     totemHashMapEntry *existingEntry = totemHashMap_Find(hashmap, key, keyLen);
@@ -485,67 +550,7 @@ totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key,
     }
     else
     {
-        if(hashmap->NumKeys >= hashmap->NumBuckets)
-        {
-            // buckets realloc
-            size_t newNumBuckets = 0;
-            if(hashmap->NumKeys == 0)
-            {
-                newNumBuckets = 32;
-            }
-            else
-            {
-                newNumBuckets = hashmap->NumKeys * 2;
-            }
-            
-            totemHashMapEntry **newBuckets = totem_CacheMalloc(sizeof(totemHashMapEntry**) * newNumBuckets);
-            if(!newBuckets)
-            {
-                return totemBool_False;
-            }
-            
-            // reassign
-            memset(newBuckets, 0, newNumBuckets * sizeof(totemHashMapEntry**));
-            for(size_t i = 0; i < hashmap->NumBuckets; i++)
-            {
-                totemHashMapEntry *next = NULL;
-                for(totemHashMapEntry *entry = hashmap->Buckets[i]; entry != NULL; entry = next)
-                {
-                    next = entry->Next;
-                    entry->Next = NULL;
-                    totemHashMap_InsertDirect(newBuckets, newNumBuckets, entry);
-                }
-            }
-            
-            // replace buckets
-            totem_CacheFree(hashmap->Buckets, sizeof(totemHashMapEntry**) * hashmap->NumBuckets);
-            hashmap->Buckets = newBuckets;
-            hashmap->NumBuckets = newNumBuckets;
-        }
-        
-        totemHashMapEntry *entry = totemHashMap_SecureEntry(hashmap);
-        if(!entry)
-        {
-            return totemBool_False;
-        }
-        
-        void *persistKey = totem_CacheMalloc(keyLen);
-        if(!persistKey)
-        {
-            return totemBool_False;
-        }
-        
-        memcpy(persistKey, key, keyLen);
-        
-        entry->Next = NULL;
-        entry->Value = value;
-        entry->Key = persistKey;
-        entry->KeyLen = keyLen;
-        entry->Hash = hash == 0 ? totem_Hash(key, keyLen) : hash;
-        totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
-        
-        hashmap->NumKeys++;
-        return totemBool_True;
+        return totemHashMap_InsertPrecomputedWithoutSearch(hashmap, key, keyLen, value, hash);
     }
 }
 
@@ -603,9 +608,15 @@ totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, s
 
 totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *key, size_t keyLen)
 {
+    totemHash hash = totem_Hash(key, keyLen);
+    return totemHashMap_FindPrecomputed(hashmap, key, keyLen, hash);
+}
+
+totemHashMapEntry *totemHashMap_FindPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHash hash)
+{
     if(hashmap->NumBuckets > 0)
     {
-        uint32_t hash = totem_Hash(key, keyLen);
+        
         int index = hash % hashmap->NumBuckets;
         
         for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)

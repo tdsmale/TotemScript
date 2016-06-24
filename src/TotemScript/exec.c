@@ -1816,28 +1816,40 @@ TOTEM_EXECSTEP totemExecState_ExecComplexSet(totemExecState *state)
             
             totemObject *obj = dst->Value.GCObject->Object;
             totemRegister *newReg = NULL;
-            totemHashValue lookupVal = 0;
+            totemHashValue registerIndex = 0;
             
-            if (obj->Lookup.FreeList)
+            totemHashMapEntry *entry = totemHashMap_FindPrecomputed(&obj->Lookup, str, len, hash);
+            if (entry)
             {
-                lookupVal = obj->Lookup.FreeList->Value;
-                newReg = totemMemoryBuffer_Get(&obj->Registers, lookupVal);
+                // already in hash map
+                registerIndex = entry->Value;
             }
             else
             {
-                lookupVal = totemMemoryBuffer_GetNumObjects(&obj->Registers);
-                newReg = totemMemoryBuffer_Secure(&obj->Registers, 1);
-                if (!newReg)
+                // we need to insert a new lookup value
+                if (obj->Lookup.FreeList)
                 {
-                    totemExecState_Break(state, totemExecStatus_OutOfMemory);
+                    // we can reuse the register index sitting on top of the freelist
+                    registerIndex = obj->Lookup.FreeList->Value;
+                }
+                else
+                {
+                    // otherwise we need a new one
+                    registerIndex = totemMemoryBuffer_GetNumObjects(&obj->Registers);
+                    
+                    if (!totemMemoryBuffer_Secure(&obj->Registers, 1))
+                    {
+                        totemExecState_Break(state, totemExecStatus_OutOfMemory);
+                    }
                 }
                 
-                if (!totemHashMap_InsertPrecomputed(&obj->Lookup, str, len, lookupVal, hash))
+                if (!totemHashMap_InsertPrecomputedWithoutSearch(&obj->Lookup, str, len, registerIndex, hash))
                 {
                     totemExecState_Break(state, totemExecStatus_OutOfMemory);
                 }
             }
             
+            newReg = totemMemoryBuffer_Get(&obj->Registers, registerIndex);
             TOTEM_EXEC_BREAK(totemExecState_Assign(state, newReg, src), state);
             break;
         }

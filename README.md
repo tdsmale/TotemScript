@@ -14,10 +14,11 @@ Variables are dynamically-typed, supporting the following types:
 * float - 64-bit floating point
 * string - Interned, immutable strings
 * function - First-class functions
-* array - Garbage-collected Arrays
-* coroutine - First-class, garbage collected coroutines
+* array - Fixed-size Arrays
+* object - String/Value Maps
+* coroutine - First-class coroutines
 * type - Type objects (e.g. int, float, type etc.)
-* userdata - Garbage-collected data supplied by native C functions
+* userdata - Data supplied by native C functions
 ```
 // variables can be declared and redeclared at any point
 $var = 123;
@@ -119,8 +120,10 @@ print($c); // l
 // Defines an Array that holds 20 values
 $a = [20];
 
-$a[0] = 1;
-$a[1] = 2;
+for($i = 0; $i < 20; $i++)
+{
+	$a[$i] = $i;
+}
 
 $b = $a[0] + $a[1];
 

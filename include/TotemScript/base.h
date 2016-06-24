@@ -362,10 +362,12 @@ extern "C" {
     void totemHashMap_Reset(totemHashMap *hashmap);
     void totemHashMap_Cleanup(totemHashMap *hashmap);
     totemBool totemHashMap_TakeFrom(totemHashMap *hashmap, totemHashMap *from);
-    totemBool totemHashMap_Insert(totemHashMap *hashmap, const void *Key, size_t KeyLen, totemHashValue Value);
+    totemBool totemHashMap_Insert(totemHashMap *hashmap, const void *key, size_t KeyLen, totemHashValue Value);
     totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash);
-    totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *Key, size_t KeyLen);
-    totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *Key, size_t keyLen);
+    totemBool totemHashMap_InsertPrecomputedWithoutSearch(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash);
+    totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, size_t KeyLen);
+    totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *key, size_t keyLen);
+    totemHashMapEntry *totemHashMap_FindPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHash hash);
     
     void totem_Init();
     void totem_InitMemory();
