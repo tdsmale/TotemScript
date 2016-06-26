@@ -315,6 +315,9 @@ function objectTest()
     assert($c == 789);
     assert($d == "hello!");
 
+    $obj.invoke = function($a, $b) { return $a + $b; };
+    assert($obj.invoke(123, 456) == 123 + 456);
+
     print($obj);
     print("---");
 }

@@ -533,7 +533,7 @@ totemBool totemHashMap_InsertPrecomputedWithoutSearch(totemHashMap *hashmap, con
     entry->Value = value;
     entry->Key = persistKey;
     entry->KeyLen = keyLen;
-    entry->Hash = hash == 0 ? totem_Hash(key, keyLen) : hash;
+    entry->Hash = hash;
     totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
     
     hashmap->NumKeys++;
@@ -556,7 +556,8 @@ totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key,
 
 totemBool totemHashMap_Insert(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value)
 {
-    return totemHashMap_InsertPrecomputed(hashmap, key, keyLen, value, 0);
+    totemHash hash = totem_Hash(key, keyLen);
+    return totemHashMap_InsertPrecomputed(hashmap, key, keyLen, value, hash);
 }
 
 totemBool totemHashMap_TakeFrom(totemHashMap *hashmap, totemHashMap *from)

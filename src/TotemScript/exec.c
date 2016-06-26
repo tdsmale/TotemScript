@@ -13,9 +13,9 @@
 #include <TotemScript/base.h>
 #include <string.h>
 
-#define TOTEM_GET_OPERANDA_REGISTER(state, instruction) &state->Registers[TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)][((totemLocalRegisterIndex)TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction))]
-#define TOTEM_GET_OPERANDB_REGISTER(state, instruction) &state->Registers[TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)][((totemLocalRegisterIndex)TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction))]
-#define TOTEM_GET_OPERANDC_REGISTER(state, instruction) &state->Registers[TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)][((totemLocalRegisterIndex)TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction))]
+#define TOTEM_GET_OPERANDA_REGISTER(state, instruction) &state->Registers[TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)][(TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction))]
+#define TOTEM_GET_OPERANDB_REGISTER(state, instruction) &state->Registers[TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)][(TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction))]
+#define TOTEM_GET_OPERANDC_REGISTER(state, instruction) &state->Registers[TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)][(TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction))]
 
 #define TOTEM_EXEC_BREAK(x, state) { totemExecStatus status = x; if(status != totemExecStatus_Continue) totemExecState_Break(state, status); }
 
@@ -751,7 +751,6 @@ void totemExecState_PopRoutine(totemExecState *state)
 
 totemExecStatus totemExecState_ExecuteInstructions(totemExecState *state)
 {
-    totemExecStatus status = totemExecStatus_Continue;
     jmp_buf jump;
     memset(jump, 0, sizeof(jmp_buf));
     
@@ -869,10 +868,8 @@ totemExecStatus totemExecState_ExecuteInstructions(totemExecState *state)
     }
     else
     {
-        status = state->CallStack->BreakStatus;
+        return state->CallStack->BreakStatus;
     }
-    
-    return status;
 }
 
 totemExecStatus totemExecState_Exec(totemExecState *state, totemInstanceFunction *function, totemRegister *returnRegister)

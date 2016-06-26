@@ -141,6 +141,8 @@ $obj = {};
 $obj["test"] = 123;
 $val = $obj["test"];
 
+$obj.test = 456; // objects can use either bracket-notation or dot-notation
+
 // Objects can store any sort of value, but can only use strings as keys
 $val["test2"] = function($x, $y)
 {

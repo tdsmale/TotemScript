@@ -603,6 +603,8 @@ totemParseStatus totemPostUnaryOperatorPrototype_Parse(totemPostUnaryOperatorPro
             
             return totemParseStatus_Success;
             
+            
+            
         case totemTokenType_LBracket:
             TOTEM_PARSE_ALLOC(*type, totemPostUnaryOperatorPrototype, tree);
             (*type)->Type = totemPostUnaryOperatorType_Invocation;
@@ -613,6 +615,27 @@ totemParseStatus totemPostUnaryOperatorPrototype_Parse(totemPostUnaryOperatorPro
             (*type)->InvocationParametersStart = first;
             
             return totemParseStatus_Success;
+            
+        case totemTokenType_Dot:
+        {
+            TOTEM_PARSE_ALLOC(*type, totemPostUnaryOperatorPrototype, tree);
+            (*type)->Type = totemPostUnaryOperatorType_ArrayAccess;
+            
+            // parse identifier
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            TOTEM_PARSE_ALLOC((*type)->ArrayAccess, totemExpressionPrototype, tree);
+            (*type)->ArrayAccess->LValueType = totemLValueType_Argument;
+            TOTEM_PARSE_COPYPOSITION(tree->CurrentToken, (*type)->ArrayAccess);
+            
+            TOTEM_PARSE_ALLOC((*type)->ArrayAccess->LValueArgument, totemArgumentPrototype, tree);
+            TOTEM_PARSE_COPYPOSITION(tree->CurrentToken, (*type)->ArrayAccess->LValueArgument);
+            TOTEM_PARSE_ALLOC((*type)->ArrayAccess->LValueArgument->String, totemString, tree);
+            (*type)->ArrayAccess->LValueArgument->Type = totemArgumentType_String;
+            
+            TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier((*type)->ArrayAccess->LValueArgument->String, tree, totemBool_True));
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            return totemParseStatus_Success;
+        }
             
         case totemTokenType_LSBracket:
         {
