@@ -5,7 +5,7 @@ function whileLoop()
     print("While Loop");
     print("---");
 
-    $c = 10;
+    var $c = 10;
 
     while($c)
     {
@@ -24,8 +24,8 @@ function doWhileLoop()
     print("Do While Loop");
     print("---");
 
-    $a = 20;
-    $numLoops = 0;
+    var $a = 20;
+    var $numLoops = 0;
 
     do
     {
@@ -45,7 +45,7 @@ function forLoop()
     print("For Loop");
     print("---");
 
-    for($i = 0; $i < 30; $i++)
+    for(var $i = 0; $i < 30; $i++)
     {
         print($i);
     }
@@ -59,7 +59,7 @@ function ifBlock()
 {
     print("If Block");
     print("---");
-    $x = 0;
+    var local $x = 0;
 
     if($x < 0)
     {
@@ -81,18 +81,18 @@ function intFloat()
 {
     print("Int Float Test");
     print("---");
-    $f = 1;
+    var $f = 1;
     print($f);
 
-    $b = $f + 0.5;
+    var $b = $f + 0.5;
     print($b);
 
     assert($b == 1.5);
 
-    $c = 12.4;
+    var $c = 12.4;
     print($c);
 
-    $d = $c + 5;
+    var $d = $c + 5;
     print($d);
 
     assert($d == 17.4);
@@ -104,7 +104,7 @@ function nullTest()
 {
     print("Null Test");
     print("---");
-    $g = null;
+    var $g = null;
     print($g);
 
     assert($g == null);

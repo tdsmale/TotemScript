@@ -65,6 +65,7 @@ extern "C" {
     
 #define TOTEM_BITMASK(start, length) (((((unsigned)1) << (length)) - 1) << (start))
 #define TOTEM_HASBITS(i, mask) (((i) & (mask)) == (mask))
+#define TOTEM_HASANYBITS(i, mask) (((i) & (mask)) != 0)
 #define TOTEM_GETBITS(i, mask) ((i) & (mask))
 #define TOTEM_SETBITS(i, mask) ((i) |= (mask))
 #define TOTEM_UNSETBITS(i, mask) ((i) &= (~(mask)))

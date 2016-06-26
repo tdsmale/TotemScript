@@ -68,7 +68,7 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD(totemTokenType_True, "true"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_False, "false"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Null, "null"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Const, "const"),
+    TOTEM_DESC_TOKEN_WORD(totemTokenType_Let, "let"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Is, "is"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Float, "float"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Int, "int"),
@@ -80,6 +80,7 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Object, "object"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Local, "local"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Userdata, "userdata"),
+    TOTEM_DESC_TOKEN_WORD(totemTokenType_Var, "var")
 };
 
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
@@ -384,6 +385,7 @@ const char *totemTokenType_Describe(totemTokenType type)
 {
     switch (type)
     {
+            TOTEM_STRINGIFY_CASE(totemTokenType_Var);
             TOTEM_STRINGIFY_CASE(totemTokenType_At);
             TOTEM_STRINGIFY_CASE(totemTokenType_As);
             TOTEM_STRINGIFY_CASE(totemTokenType_Array);
@@ -399,7 +401,7 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_Case);
             TOTEM_STRINGIFY_CASE(totemTokenType_Colon);
             TOTEM_STRINGIFY_CASE(totemTokenType_Comma);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Const);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Let);
             TOTEM_STRINGIFY_CASE(totemTokenType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemTokenType_Default);
             TOTEM_STRINGIFY_CASE(totemTokenType_Divide);

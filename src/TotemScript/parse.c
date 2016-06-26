@@ -844,8 +844,14 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
     {
         switch(tree->CurrentToken->Type)
         {
-            case totemTokenType_Const:
+            case totemTokenType_Let:
                 TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsConst);
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+                TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+                break;
+                
+            case totemTokenType_Var:
+                TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration);
                 TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
                 TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
                 break;
@@ -1005,8 +1011,9 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             
             // variable
         case totemTokenType_Variable:
-        case totemTokenType_Const:
+        case totemTokenType_Let:
         case totemTokenType_Local:
+        case totemTokenType_Var:
             argument->Type = totemArgumentType_Variable;
             TOTEM_PARSE_ALLOC(argument->Variable, totemVariablePrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemVariablePrototype_Parse(argument->Variable, tree));

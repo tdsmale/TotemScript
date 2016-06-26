@@ -91,7 +91,8 @@ extern "C" {
     {
         totemVariablePrototypeFlag_None = 0,
         totemVariablePrototypeFlag_IsConst = 1,
-        totemVariablePrototypeFlag_IsLocal = 1 << 1
+        totemVariablePrototypeFlag_IsLocal = 1 << 1,
+        totemVariablePrototypeFlag_IsDeclaration = 1 << 2,
     }
     totemVariablePrototypeFlag;
     
@@ -192,6 +193,7 @@ extern "C" {
         totemTokenType_None = 0,
         totemTokenType_Null,
         totemTokenType_Variable,
+        totemTokenType_Var,
         totemTokenType_Identifier,
         totemTokenType_Plus,
         totemTokenType_Minus,
@@ -233,7 +235,7 @@ extern "C" {
         totemTokenType_False,
         totemTokenType_Backslash,
         totemTokenType_Slash,
-        totemTokenType_Const,
+        totemTokenType_Let,
         totemTokenType_Is,
         totemTokenType_Int,
         totemTokenType_Float,

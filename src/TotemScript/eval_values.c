@@ -21,22 +21,6 @@ totemEvalStatus totemFunctionCallPrototype_EvalValues(totemFunctionCallPrototype
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemVariablePrototype_EvalValues(totemVariablePrototype *var, totemBuildPrototype *build, totemEvalVariableFlag varFlags)
-{
-    totemOperandRegisterPrototype dummy;
-    if (!totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &var->Identifier, &dummy))
-    {
-        if (TOTEM_HASBITS(varFlags, totemEvalVariableFlag_MustBeDefined))
-        {
-            return totemEvalStatus_Break(totemEvalStatus_VariableNotDefined);
-        }
-        
-        TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddVariable(&build->GlobalRegisters, &var->Identifier, &dummy));
-    }
-    
-    return totemEvalStatus_Success;
-}
-
 totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, totemBuildPrototype *build, totemEvalVariableFlag varFlags)
 {
     totemOperandRegisterPrototype dummy;
@@ -65,7 +49,7 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
         case totemArgumentType_Variable:
             if (TOTEM_HASBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables))
             {
-                return totemVariablePrototype_EvalValues(arg->Variable, build, varFlags);
+                return totemVariablePrototype_Eval(arg->Variable, build, &dummy, varFlags);
             }
             break;
             

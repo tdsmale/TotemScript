@@ -1,14 +1,14 @@
-$x = "It Works! YAY";
+var $x = "It Works! YAY";
 
-$y = 0;
+var $y = 0;
 
 for($y = 0; $y < 10; $y++)
 {
-    $sgdghdf = 1;
+    var $sgdghdf = 1;
     //print($y);
 }
 
-function includeTest($z)
+function includeTest(var $z)
 {
     print("INCLUDE TEST");
     print("---");
@@ -21,7 +21,7 @@ function constTest()
 {
     print("CONST TEST");
     print("---");
-    const $xw = 123;
+    let $xw = 123;
     print($xw);
 
     assert($xw == 123);
@@ -33,7 +33,7 @@ function arrayTest()
 {
     print("ARRAY TEST");
     print("---");
-    $r = [10];
+    var $r = [10];
 
     $r[3] = 12;
 
@@ -43,11 +43,11 @@ function arrayTest()
 
     $r[4][15] = 12345;
 
-    $b = $r[3];
+    var $b = $r[3];
 
-    $a = $r[4][15];
+    var $a = $r[4][15];
 
-    $d = $r[0];
+    var $d = $r[0];
 
     print($r);
     print($b);
@@ -57,12 +57,12 @@ function arrayTest()
     assert($r[3] == 12);
     assert($r[4][15] == 12345);
 
-    $s = [3];
+    var $s = [3];
     $s[0] = 1;
     $s[1] = 2;
     $s[2] = 3;
 
-    $t = [3];
+    var $t = [3];
     $t[0] = 4;
     $t[1] = 5;
     $t[2] = 6;
@@ -77,11 +77,11 @@ function stringTest()
     print("STRING TEST");
     print("---");
 
-    $d = "This is an interned string!";
+    var $d = "This is an interned string!";
     print($d);
     assert($d == "This is an interned string!");
 
-    $e = " Ain't this great?";
+    var $e = " Ain't this great?";
     assert(($d + $e) == "This is an interned string! Ain't this great?");
 
     assert(("123" + "456" + "789") == "123456789");
@@ -99,7 +99,7 @@ function moveToLocalTest()
     print("MOVE TO LOCAL TEST");
     print("---");
 
-    $e = $y;
+    var $e = $y;
     print($y);
     assert($e == $y);
 
@@ -116,16 +116,16 @@ function dataTypeTest()
 {
     print("DATA TYPE TEST");
     print("---");
-    $a = float;
-    $b = 3.75;
+    var $a = float;
+    var $b = 3.75;
     print($a);
     print($b);
     print($b is int);
 
     assert(!($b is int));
 
-    $d = int;
-    $c = $b as $d;
+    var $d = int;
+    var $c = $b as $d;
     print($d);
     print($c);
     print($b);
@@ -144,7 +144,7 @@ function dataTypeTest()
     assert((123.45 as int) == 123);
     assert((123.45 as type) == float);
 
-    $rep = [2];
+    var $rep = [2];
     $rep[0] = 456;
     $rep[1] = 789;
 
@@ -169,7 +169,7 @@ function dataTypeTest()
     assert(("str" as string) == "str");
     assert(("print" as function) == @print);
 
-    $x = @dataTypeTest as coroutine;
+    var local $x = @dataTypeTest as coroutine;
     assert(($x as function) == @dataTypeTest);
     assert(($x as string) == "dataTypeTest");
     assert((($x as coroutine) as function) == @dataTypeTest);
@@ -185,15 +185,15 @@ function dataTypeTest()
     print("---");
 }
 
-function funcPointerTestChild($b, $c)
+function funcPointerTestChild(var $b, var $c)
 {
     print("HUZZAH!");
     return $b + $c;
 }
 
-$rtygh = function()
+let $rtygh = function()
 {
-    $a = 1;
+    var $a = 1;
     print("DOOP");
 };
 
@@ -202,12 +202,12 @@ function funcPointerTest()
     print("function pointer test");
     print("---");
 
-    $a = @funcPointerTestChild;
-    $b = 123;
-    $c = 456;
-    $d = $a($b, $c);
-    $e = @print;
-    $f = [10];
+    var $a = @funcPointerTestChild;
+    var $b = 123;
+    var $c = 456;
+    var $d = $a($b, $c);
+    var $e = @print;
+    var $f = [10];
     $f[5] = [12];
     $f[5][2] = @print;
 
@@ -225,23 +225,23 @@ function funcPointerTest()
     @print($d);
     @print(function);
 
-    $g = function($rt, $as, $we)
+    var $g = function(var $rt, var $as, var $we)
     {
         //print("GOOD LORD!");
         return $rt + $as + $we;
     };
 
     assert($g(456, 789, 123) == 456 + 789 + 123);
-    assert(function($zxc, $vbn) { return $zxc - $vbn; }(10, 5) == 10 - 5);
+    assert(function(var $zxc, var $vbn) { return $zxc - $vbn; }(10, 5) == 10 - 5);
 
     $rtygh();
 
     print("---");
 }
 
-function generatorTest($start, $end)
+function generatorTest(var $start, var $end)
 {
-    for($i = $start; $i < $end; $i++)
+    for(var $i = $start; $i < $end; $i++)
     {
         return $i + $start + $end;
     }
@@ -254,14 +254,14 @@ function coroutineTest()
     print("coroutine test");
     print("---");
 
-    $co = @generatorTest as coroutine;
-    $start = 11;
-    $end = 20;
-    $maxLoops = $end - $start;
+    var $co = @generatorTest as coroutine;
+    var $start = 11;
+    var $end = 20;
+    var $maxLoops = $end - $start;
 
     //print("loop 1");
 
-    for($numLoops = 0; $val = $co($start, $end); $numLoops++)
+    for(var $numLoops = 0; var $val = $co($start, $end); $numLoops++)
     {
         //print($val);
         assert($val == ($start + $numLoops + $start + $end));
@@ -286,17 +286,17 @@ function objectTest()
     print("object test");
     print("---");
 
-    local $obj = {};
+    var local $obj = {};
     $obj["test"] = 123;
     $obj["test2"] = 456;
     $obj["test3"] = 789;
-    local $a = $obj["test"];
-    local $b = $obj["test2"];
-    local $c = $obj["test3"];
+    var $a = $obj["test"];
+    var $b = $obj["test2"];
+    var $c = $obj["test3"];
 
     $obj["test4"] = {};
     $obj["test4"]["what"] = "hello!";
-    local $d = $obj["test4"]["what"];
+    var $d = $obj["test4"]["what"];
 
     $obj["test5"] = [2];
     $obj["test5"][1] = "Doop!";
@@ -315,7 +315,7 @@ function objectTest()
     assert($c == 789);
     assert($d == "hello!");
 
-    $obj.invoke = function($a, $b) { return $a + $b; };
+    $obj.invoke = function(var $a, var $b) { return $a + $b; };
     assert($obj.invoke(123, 456) == 123 + 456);
 
     print($obj);
@@ -327,8 +327,8 @@ function userDataTest()
     print("userdata test");
     print("---");
 
-    $file = fopen();
-    $test = $file;
+    var $file = fopen();
+    var $test = $file;
     assert($file is userdata);
 
     $file = 123;
@@ -340,7 +340,7 @@ function userDataTest()
 
 function localTest()
 {
-    local $y = "This is a string!";
+    var local $y = "This is a string!";
     print($y);
 }
 
@@ -349,7 +349,7 @@ function refCycleTest()
     print("ref cycle test");
     print("---");
 
-    local $y = [1];
+    var local $y = [1];
     $y[0] = [1];
     $y[0][0] = $y;
 

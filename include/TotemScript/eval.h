@@ -65,7 +65,8 @@ extern "C" {
     {
         totemBuildPrototypeFlag_None = 0,
         totemBuildPrototypeFlag_EvalVariables = 1,
-        totemBuildPrototypeFlag_EvalGlobalAssocs = 1 << 1
+        totemBuildPrototypeFlag_EvalGlobalAssocs = 1 << 1,
+        totemBuildPrototypeFlag_EnforceVariableDefinitions = 1 << 2
     }
     totemBuildPrototypeFlag;
     
@@ -151,7 +152,7 @@ extern "C" {
     typedef struct
     {
         totemRegisterListPrototype GlobalRegisters;
-        totemRegisterListPrototype LocalRegisters;
+        totemRegisterListPrototype *LocalRegisters;
         totemHashMap FunctionLookup;
         totemHashMap NativeFunctionNamesLookup;
         totemHashMap AnonymousFunctions;

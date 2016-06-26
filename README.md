@@ -20,8 +20,10 @@ Variables are dynamically-typed, supporting the following types:
 * type - Type objects (e.g. int, float, type etc.)
 * userdata - Data supplied by native C functions
 ```
-// variables can be declared and redeclared at any point
-$var = 123;
+// variables are declared thusly:
+var $var = 123;
+
+// variables can hold values of any type
 $var = "This is now a string.";
 
 function test()
@@ -29,8 +31,8 @@ function test()
     // this will reference the variable in global-scope
     $var = 456;
 
-    // vars can also be read-only
-    const $x = "This variable cannot be modified";
+    // variables can also be declared as read-only
+    let $x = "This variable cannot be modified";
 
     // values can be typecast
     $var = 123 as string;
@@ -48,7 +50,7 @@ function test()
 #### Variable Scope
 ```
 // Variables declared outside of functions are in global scope, and can be accessed by any function.
-$global = "This can be accessed by any function.";
+var $global = "This can be accessed by any function.";
 
 function test()
 {
@@ -58,16 +60,16 @@ function test()
 // Variables declared inside of functions are in local scope, and can only be accessed by that function.
 function localTest()
 {
-    $a = 123;
+    var $a = 123;
 
-    $b = function()
+    var $b = function()
     {
         return $a; // scope error
     }
 
     // global variable names can be overridden with the "local" keyword
     // this will prevent global vars of the same name from being overwritten
-    local $global = 123;
+    local var $global = 123;
 }
 
 ```
@@ -81,26 +83,26 @@ include "..otherDir/otherFile.totem";
 ```
 // declaring a function
 // named functions can only be declared in global scope
-function test($a, $b)
+function test(var $a, var $b)
 {
     return $a + $b;
 }
 
-$a = test(123, 456); 
+var $a = test(123, 456); 
 $a = test(123); // arguments default to an integer value of 0 when not provided by caller
 
-$b = @test; // functions can also be stored in variables
+var $b = @test; // functions can also be stored in variables
 $a = $b(123, 456, 789); // additional arguments provided by caller are discarded
 
 // functions can also be anonymous, which can be declared anywhere
-$b = function($a, $b)
+$b = function(var $a, var $b)
 {
     return $a * $b;
 };
 
 $a = $b(123, 456);
 
-$a = function($b, $c)
+$a = function(var $b, var $c)
 {
     return $b - $c;
 }
@@ -108,24 +110,24 @@ $a = function($b, $c)
 ```
 #### Strings
 ```
-// Strings are immutable
-$a = "Hello, ";
-$b = $a + " World!";
+// Strings are immutable, but can be combined to create new strings
+var $a = "Hello, ";
+var $b = $a + " World!";
 print($b); // Hello, World!
-$c = $a[2];
+var $c = $a[2];
 print($c); // l
 ```
 #### Arrays
 ```
 // Defines an Array that holds 20 values
-$a = [20];
+var $a = [20];
 
-for($i = 0; $i < 20; $i++)
+for(var $i = 0; $i < 20; $i++)
 {
 	$a[$i] = $i;
 }
 
-$b = $a[0] + $a[1];
+var $b = $a[0] + $a[1];
 
 // Arrays cannot be resized and must be redeclared if additional space is needed
 $a[20] = 1; // runtime error
@@ -135,16 +137,16 @@ $a = "some other value"; // Arrays are automatically garbage-collected when no-l
 #### Objects
 ```
 // Create new garbage-collected object
-$obj = {};
+var $obj = {};
 
-// Objects map strings to values
-$obj["test"] = 123;
-$val = $obj["test"];
+// Objects map values to names
+$obj.test = 123;
+var $val = $obj.test;
 
-$obj.test = 456; // objects can use either bracket-notation or dot-notation
+$obj["test"] = 456; // objects can use either bracket-notation or dot-notation
 
 // Objects can store any sort of value, but can only use strings as keys
-$val["test2"] = function($x, $y)
+$obj["test2"] = function($x, $y)
 {
     return $x * $y;
 };
@@ -152,10 +154,10 @@ $val["test2"] = function($x, $y)
 $val["test2"](123, 456);
 
 // Objects are less efficient than arrays, but can hold any amount of values 
-$key = "key";
+var $key = "key";
 $obj[$key] = [20];
 
-for($i = 0; $i < 20; $i++)
+for(var $i = 0; $i < 20; $i++)
 {
     $obj[$key][$i] = $i;
 }
@@ -165,9 +167,9 @@ for($i = 0; $i < 20; $i++)
 // Coroutines are functions that pause when they return, and can be resumed later
 
 // Coroutines are created by casting any function to a coroutine, and invoked like a regular function
-$co = function($start, $end)
+var $co = function(var $start, var $end)
 {
-    for($i = $start; $i < $end; $i++)
+    for(var $i = $start; $i < $end; $i++)
     {
         return $i + $start + $end;
     }
@@ -175,11 +177,11 @@ $co = function($start, $end)
     return 0;
 } as coroutine;
 
-$start = 11;
-$end = 20;
+var $start = 11;
+var $end = 20;
 
 // Parameters are ignored on subsequent calls
-for($numLoops = 0; $val = $co($start, $end); $numLoops++)
+for(var $numLoops = 0; var $val = $co($start, $end); $numLoops++)
 {
     print($val);
 }

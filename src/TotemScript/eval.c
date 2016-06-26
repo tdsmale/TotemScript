@@ -19,7 +19,6 @@ totemEvalStatus totemEvalStatus_Break(totemEvalStatus status)
 void totemBuildPrototype_Init(totemBuildPrototype *build)
 {
     totemRegisterListPrototype_Init(&build->GlobalRegisters, totemOperandType_GlobalRegister);
-    totemRegisterListPrototype_Init(&build->LocalRegisters, totemOperandType_LocalRegister);
     totemHashMap_Init(&build->FunctionLookup);
     totemHashMap_Init(&build->NativeFunctionNamesLookup);
     totemHashMap_Init(&build->AnonymousFunctions);
@@ -29,12 +28,12 @@ void totemBuildPrototype_Init(totemBuildPrototype *build)
     totemMemoryBuffer_Init(&build->FunctionArguments, sizeof(totemOperandRegisterPrototype));
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
+    build->LocalRegisters = NULL;
 }
 
 void totemBuildPrototype_Reset(totemBuildPrototype *build)
 {
     totemRegisterListPrototype_Reset(&build->GlobalRegisters);
-    totemRegisterListPrototype_Reset(&build->LocalRegisters);
     totemHashMap_Reset(&build->FunctionLookup);
     totemHashMap_Reset(&build->NativeFunctionNamesLookup);
     totemHashMap_Reset(&build->AnonymousFunctions);
@@ -44,12 +43,12 @@ void totemBuildPrototype_Reset(totemBuildPrototype *build)
     totemMemoryBuffer_Reset(&build->FunctionArguments);
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
+    build->LocalRegisters = NULL;
 }
 
 void totemBuildPrototype_Cleanup(totemBuildPrototype *build)
 {
     totemRegisterListPrototype_Cleanup(&build->GlobalRegisters);
-    totemRegisterListPrototype_Cleanup(&build->LocalRegisters);
     totemHashMap_Cleanup(&build->FunctionLookup);
     totemHashMap_Cleanup(&build->NativeFunctionNamesLookup);
     totemHashMap_Cleanup(&build->AnonymousFunctions);
@@ -59,6 +58,7 @@ void totemBuildPrototype_Cleanup(totemBuildPrototype *build)
     totemMemoryBuffer_Cleanup(&build->FunctionArguments);
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
+    build->LocalRegisters = NULL;
 }
 
 totemEvalStatus totemBuildPrototype_EvalFunctionArgumentsBegin(totemBuildPrototype *build, totemExpressionPrototype *parametersStart)
@@ -122,15 +122,12 @@ totemRegisterListPrototype *totemBuildPrototype_GetRegisterList(totemBuildProtot
 
 totemRegisterListPrototype *totemBuildPrototype_GetLocalScope(totemBuildPrototype *build)
 {
-    /*
-     if(build->LocalRegisters)
-     {
-     return build->LocalRegisters;
-     }
-     
-     return &build->GlobalRegisters;*/
+    if(build->LocalRegisters)
+    {
+        return build->LocalRegisters;
+    }
     
-    return &build->LocalRegisters;
+    return &build->GlobalRegisters;
 }
 
 totemEvalStatus totemBuildPrototype_FreeGlobalAssocs(totemBuildPrototype *build, size_t max)
@@ -430,10 +427,11 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, &globalFunction));
     
     // eval global values
+    build->LocalRegisters = NULL;
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
     totemRegisterListPrototype_Reset(&build->GlobalRegisters);
-    build->Flags = totemBuildPrototypeFlag_EvalVariables;
+    build->Flags = totemBuildPrototypeFlag_EvalVariables | totemBuildPrototypeFlag_EnforceVariableDefinitions;
     
     // eval script function names first, and create pointers for each
     for (totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
@@ -486,7 +484,7 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
         }
     }
     
-    // eval values from functions into global scope
+    // eval global values from functions into global scope
     build->Flags = totemBuildPrototypeFlag_None;
     for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
     {
@@ -523,7 +521,6 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
     build->Flags = totemBuildPrototypeFlag_EvalVariables | totemBuildPrototypeFlag_EvalGlobalAssocs;
-    totemRegisterListPrototype_Reset(&build->LocalRegisters);
     globalFunction->InstructionsStart = 0;
     
     for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
@@ -542,40 +539,43 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     }
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalImplicitReturn(build));
-    globalFunction->RegistersNeeded = totemMemoryBuffer_GetNumObjects(&build->LocalRegisters.Registers);
+    globalFunction->RegistersNeeded = totemMemoryBuffer_GetNumObjects(&build->GlobalRegisters.Registers);
     
     // now eval all other function instructions
+    totemRegisterListPrototype localRegisters;
+    totemRegisterListPrototype_Init(&localRegisters, totemOperandType_LocalRegister);
+    build->LocalRegisters = &localRegisters;
+    build->Flags |= totemBuildPrototypeFlag_EnforceVariableDefinitions;
+    
+    totemOperandXUnsigned funcIndex = 1;
+    for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
     {
-        totemOperandXUnsigned funcIndex = 1;
-        for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
+        switch(block->Type)
         {
-            switch(block->Type)
+            case totemBlockType_FunctionDeclaration:
             {
-                case totemBlockType_FunctionDeclaration:
-                {
-                    totemScriptFunctionPrototype *functionPrototype = totemMemoryBuffer_Get(&build->Functions, funcIndex);
-                    TOTEM_EVAL_CHECKRETURN(totemFunctionDeclarationPrototype_Eval(block->FuncDec, build, functionPrototype));
-                    
-                    funcIndex++;
-                    break;
-                }
-                    
-                default:
-                    break;
+                totemScriptFunctionPrototype *functionPrototype = totemMemoryBuffer_Get(&build->Functions, funcIndex);
+                TOTEM_EVAL_CHECKRETURN(totemFunctionDeclarationPrototype_Eval(block->FuncDec, build, functionPrototype));
+                
+                funcIndex++;
+                break;
             }
+                
+            default:
+                break;
         }
+    }
+    
+    // eval anonymous functions
+    while (build->AnonymousFunctionHead)
+    {
+        totemFunctionDeclarationPrototype *func = build->AnonymousFunctionHead;
+        build->AnonymousFunctionHead = build->AnonymousFunctionHead->Next;
         
-        // eval anonymous functions
-        while (build->AnonymousFunctionHead)
-        {
-            totemFunctionDeclarationPrototype *func = build->AnonymousFunctionHead;
-            build->AnonymousFunctionHead = build->AnonymousFunctionHead->Next;
-            
-            totemScriptFunctionPrototype *functionPrototype = totemMemoryBuffer_Get(&build->Functions, funcIndex);
-            TOTEM_EVAL_CHECKRETURN(totemFunctionDeclarationPrototype_Eval(func, build, functionPrototype));
-            
-            funcIndex++;
-        }
+        totemScriptFunctionPrototype *functionPrototype = totemMemoryBuffer_Get(&build->Functions, funcIndex);
+        TOTEM_EVAL_CHECKRETURN(totemFunctionDeclarationPrototype_Eval(func, build, functionPrototype));
+        
+        funcIndex++;
     }
     
     return totemEvalStatus_Success;
@@ -611,7 +611,7 @@ totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build,
 totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationPrototype *function, totemBuildPrototype *build, totemScriptFunctionPrototype *funcPrototype)
 {
     funcPrototype->InstructionsStart = totemMemoryBuffer_GetNumObjects(&build->Instructions);
-    totemRegisterListPrototype_Reset(&build->LocalRegisters);
+    totemRegisterListPrototype_Reset(build->LocalRegisters);
     
     // parameters
     for(totemVariablePrototype *parameter = function->ParametersStart; parameter != NULL; parameter = parameter->Next)
@@ -627,7 +627,7 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
     }
     
     totemEvalStatus status = totemBuildPrototype_EvalImplicitReturn(build);
-    funcPrototype->RegistersNeeded = totemMemoryBuffer_GetNumObjects(&build->LocalRegisters.Registers);
+    funcPrototype->RegistersNeeded = totemMemoryBuffer_GetNumObjects(&build->LocalRegisters->Registers);
     return status;
 }
 
@@ -1206,48 +1206,49 @@ totemEvalStatus totemNewArrayPrototype_Eval(totemNewArrayPrototype *newArray, to
 totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemBuildPrototype *build, totemOperandRegisterPrototype *index, totemEvalVariableFlag flags)
 {
     totemBool justCreated = totemBool_False;
+    totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
     
     // check local scope first
-    totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
     if(!totemRegisterListPrototype_GetVariable(localScope, &variable->Identifier, index))
     {
+        totemBool varFound = totemBool_False;
+        
         // check global second
-        if(!TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsLocal) && totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &variable->Identifier, index))
+        if(!TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsLocal))
         {
+            varFound = totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &variable->Identifier, index);
+            
             // HAS to be local? eep.
-            if(TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
+            if(varFound && TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
             {
                 return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
             }
         }
-        else
+        
+        // var not found, declare it locally
+        if(!varFound)
         {
+            // ensure proper definition semantics
+            if(!TOTEM_HASANYBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration | totemVariablePrototypeFlag_IsConst)
+               || TOTEM_HASBITS(flags, totemEvalVariableFlag_MustBeDefined))
+            {
+                return totemEvalStatus_Break(totemEvalStatus_VariableNotDefined);
+            }
+            
             // create local
             justCreated = totemBool_True;
             TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddVariable(localScope, &variable->Identifier, index));
         }
     }
     
-    /*
-     if(TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsLocal) || !totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &variable->Identifier, index))
-     {
-     totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
-     
-     if(!totemRegisterListPrototype_GetVariable(localScope, &variable->Identifier, index))
-     {
-     if(TOTEM_GETBITS(flags, totemEvalVariableFlag_MustBeDefined))
-     {
-     return totemEvalStatus_Break(totemEvalStatus_VariableNotDefined);
-     }
-     
-     justCreated = totemBool_True;
-     TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddVariable(localScope, &variable->Identifier, index));
-     }
-     }
-     else if(TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
-     {
-     return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
-     }*/
+    if(TOTEM_HASBITS(build->Flags, totemBuildPrototypeFlag_EnforceVariableDefinitions))
+    {
+        // can't redeclare vars
+        if(!justCreated && TOTEM_HASANYBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration | totemVariablePrototypeFlag_IsConst))
+        {
+            return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
+        }
+    }
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_GlobalAssocCheck(build, index));
     
@@ -1255,15 +1256,7 @@ totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, to
     
     if(TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsConst))
     {
-        if(!justCreated)
-        {
-            // can't declare a var const if it already exists
-            return totemEvalStatus_Break(totemEvalStatus_VariableAlreadyDefined);
-        }
-        else
-        {
-            totemRegisterListPrototype_SetRegisterFlags(scope, index->RegisterIndex, totemRegisterPrototypeFlag_IsConst);
-        }
+        totemRegisterListPrototype_SetRegisterFlags(scope, index->RegisterIndex, totemRegisterPrototypeFlag_IsConst);
     }
     
     return totemEvalStatus_Success;
