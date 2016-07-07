@@ -603,8 +603,6 @@ totemParseStatus totemPostUnaryOperatorPrototype_Parse(totemPostUnaryOperatorPro
             
             return totemParseStatus_Success;
             
-            
-            
         case totemTokenType_LBracket:
             TOTEM_PARSE_ALLOC(*type, totemPostUnaryOperatorPrototype, tree);
             (*type)->Type = totemPostUnaryOperatorType_Invocation;
@@ -705,6 +703,11 @@ totemParseStatus totemBinaryOperatorType_Parse(totemBinaryOperatorType *type, to
             
             switch(tree->CurrentToken->Type)
         {
+            case totemTokenType_LessThan:
+                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+                *type = totemBinaryOperatorType_Shift;
+                break;
+                
             case totemTokenType_Assign:
                 TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
                 *type = totemBinaryOperatorType_LessThanEquals;
@@ -845,12 +848,22 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
         switch(tree->CurrentToken->Type)
         {
             case totemTokenType_Let:
+                if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration))
+                {
+                    return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
+                }
+                
                 TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsConst);
                 TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
                 TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
                 break;
                 
             case totemTokenType_Var:
+                if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsConst))
+                {
+                    return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
+                }
+                
                 TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration);
                 TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
                 TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);

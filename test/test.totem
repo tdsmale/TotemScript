@@ -114,6 +114,7 @@ function nullTest()
 
 function test()
 {
+	shiftTest();
     objectTest();
     dataTypeTest();
     moveToLocalTest();

@@ -355,3 +355,38 @@ function refCycleTest()
 
     print("---");
 }
+
+function shiftTest()
+{
+	print("shift test");
+
+	var local $a = {};
+	$a["test"] = 123;
+
+	print("object to reg");
+	var local $b << $a["test"];
+	assert(($a as int) == 0);
+	assert($b == 123);
+
+	print("reg to reg");
+	$a << $b;
+	assert($b != $a);
+	assert($b == 0);
+	assert($a == 123);
+
+	print("array to reg");
+	$b = [1];
+	$b[0] = 456;
+	$a << $b[0];
+	assert($b is array);
+	assert(($b as int) == 1);
+	assert($b[0] == 0);
+	assert($a == 456);
+
+	print("reg to complex");
+	$a = 789;
+	$b[0] << $a;
+	assert($b[0] == 789);
+	assert($b[0] != $a);
+	assert($a == 0);
+}

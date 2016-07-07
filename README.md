@@ -45,6 +45,9 @@ function test()
 
     // can also retrieve type as value
     $type = $var as type;
+
+    // values can also be "shifted" from one location to another
+    $a << $type;
 }
 ```
 #### Variable Scope
@@ -161,6 +164,9 @@ for(var $i = 0; $i < 20; $i++)
 {
     $obj[$key][$i] = $i;
 }
+
+// values can be removed by shifting them out
+$key << $obj[$key];
 ```
 #### Coroutines
 ```
@@ -194,4 +200,16 @@ for($numLoops = 0; $val = $co($start + 1, $end + 1); $numLoops++)
 
 // Coroutines are also garbage-collected, just like Arrays - when no longer referenced, they are destroyed
 $co = 123;
+
 ```
+### Feature Creep
+* null & boolean types
+* TryExec
+* Default Argument Values & skipping arguments
+* Instances - load a script as a callable value, e.g. $a = <test.totem>; $a(); $a.callNamedFunction();
+* Compile-time type hinting, e.g. $a:int = 0; type number = int|float; $b:number = 0.0; $c = $b is number; function test:number() { return 123; }
+* Complex custom classes that eval to arrays at runtime, e.g. type Vec2 = {public $x:0.0, public $y:0.0, public lengthSquared:float() { return ($x * $x) + ($y * $y;) }}; $a:Vec2 = {$x:123.0, $y:456.0}; $b:float = $a.lengthSquared();
+
+### Runtime Improvements
+* Function Arguments should be laid out in register stack rather than as instructions
+* Separate "current instruction" from loop calls

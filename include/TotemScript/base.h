@@ -168,10 +168,10 @@ extern "C" {
         totemOperationType_LessThanEquals = 8,      // A = B <= C
         totemOperationType_MoreThan = 9,            // A = B > C
         totemOperationType_MoreThanEquals = 10,     // A = B >= C
-        totemOperationType_LogicalOr = 11,          // A = B && C
-        totemOperationType_LogicalAnd = 12,         // A = B || C
+        totemOperationType_LogicalOr = 11,          // A = B || C
+        totemOperationType_LogicalAnd = 12,         // A = B && C
         totemOperationType_ConditionalGoto = 13,    // if(A is 0) skip Bx instructions (can be negative)
-        totemOperationType_Goto = 14,               // skip Bx instructions (can be negative)
+        totemOperationType_Goto = 14,               // skip Ax instructions (can be negative)
         totemOperationType_FunctionArg = 15,        // A is register to pass, Bx is number of arguments total
         totemOperationType_Return = 16,             // return A,
         totemOperationType_NewArray = 17,           // A = array of size B
@@ -181,8 +181,9 @@ extern "C" {
         totemOperationType_MoveToGlobal = 21,       // Bx = A
         totemOperationType_Is = 22,                 // A = B is C
         totemOperationType_As = 23,                 // A = B as C
-        totemOperationType_Function = 24,			// A = B()
+        totemOperationType_Invoke = 24,				// A = B()
         totemOperationType_NewObject = 25,			// A = new object
+        totemOperationType_ComplexShift = 26,		// A << B[C]
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;
@@ -367,6 +368,7 @@ extern "C" {
     totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash);
     totemBool totemHashMap_InsertPrecomputedWithoutSearch(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash);
     totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, size_t KeyLen);
+    totemHashMapEntry *totemHashMap_RemovePrecomputed(totemHashMap *hashmap, const void *key, size_t KeyLen, totemHash hash);
     totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *key, size_t keyLen);
     totemHashMapEntry *totemHashMap_FindPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHash hash);
     

@@ -309,11 +309,10 @@ extern "C" {
             totemObject *Object;
             totemUserdata *Userdata;
         };
-        volatile int64_t RefCount;
-        int64_t CycleDetectCount;
+        uint64_t RefCount;
+        uint64_t CycleDetectCount;
         struct totemGCObject *Prev;
         struct totemGCObject *Next;
-        totemExecState *ExecState;
         totemGCObjectType Type;
     }
     totemGCObject;
@@ -326,7 +325,7 @@ extern "C" {
     totemExecStatus totemExecState_CreateArray(totemExecState *state, uint32_t numRegisters, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateUserdata(totemExecState *state, uint64_t data, totemUserdataDestructor destructor, totemGCObject **gcOut);
     totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, totemRegister *registers, uint32_t numRegisters, totemGCObject **objOut);
-    totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc);
+    void totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc);
     void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc);
     void totemExecState_DestroyArray(totemExecState *state, totemArray *arr);
     void totemExecState_DestroyCoroutine(totemExecState *state, totemFunctionCall *co);
@@ -365,7 +364,8 @@ extern "C" {
     TOTEM_EXECSTEP totemExecState_ExecComplexSet(totemExecState *state);
     TOTEM_EXECSTEP totemExecState_ExecIs(totemExecState *state);
     TOTEM_EXECSTEP totemExecState_ExecAs(totemExecState *state);
-    TOTEM_EXECSTEP totemExecState_ExecFunction(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecInvoke(totemExecState *state);
+    TOTEM_EXECSTEP totemExecState_ExecComplexShift(totemExecState *state);
     
     totemFunctionCall *totemExecState_SecureFunctionCall(totemExecState *state);
     void totemExecState_FreeFunctionCall(totemExecState *state, totemFunctionCall *call);
@@ -389,7 +389,7 @@ extern "C" {
     totemExecStatus totemExecState_ConcatStrings(totemExecState *state, totemRegister *str1, totemRegister *str2, totemRegister *strOut);
     totemExecStatus totemExecState_ConcatArrays(totemExecState *state, totemRegister *src1, totemRegister *src2, totemRegister *dst);
     
-    totemExecStatus totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src);
+    void totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src);
     void totemExecState_AssignQuick(totemExecState *state, totemRegister *dst, totemRegister *src);
     void totemExecState_AssignNewInt(totemExecState *state, totemRegister *dst, totemInt newVal);
     void totemExecState_AssignNewFloat(totemExecState *state, totemRegister *dst, totemFloat newVal);

@@ -132,7 +132,7 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
                 break;
                 
             case totemPostUnaryOperatorType_ArrayAccess:
-                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(op->ArrayAccess, build, NULL, &postUnaryRegister, totemEvalVariableFlag_MustBeDefined));
+                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(op->ArrayAccess, build, totemEvalVariableFlag_MustBeDefined));
                 break;
                 
             case totemPostUnaryOperatorType_Invocation:

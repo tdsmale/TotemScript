@@ -11,17 +11,15 @@
 #define TOTEM_EXEC_ARRAYSIZE(numRegisters) (sizeof(totemArray) + (sizeof(totemRegister) * (numRegisters - 1)))
 #define TOTEM_REGISTER_DECIFGC(dst) if (TOTEM_REGISTER_ISGC(dst)) totemExecState_DecRefCount(state, (dst)->Value.GCObject);
 
-totemExecStatus totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src)
+void totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src)
 {
     TOTEM_REGISTER_DECIFGC(dst);
     memcpy((dst), (src), sizeof(totemRegister));
     
     if (TOTEM_REGISTER_ISGC(dst))
     {
-        TOTEM_EXEC_CHECKRETURN(totemExecState_IncRefCount(state, dst->Value.GCObject));
+        totemExecState_IncRefCount(state, dst->Value.GCObject);
     }
-    
-    return totemExecStatus_Continue;
 }
 
 void totemExecState_AssignQuick(totemExecState *state, totemRegister *dst, totemRegister *src)
@@ -373,13 +371,13 @@ totemExecStatus totemExecState_ConcatArrays(totemExecState *state, totemRegister
     
     for (size_t i = 0; i < src1->Value.GCObject->Array->NumRegisters; i++)
     {
-        TOTEM_EXEC_CHECKRETURN(totemExecState_Assign(state, &newRegs[i], &source1Regs[i]));
+        totemExecState_Assign(state, &newRegs[i], &source1Regs[i]);
     }
     
     totemRegister *source2Regs = src2->Value.GCObject->Array->Registers;
     for (size_t i = src1->Value.GCObject->Array->NumRegisters; i < gc->Array->NumRegisters; i++)
     {
-        TOTEM_EXEC_CHECKRETURN(totemExecState_Assign(state, &newRegs[i], &source2Regs[i - src1->Value.GCObject->Array->NumRegisters]));
+        totemExecState_Assign(state, &newRegs[i], &source2Regs[i - src1->Value.GCObject->Array->NumRegisters]);
     }
     
     totemExecState_AssignNewArray(state, dst, gc);
@@ -455,7 +453,7 @@ totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, to
     
     for (uint32_t i = 0; i < numRegisters; i++)
     {
-        TOTEM_EXEC_CHECKRETURN(totemExecState_Assign(state, &(*gcOut)->Array->Registers[i], &registers[i]));
+        totemExecState_Assign(state, &(*gcOut)->Array->Registers[i], &registers[i]);
     }
     
     return totemExecStatus_Continue;

@@ -152,6 +152,7 @@ extern "C" {
         totemBinaryOperatorType_LogicalOr,
         totemBinaryOperatorType_IsType,
         totemBinaryOperatorType_AsType,
+        totemBinaryOperatorType_Shift,
     }
     totemBinaryOperatorType;
     

@@ -82,9 +82,10 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Function);
+            TOTEM_STRINGIFY_CASE(totemOperationType_Invoke);
             TOTEM_STRINGIFY_CASE(totemOperationType_As);
             TOTEM_STRINGIFY_CASE(totemOperationType_Is);
+            TOTEM_STRINGIFY_CASE(totemOperationType_ComplexShift);
     }
     
     return "UNKNOWN";
@@ -535,6 +536,14 @@ const char *totem_getcwd()
 
 void totem_Init()
 {
+    static totemBool initialized = totemBool_False;
+    if(initialized)
+    {
+        return;
+    }
+    
+    initialized = totemBool_True;
+    
     TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values expected to be 8 bytes");
     TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction expected to be 4 bytes");
     

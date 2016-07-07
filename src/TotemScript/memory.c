@@ -577,18 +577,17 @@ totemBool totemHashMap_TakeFrom(totemHashMap *hashmap, totemHashMap *from)
     return totemBool_True;
 }
 
-totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, size_t keyLen)
+totemHashMapEntry *totemHashMap_RemovePrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHash hash)
 {
-    if(hashmap->NumBuckets > 0)
+    if (hashmap->NumBuckets > 0)
     {
-        uint32_t hash = totem_Hash(key, keyLen);
         int index = hash % hashmap->NumBuckets;
         
-        for(totemHashMapEntry *entry = hashmap->Buckets[index], *prev = NULL; entry != NULL; prev = entry, entry = entry->Next)
+        for (totemHashMapEntry *entry = hashmap->Buckets[index], *prev = NULL; entry != NULL; prev = entry, entry = entry->Next)
         {
-            if(entry->Hash == hash && memcmp(entry->Key, key, keyLen) == 0)
+            if (entry->Hash == hash && memcmp(entry->Key, key, keyLen) == 0)
             {
-                if(prev)
+                if (prev)
                 {
                     prev->Next = entry->Next;
                 }
@@ -607,6 +606,12 @@ totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, s
     return NULL;
 }
 
+totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, size_t keyLen)
+{
+    totemHash hash = totem_Hash(key, keyLen);
+    return totemHashMap_RemovePrecomputed(hashmap, key, keyLen, hash);
+}
+
 totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *key, size_t keyLen)
 {
     totemHash hash = totem_Hash(key, keyLen);
@@ -617,7 +622,6 @@ totemHashMapEntry *totemHashMap_FindPrecomputed(totemHashMap *hashmap, const voi
 {
     if(hashmap->NumBuckets > 0)
     {
-        
         int index = hash % hashmap->NumBuckets;
         
         for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)

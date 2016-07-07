@@ -1,5 +1,5 @@
 //
-//  exec_type.c
+//  exec_gc.c
 //  TotemScript
 //
 //  Created by Timothy Smale on 03/08/2016
@@ -8,7 +8,7 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 
-//static int gccount = 0;
+static int gccount = 0;
 
 totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjectType type)
 {
@@ -22,7 +22,6 @@ totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjec
     hdr->Type = type;
     hdr->CycleDetectCount = 0;
     hdr->Array = NULL;
-    hdr->ExecState = state;
     hdr->Prev = NULL;
     hdr->Next = NULL;
     
@@ -38,8 +37,8 @@ totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjec
     hdr->Next = state->GCStart;
     state->GCStart = hdr;
     
-    //gccount++;
-    //printf("add %i %p %s %p %p\n", gccount, hdr, totemGCObjectType_Describe(type), state->GCStart, state->GCStart2);
+    gccount++;
+    printf("add %i %p %s %p %p\n", gccount, hdr, totemGCObjectType_Describe(type), state->GCStart, state->GCStart2);
     
     return hdr;
 }
@@ -109,40 +108,26 @@ totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObje
     obj->Next = NULL;
     obj->Prev = NULL;
     
-    //gccount--;
-    //printf("kill %i %p %s %p %p\n", gccount, obj, totemGCObjectType_Describe(obj->Type), state->GCStart, state->GCStart2);
+    gccount--;
+    printf("kill %i %p %s %p %p\n", gccount, obj, totemGCObjectType_Describe(obj->Type), state->GCStart, state->GCStart2);
     
     totem_CacheFree(obj, sizeof(totemGCObject));
     return next;
 }
 
-totemExecStatus totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc)
+void totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc)
 {
     gc->RefCount++;
-    if (gc->RefCount < 0)
-    {
-        return totemExecStatus_Break(totemExecStatus_RefCountOverflow);
-    }
     
     //printf("inc count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
-    
-    return totemExecStatus_Continue;
 }
 
 void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc)
 {
+    gc->RefCount--;
     if (gc->RefCount <= 0)
     {
-        return;
-    }
-    
-    gc->RefCount--;
-    if (gc->RefCount == 0)
-    {
-        if (gc->ExecState == state)
-        {
-            totemExecState_DestroyGCObject(state, gc);
-        }
+        totemExecState_DestroyGCObject(state, gc);
     }
     
     //printf("dec count %s %i\n", totemGCObjectType_Describe(gc->Type), gc->RefCount);
@@ -172,7 +157,7 @@ void totemExecState_CycleDetect(totemExecState *state, totemGCObject *gc)
             break;
             
         default:
-            break;
+            return;
     }
     
     if (regs)
@@ -185,7 +170,7 @@ void totemExecState_CycleDetect(totemExecState *state, totemGCObject *gc)
             {
                 totemGCObject *childGC = reg->Value.GCObject;
                 
-                if (childGC->CycleDetectCount > 0 && childGC->ExecState == state)
+                if (childGC->CycleDetectCount > 0)
                 {
                     childGC->CycleDetectCount--;
                     //printf("cycle count %s %i\n", totemGCObjectType_Describe(childGC->Type), childGC->CycleDetectCount);
