@@ -139,16 +139,19 @@ extern "C" {
     
     typedef enum
     {
-        totemPublicDataType_Int = 0,
-        totemPublicDataType_Float = 1,
-        totemPublicDataType_String = 2,
-        totemPublicDataType_Array = 3,
-        totemPublicDataType_Type = 4,
-        totemPublicDataType_Function = 5,
-        totemPublicDataType_Coroutine = 6,
-        totemPublicDataType_Object = 7,
-        totemPublicDataType_Userdata = 8,
-        totemPublicDataType_Max = 9
+        totemPublicDataType_Null = 0,
+        totemPublicDataType_Int = 1,
+        totemPublicDataType_Float = 2,
+        totemPublicDataType_String = 3,
+        totemPublicDataType_Array = 4,
+        totemPublicDataType_Type = 5,
+        totemPublicDataType_Function = 6,
+        totemPublicDataType_Coroutine = 7,
+        totemPublicDataType_Object = 8,
+        totemPublicDataType_Userdata = 9,
+        totemPublicDataType_True = 10,
+        totemPublicDataType_False = 11,
+        totemPublicDataType_Max = 12
     }
     totemPublicDataType;
     

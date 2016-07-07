@@ -249,6 +249,18 @@ totemExecStatus totemExecState_TypeToString(totemExecState *state, totemPublicDa
             totemString_FromLiteral(&str, "object");
             break;
             
+        case totemPublicDataType_Null:
+            totemString_FromLiteral(&str, "null");
+            break;
+            
+        case totemPublicDataType_True:
+            totemString_FromLiteral(&str, "true");
+            break;
+            
+        case totemPublicDataType_False:
+            totemString_FromLiteral(&str, "false");
+            break;
+            
         default:
             return totemExecState_EmptyString(state, strOut);
     }

@@ -1743,16 +1743,19 @@ TOTEM_EXECSTEP totemExecState_ExecComplexShift(totemExecState *state)
                     totemHashMapEntry *result = totemHashMap_RemovePrecomputed(&obj->Lookup, str, len, hash);
                     if (!result)
                     {
-                        totemExecState_Break(state, totemExecStatus_InvalidKey);
+                        totemExecState_AssignNewType(state, dst, totemPublicDataType_Null);
                     }
-                    
-                    totemRegister *reg = totemMemoryBuffer_Get(&obj->Registers, result->Value);
-                    if (!reg)
+                    else
                     {
-                        totemExecState_Break(state, totemExecStatus_IndexOutOfBounds);
+                        totemRegister *reg = totemMemoryBuffer_Get(&obj->Registers, result->Value);
+                        if (!reg)
+                        {
+                            totemExecState_Break(state, totemExecStatus_IndexOutOfBounds);
+                        }
+                        
+                        totemExecState_Assign(state, dst, reg);
                     }
                     
-                    totemExecState_Assign(state, dst, reg);
                     break;
                 }
                     
@@ -1838,16 +1841,19 @@ TOTEM_EXECSTEP totemExecState_ExecComplexGet(totemExecState *state)
                     totemHashMapEntry *result = totemHashMap_FindPrecomputed(&obj->Lookup, str, len, hash);
                     if (!result)
                     {
-                        totemExecState_Break(state, totemExecStatus_InvalidKey);
+                        totemExecState_AssignNewType(state, dst, totemPublicDataType_Null);
                     }
-                    
-                    totemRegister *reg = totemMemoryBuffer_Get(&obj->Registers, result->Value);
-                    if (!reg)
+                    else
                     {
-                        totemExecState_Break(state, totemExecStatus_IndexOutOfBounds);
+                        totemRegister *reg = totemMemoryBuffer_Get(&obj->Registers, result->Value);
+                        if (!reg)
+                        {
+                            totemExecState_Break(state, totemExecStatus_IndexOutOfBounds);
+                        }
+                        
+                        totemExecState_Assign(state, dst, reg);
                     }
                     
-                    totemExecState_Assign(state, dst, reg);
                     break;
                 }
                     

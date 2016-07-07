@@ -134,7 +134,10 @@ extern "C" {
         totemPrivateDataType_Coroutine = 8,
         totemPrivateDataType_Object = 9,
         totemPrivateDataType_Userdata = 10,
-        totemPrivateDataType_Max = 11
+        totemPrivateDataType_True = 11,
+        totemPrivateDataType_False = 12,
+        totemPrivateDataType_Null = 13,
+        totemPrivateDataType_Max = 14
     };
     typedef uint8_t totemPrivateDataType;
     

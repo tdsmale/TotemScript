@@ -390,3 +390,18 @@ function shiftTest()
 	assert($b[0] != $a);
 	assert($a == 0);
 }
+
+function nullBoolTest()
+{
+    var local $a = null;
+    assert($a != 0);
+    assert($a == null);
+
+    $a = true;
+    assert($a != 1);
+    assert($a == true);
+
+    $a = false;
+    assert($a != 0);
+    assert($a == false);
+}

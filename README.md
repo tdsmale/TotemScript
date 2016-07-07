@@ -19,6 +19,9 @@ Variables are dynamically-typed, supporting the following types:
 * coroutine - First-class coroutines
 * type - Type objects (e.g. int, float, type etc.)
 * userdata - Data supplied by native C functions
+* null
+* true
+* false
 ```
 // variables are declared thusly:
 var $var = 123;
@@ -92,7 +95,7 @@ function test(var $a, var $b)
 }
 
 var $a = test(123, 456); 
-$a = test(123); // arguments default to an integer value of 0 when not provided by caller
+$a = test(123); // arguments default to null when not provided by caller
 
 var $b = @test; // functions can also be stored in variables
 $a = $b(123, 456, 789); // additional arguments provided by caller are discarded
@@ -203,7 +206,6 @@ $co = 123;
 
 ```
 ### Feature Creep
-* null & boolean types
 * TryExec
 * Default Argument Values & skipping arguments
 * Instances - load a script as a callable value, e.g. $a = <test.totem>; $a(); $a.callNamedFunction();

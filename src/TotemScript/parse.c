@@ -1006,6 +1006,24 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             break;
             
+        case totemTokenType_Null:
+            argument->DataType = totemPublicDataType_Null;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
+        case totemTokenType_True:
+            argument->DataType = totemPublicDataType_True;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
+        case totemTokenType_False:
+            argument->DataType = totemPublicDataType_False;
+            argument->Type = totemArgumentType_Type;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
             // new object
         case totemTokenType_LCBracket:
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
@@ -1030,14 +1048,6 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             argument->Type = totemArgumentType_Variable;
             TOTEM_PARSE_ALLOC(argument->Variable, totemVariablePrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemVariablePrototype_Parse(argument->Variable, tree));
-            break;
-            
-            // null
-        case totemTokenType_Null:
-            argument->Type = totemArgumentType_Number;
-            TOTEM_PARSE_ALLOC(argument->Number, totemString, tree);
-            totemString_FromLiteral(argument->Number, "0");
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             break;
             
             // number
@@ -1087,15 +1097,6 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             argument->Type = totemArgumentType_FunctionCall;
             TOTEM_PARSE_ALLOC(argument->FunctionCall, totemFunctionCallPrototype, tree);
             TOTEM_PARSE_CHECKRETURN(totemFunctionCallPrototype_Parse(argument->FunctionCall, tree));
-            break;
-            
-            // boolean
-        case totemTokenType_True:
-        case totemTokenType_False:
-            argument->Type = totemArgumentType_Number;
-            TOTEM_PARSE_ALLOC(argument->Number, totemString, tree);
-            totemString_FromLiteral(argument->Number, tree->CurrentToken->Type == totemTokenType_True ? "1" : "0");
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             break;
             
         default:
