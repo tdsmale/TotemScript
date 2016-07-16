@@ -27,6 +27,12 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
     
     switch (arg->Type)
     {
+        case totemArgumentType_Null:
+            return totemBuildPrototype_EvalNull(build, &dummy);
+            
+        case totemArgumentType_Boolean:
+            return totemBuildPrototype_EvalBoolean(build, arg->Boolean, &dummy);
+            
         case totemArgumentType_Number:
             return totemBuildPrototype_EvalNumber(build, arg->Number, &dummy);
             

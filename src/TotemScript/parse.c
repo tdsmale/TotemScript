@@ -869,12 +869,6 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
                 TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
                 break;
                 
-            case totemTokenType_Local:
-                TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsLocal);
-                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-                TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-                break;
-                
             default:
                 loop = totemBool_False;
                 break;
@@ -905,8 +899,20 @@ totemParseStatus totemString_ParseNumber(totemString *number, totemParseTree *tr
     number->Length = 0;
     number->Value = tree->CurrentToken->Value.Value;
     
+    totemBool dot = totemBool_False;
+    
     while(tree->CurrentToken->Type == totemTokenType_Number || tree->CurrentToken->Type == totemTokenType_Dot)
     {
+        if (tree->CurrentToken->Type == totemTokenType_Dot)
+        {
+            if (dot)
+            {
+                return totemParseStatus_Break(totemParseStatus_UnexpectedToken);
+            }
+            
+            dot = totemBool_True;
+        }
+        
         number->Length += tree->CurrentToken->Value.Length;
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
     }
@@ -957,7 +963,21 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(argument->FunctionPointer, tree, totemBool_True));
             break;
             
-            // types
+            // boolean
+        case totemTokenType_True:
+        case totemTokenType_False:
+            argument->Type = totemArgumentType_Boolean;
+            argument->Boolean = tree->CurrentToken->Type == totemTokenType_True;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
+            // null
+        case totemTokenType_Null:
+            argument->Type = totemArgumentType_Null;
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
+            break;
+            
+            // type objects
         case totemTokenType_Array:
             argument->DataType = totemPublicDataType_Array;
             argument->Type = totemArgumentType_Type;
@@ -1006,20 +1026,8 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             break;
             
-        case totemTokenType_Null:
-            argument->DataType = totemPublicDataType_Null;
-            argument->Type = totemArgumentType_Type;
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-            break;
-            
-        case totemTokenType_True:
-            argument->DataType = totemPublicDataType_True;
-            argument->Type = totemArgumentType_Type;
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
-            break;
-            
-        case totemTokenType_False:
-            argument->DataType = totemPublicDataType_False;
+        case totemTokenType_Boolean:
+            argument->DataType = totemPublicDataType_Boolean;
             argument->Type = totemArgumentType_Type;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree->CurrentToken);
             break;
@@ -1043,7 +1051,6 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             // variable
         case totemTokenType_Variable:
         case totemTokenType_Let:
-        case totemTokenType_Local:
         case totemTokenType_Var:
             argument->Type = totemArgumentType_Variable;
             TOTEM_PARSE_ALLOC(argument->Variable, totemVariablePrototype, tree);

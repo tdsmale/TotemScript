@@ -73,9 +73,8 @@ function localTest()
         return $a; // scope error
     }
 
-    // global variable names can be overridden with the "local" keyword
-    // this will prevent global vars of the same name from being overwritten
-    local var $global = 123;
+    // global variable names can be reused locally by just redefining them
+    var $global = 123;
 }
 
 ```
@@ -189,14 +188,17 @@ var $co = function(var $start, var $end)
 var $start = 11;
 var $end = 20;
 
-// Parameters are ignored on subsequent calls
-for(var $numLoops = 0; var $val = $co($start, $end); $numLoops++)
+// Parameters can be overridden with new values on subsequent calls
+$co($start, $end);
+
+for(var $numLoops = 1; var $val = $co(); $numLoops++)
 {
     print($val);
 }
 
 // Coroutines reset once they reach the end of a function
-for($numLoops = 0; $val = $co($start + 1, $end + 1); $numLoops++)
+$co($start + 1, $end + 1);
+for($numLoops = 0; $val = $co(); $numLoops++)
 {
     print($val);
 }
@@ -206,12 +208,7 @@ $co = 123;
 
 ```
 ### Feature Creep
-* TryExec
 * Default Argument Values & skipping arguments
 * Instances - load a script as a callable value, e.g. $a = <test.totem>; $a(); $a.callNamedFunction();
 * Compile-time type hinting, e.g. $a:int = 0; type number = int|float; $b:number = 0.0; $c = $b is number; function test:number() { return 123; }
 * Complex custom classes that eval to arrays at runtime, e.g. type Vec2 = {public $x:0.0, public $y:0.0, public lengthSquared:float() { return ($x * $x) + ($y * $y;) }}; $a:Vec2 = {$x:123.0, $y:456.0}; $b:float = $a.lengthSquared();
-
-### Runtime Improvements
-* Function Arguments should be laid out in register stack rather than as instructions
-* Separate "current instruction" from loop calls

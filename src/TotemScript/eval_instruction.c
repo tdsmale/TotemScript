@@ -18,8 +18,14 @@ if ((val) > (max) || (val) < (min)) \
 } \
 TOTEM_SETBITS_OFFSET(ins, val, start);
 
-totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, totemLocalRegisterIndex index, totemOperandType scope, uint32_t start)
+totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope, uint32_t start)
 {
+    if (index > TOTEM_MAX_LOCAL_REGISTERS)
+    {
+        return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow);
+    }
+    
+#if TOTEM_VMOPT_GLOBAL_OPERANDS
     uint32_t reg = scope;
     if (scope > 1)
     {
@@ -28,6 +34,9 @@ totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, tote
     
     TOTEM_SETBITS_OFFSET(reg, index, 1);
     TOTEM_SETBITS_OFFSET(*instruction, reg, start);
+#else
+    TOTEM_SETBITS_OFFSET(*instruction, index, start);
+#endif
     
     return totemEvalStatus_Success;
 }
@@ -56,19 +65,19 @@ totemEvalStatus totemInstruction_SetSignedValue(totemInstruction *instruction, i
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_SetRegisterA(totemInstruction *instruction, totemLocalRegisterIndex index, totemOperandType scope)
+totemEvalStatus totemInstruction_SetRegisterA(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope)
 {
     totemEvalStatus status = totemInstruction_SetRegister(instruction, index, scope, totemInstructionStart_A);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetRegisterB(totemInstruction *instruction, totemLocalRegisterIndex index, totemOperandType scope)
+totemEvalStatus totemInstruction_SetRegisterB(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope)
 {
     totemEvalStatus status = totemInstruction_SetRegister(instruction, index, scope, totemInstructionStart_B);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetRegisterC(totemInstruction *instruction, totemLocalRegisterIndex index, totemOperandType scope)
+totemEvalStatus totemInstruction_SetRegisterC(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope)
 {
     totemEvalStatus status = totemInstruction_SetRegister(instruction, index, scope, totemInstructionStart_C);
     return status;
@@ -114,6 +123,12 @@ totemEvalStatus totemInstruction_SetAxSigned(totemInstruction *instruction, tote
 
 totemEvalStatus totemInstruction_SetAxUnsigned(totemInstruction *instruction, totemOperandXUnsigned ax)
 {
-    TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, ax, TOTEM_MINVAL_SIGNED(totemInstructionSize_Ax), TOTEM_MAXVAL_SIGNED(totemInstructionSize_Ax), totemInstructionStart_A);
+    TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, ax, TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Ax), TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Ax), totemInstructionStart_A);
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemInstruction_SetCxUnsigned(totemInstruction *instruction, totemOperandXUnsigned cx)
+{
+    TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, cx, TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Cx), TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Cx), totemInstructionStart_C);
     return totemEvalStatus_Success;
 }

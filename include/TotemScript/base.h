@@ -93,7 +93,6 @@ extern "C" {
     }
     totemReturnFlag;
     
-    typedef uint8_t totemLocalRegisterIndex;
     typedef int32_t totemOperandXSigned;
     typedef uint32_t totemOperandXUnsigned;
     typedef double totemFloat;
@@ -149,9 +148,8 @@ extern "C" {
         totemPublicDataType_Coroutine = 7,
         totemPublicDataType_Object = 8,
         totemPublicDataType_Userdata = 9,
-        totemPublicDataType_True = 10,
-        totemPublicDataType_False = 11,
-        totemPublicDataType_Max = 12
+        totemPublicDataType_Boolean = 10,
+        totemPublicDataType_Max = 11
     }
     totemPublicDataType;
     
@@ -187,6 +185,8 @@ extern "C" {
         totemOperationType_Invoke = 24,				// A = B()
         totemOperationType_NewObject = 25,			// A = new object
         totemOperationType_ComplexShift = 26,		// A << B[C]
+        totemOperationType_PreInvoke = 27,			// A = B(C)
+        totemOperationType_LogicalNegate = 28,		// A = !B
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;
@@ -198,6 +198,7 @@ extern "C" {
     typedef enum
     {
         totemInstructionType_Abc = 1,
+        totemInstructionType_Abcx,
         totemInstructionType_Abx,
         totemInstructionType_Axx
     }
@@ -212,7 +213,8 @@ extern "C" {
         totemInstructionSize_Ax = 27,
         totemInstructionSize_B = 9,
         totemInstructionSize_Bx = 18,
-        totemInstructionSize_C = 9
+        totemInstructionSize_C = 9,
+        totemInstructionSize_Cx = 9
     };
     
     enum
@@ -242,8 +244,13 @@ extern "C" {
     
     typedef enum
     {
+#if TOTEM_VMOPT_GLOBAL_OPERANDS
         totemOperandSize_RegisterType = 1,
         totemOperandSize_RegisterIndex = 8
+#else
+        totemOperandSize_RegisterType = 0,
+        totemOperandSize_RegisterIndex = 9
+#endif
     }
     totemOperandSize;
     
@@ -254,6 +261,7 @@ extern "C" {
     void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintList(FILE *file, totemInstruction *instructions, size_t num);
     void totemInstruction_Print(FILE *file, totemInstruction instruction);
+    void totemInstruction_PrintAbcxInstruction(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAbxInstruction(FILE *file, totemInstruction instruction);
     void totemInstruction_PrintAxxInstruction(FILE *file, totemInstruction instruction);
@@ -272,6 +280,7 @@ extern "C" {
     
 #define TOTEM_INSTRUCTION_MASK_AX TOTEM_BITMASK(totemInstructionStart_A, totemInstructionSize_Ax)
 #define TOTEM_INSTRUCTION_MASK_BX TOTEM_BITMASK(totemInstructionStart_B, totemInstructionSize_Bx)
+#define TOTEM_INSTRUCTION_MASK_CX TOTEM_BITMASK(totemInstructionStart_C, totemInstructionSize_Cx)
 #define TOTEM_INSTRUCTION_MASK_OP TOTEM_BITMASK(totemInstructionStart_Op, totemInstructionSize_Op)
     
 #define TOTEM_INSTRUCTION_GET_OP(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_OP, totemInstructionStart_Op)
@@ -282,17 +291,32 @@ extern "C" {
 #define TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_BX, totemInstructionStart_B)
 #define TOTEM_INSTRUCTION_GET_BX_SIGNED(ins) totemOperandXSigned_FromUnsigned(TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_BX, totemInstructionStart_B), totemInstructionSize_Bx)
     
+#define TOTEM_INSTRUCTION_GET_CX_UNSIGNED(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_CX, totemInstructionStart_C)
+#define TOTEM_INSTRUCTION_GET_CX_SIGNED(ins) totemOperandXSigned_FromUnsigned(TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_CX, totemInstructionStart_C), totemInstructionSize_Cx)
+    
 #define TOTEM_INSTRUCTION_GET_REGISTERA(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA, totemInstructionStart_A)
-#define TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA_SCOPE, totemInstructionStart_A)
-#define TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(ins) ((totemLocalRegisterIndex)TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA_INDEX, totemInstructionStart_A + 1))
-    
 #define TOTEM_INSTRUCTION_GET_REGISTERB(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB, totemInstructionStart_B)
-#define TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB_SCOPE, totemInstructionStart_B)
-#define TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(ins) ((totemLocalRegisterIndex)TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB_INDEX, totemInstructionStart_B + 1))
-    
 #define TOTEM_INSTRUCTION_GET_REGISTERC(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERC, totemInstructionStart_C)
+    
+#if TOTEM_VMOPT_GLOBAL_OPERANDS
+#define TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA_SCOPE, totemInstructionStart_A)
+#define TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERA_INDEX, totemInstructionStart_A + 1)
+    
+#define TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB_SCOPE, totemInstructionStart_B)
+#define TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERB_INDEX, totemInstructionStart_B + 1)
+    
 #define TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERC_SCOPE, totemInstructionStart_C)
-#define TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(ins) ((totemLocalRegisterIndex)TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERC_INDEX, totemInstructionStart_C + 1))
+#define TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(ins) TOTEM_GETBITS_OFFSET(ins, TOTEM_INSTRUCTION_MASK_REGISTERC_INDEX, totemInstructionStart_C + 1)
+#else
+#define TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(ins) (totemOperandType_LocalRegister)
+#define TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(ins) TOTEM_INSTRUCTION_GET_REGISTERA(ins)
+    
+#define TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(ins) (totemOperandType_LocalRegister)
+#define TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(ins) TOTEM_INSTRUCTION_GET_REGISTERB(ins)
+    
+#define TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(ins) (totemOperandType_LocalRegister)
+#define TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(ins) TOTEM_INSTRUCTION_GET_REGISTERC(ins)
+#endif
     
     typedef void *(*totemMallocCb)(size_t);
     typedef void (*totemFreeCb)(void*);

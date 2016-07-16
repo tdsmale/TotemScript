@@ -91,8 +91,7 @@ extern "C" {
     {
         totemVariablePrototypeFlag_None = 0,
         totemVariablePrototypeFlag_IsConst = 1,
-        totemVariablePrototypeFlag_IsLocal = 1 << 1,
-        totemVariablePrototypeFlag_IsDeclaration = 1 << 2,
+        totemVariablePrototypeFlag_IsDeclaration = 1 << 1
     }
     totemVariablePrototypeFlag;
     
@@ -106,7 +105,9 @@ extern "C" {
         totemArgumentType_NewObject,
         totemArgumentType_Type,
         totemArgumentType_FunctionPointer,
-        totemArgumentType_FunctionDeclaration
+        totemArgumentType_FunctionDeclaration,
+        totemArgumentType_Boolean,
+        totemArgumentType_Null
     }
     totemArgumentType;
     
@@ -234,6 +235,7 @@ extern "C" {
         totemTokenType_Else,
         totemTokenType_True,
         totemTokenType_False,
+        totemTokenType_Boolean,
         totemTokenType_Backslash,
         totemTokenType_Slash,
         totemTokenType_Let,
@@ -247,7 +249,6 @@ extern "C" {
         totemTokenType_As,
         totemTokenType_At,
         totemTokenType_Coroutine,
-        totemTokenType_Local,
         totemTokenType_Userdata,
         totemTokenType_Max
     }
@@ -329,6 +330,7 @@ extern "C" {
             struct totemFunctionDeclarationPrototype *FunctionDeclaration;
             totemNewArrayPrototype *NewArray;
             totemPublicDataType DataType;
+            totemBool Boolean;
         };
         totemBufferPositionInfo Position;
         totemArgumentType Type;

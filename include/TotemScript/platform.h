@@ -73,6 +73,7 @@
 #ifdef __clang__
 #define TOTEM_INLINE __attribute__((always_inline))
 #define TOTEM_CDECL __attribute__((cdecl))
+#define TOTEM_THREADED_DISPATCH
 #endif
 
 // winlib
@@ -115,7 +116,18 @@
 #define totemLock_Cleanup pthread_mutex_destroy
 #define totemLock_Acquire pthread_mutex_lock
 #define totemLock_Release pthread_mutex_unlock
-
 #endif
+
+// vm options
+
+// globals, functions & constants up to TOTEM_MAX_LOCAL_REGISTERS don't need moving to local scope to be accessible
+// all register accesses become slightly more expensive
+// halves maximum number of local registers
+// lowers number of instructions
+#define TOTEM_VMOPT_GLOBAL_OPERANDS (1)
+
+// forces bytecode interpreter to use gotos instead of a switch statement
+// theoretically better performance (better branch prediction), but not supported on every platform
+#define TOTEM_VMOPT_THREADED_DISPATCH (defined(TOTEM_THREADED_DISPATCH))
 
 #endif

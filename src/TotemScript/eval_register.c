@@ -46,7 +46,7 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
     reg->Int = 0;
     reg->RefCount = 1;
     reg->GlobalAssoc = 0;
-    reg->DataType = totemPublicDataType_Int;
+    reg->DataType = totemPublicDataType_Null;
     reg->Flags = totemRegisterPrototypeFlag_IsTemporary | totemRegisterPrototypeFlag_IsUsed;
     
     operand->RegisterIndex = index;
@@ -304,6 +304,63 @@ totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototyp
     return totemEvalStatus_Success;
 }
 
+totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *list, totemOperandRegisterPrototype *op)
+{
+    if (list->HasNull)
+    {
+        op->RegisterIndex = list->Null;
+        op->RegisterScopeType = list->Scope;
+        return totemEvalStatus_Success;
+    }
+    
+    totemEvalStatus status = totemRegisterListPrototype_AddRegister(list, op);
+    if (status != totemEvalStatus_Success)
+    {
+        return status;
+    }
+    
+    totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, op->RegisterIndex);
+    
+    TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
+    TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
+    
+    reg->DataType = totemPublicDataType_Null;
+    list->Null = op->RegisterIndex;
+    list->HasNull = totemBool_True;
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemRegisterListPrototype_AddBoolean(totemRegisterListPrototype *list, totemBool val, totemOperandRegisterPrototype *op)
+{
+    val = val != totemBool_False;
+    
+    if (list->HasBoolean[val])
+    {
+        op->RegisterIndex = list->Boolean[val];
+        op->RegisterScopeType = list->Scope;
+        return totemEvalStatus_Success;
+    }
+    
+    totemEvalStatus status = totemRegisterListPrototype_AddRegister(list, op);
+    if (status != totemEvalStatus_Success)
+    {
+        return status;
+    }
+    
+    totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, op->RegisterIndex);
+    
+    TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsValue);
+    TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
+    
+    reg->DataType = totemPublicDataType_Boolean;
+    reg->Boolean = val;
+    
+    list->Boolean[val] = op->RegisterIndex;
+    list->HasBoolean[val] = totemBool_True;
+    return totemEvalStatus_Success;
+}
+
 totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPrototype *list, totemString *number, totemOperandRegisterPrototype *operand)
 {
     totemHashMapEntry *searchResult = totemHashMap_Find(&list->Numbers, number->Value, number->Length);
@@ -382,6 +439,10 @@ void totemRegisterListPrototype_Init(totemRegisterListPrototype *list, totemOper
 {
     memset(list->DataTypes, 0, sizeof(list->DataTypes));
     memset(list->HasDataType, 0, sizeof(list->HasDataType));
+    memset(list->Boolean, 0, sizeof(list->Boolean));
+    memset(list->HasBoolean, 0, sizeof(list->HasBoolean));
+    list->HasNull = totemBool_False;
+    list->Null = 0;
     totemHashMap_Init(&list->Numbers);
     totemHashMap_Init(&list->Strings);
     totemHashMap_Init(&list->Variables);
@@ -396,6 +457,10 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
 {
     memset(list->DataTypes, 0, sizeof(list->DataTypes));
     memset(list->HasDataType, 0, sizeof(list->HasDataType));
+    memset(list->Boolean, 0, sizeof(list->Boolean));
+    memset(list->HasBoolean, 0, sizeof(list->HasBoolean));
+    list->HasNull = totemBool_False;
+    list->Null = 0;
     totemHashMap_Reset(&list->Numbers);
     totemHashMap_Reset(&list->Strings);
     totemHashMap_Reset(&list->Variables);
@@ -409,6 +474,10 @@ void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
 {
     memset(list->DataTypes, 0, sizeof(list->DataTypes));
     memset(list->HasDataType, 0, sizeof(list->HasDataType));
+    memset(list->Boolean, 0, sizeof(list->Boolean));
+    memset(list->HasBoolean, 0, sizeof(list->HasBoolean));
+    list->HasNull = totemBool_False;
+    list->Null = 0;
     totemHashMap_Cleanup(&list->Numbers);
     totemHashMap_Cleanup(&list->Strings);
     totemHashMap_Cleanup(&list->Variables);

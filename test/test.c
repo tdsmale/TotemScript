@@ -12,22 +12,17 @@
 
 totemExecStatus totemPrint(totemExecState *state)
 {
-    totemRegister *reg = &state->Registers[totemOperandType_LocalRegister][0];
+    fprintf(stdout, "\n\n\n\nPRINT BEGIN!!!!\n\n\n\n");
+    totemRegister *reg = &state->LocalRegisters[0];
     totemExecState_PrintRegister(state, stdout, reg);
+    fprintf(stdout, "\n\n\n\nPRINT END!!!!\n\n\n\n");
     return totemExecStatus_Continue;
 }
 
 totemExecStatus totemAssert(totemExecState *state)
 {
-    totemRegister *reg = &state->Registers[totemOperandType_LocalRegister][0];
-    if (reg->Value.Data)
-    {
-        return totemExecStatus_Continue;
-    }
-    else
-    {
-        return totemExecStatus_Stop;
-    }
+    totemRegister *reg = &state->LocalRegisters[0];
+    return reg->Value.Data ? totemExecStatus_Continue : totemExecStatus_Stop;
 }
 
 void totemFileTestDestructor(totemExecState *state, totemUserdata *data)
@@ -185,7 +180,7 @@ int main(int argc, const char * argv[])
     
     // run script
     totemInstanceFunction *func = totemMemoryBuffer_Get(&instance.LocalFunctions, 0);
-    totemExecStatus execStatus = totemExecState_Exec(&execState, func, &returnRegister);
+    totemExecStatus execStatus = totemExecState_ProtectedExec(&execState, func, &returnRegister);
     if(execStatus != totemExecStatus_Return)
     {
         printf("exec error %s\n", totemExecStatus_Describe(execStatus));

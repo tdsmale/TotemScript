@@ -67,6 +67,7 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Else, "else"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_True, "true"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_False, "false"),
+    TOTEM_DESC_TOKEN_WORD(totemTokenType_Boolean, "boolean"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Null, "null"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Let, "let"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Is, "is"),
@@ -78,7 +79,6 @@ const static totemTokenDesc s_reservedWordValues[] =
     TOTEM_DESC_TOKEN_WORD(totemTokenType_As, "as"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Coroutine, "coroutine"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Object, "object"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Local, "local"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Userdata, "userdata"),
     TOTEM_DESC_TOKEN_WORD(totemTokenType_Var, "var")
 };
@@ -419,7 +419,6 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_LBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_LCBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_LessThan);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Local);
             TOTEM_STRINGIFY_CASE(totemTokenType_LSBracket);
             TOTEM_STRINGIFY_CASE(totemTokenType_Max);
             TOTEM_STRINGIFY_CASE(totemTokenType_Minus);
@@ -444,6 +443,7 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_Variable);
             TOTEM_STRINGIFY_CASE(totemTokenType_While);
             TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Boolean);
     }
     
     return "UNKNOWN";

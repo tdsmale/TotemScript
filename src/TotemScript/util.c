@@ -68,6 +68,7 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_LessThan);
             TOTEM_STRINGIFY_CASE(totemOperationType_LessThanEquals);
             TOTEM_STRINGIFY_CASE(totemOperationType_LogicalAnd);
+            TOTEM_STRINGIFY_CASE(totemOperationType_LogicalNegate);
             TOTEM_STRINGIFY_CASE(totemOperationType_LogicalOr);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoreThan);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoreThanEquals);
@@ -83,6 +84,7 @@ const char *totemOperationType_Describe(totemOperationType op)
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
             TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
             TOTEM_STRINGIFY_CASE(totemOperationType_Invoke);
+            TOTEM_STRINGIFY_CASE(totemOperationType_PreInvoke);
             TOTEM_STRINGIFY_CASE(totemOperationType_As);
             TOTEM_STRINGIFY_CASE(totemOperationType_Is);
             TOTEM_STRINGIFY_CASE(totemOperationType_ComplexShift);
@@ -105,8 +107,7 @@ const char *totemPublicDataType_Describe(totemPublicDataType type)
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Object);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Userdata);
             TOTEM_STRINGIFY_CASE(totemPublicDataType_Null);
-            TOTEM_STRINGIFY_CASE(totemPublicDataType_True);
-            TOTEM_STRINGIFY_CASE(totemPublicDataType_False);
+            TOTEM_STRINGIFY_CASE(totemPublicDataType_Boolean);
         default: return "UNKNOWN";
     }
 }
@@ -127,8 +128,7 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Object);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Userdata);
             TOTEM_STRINGIFY_CASE(totemPrivateDataType_Null);
-            TOTEM_STRINGIFY_CASE(totemPrivateDataType_True);
-            TOTEM_STRINGIFY_CASE(totemPrivateDataType_False);
+            TOTEM_STRINGIFY_CASE(totemPrivateDataType_Boolean);
         default: return "UNKNOWN";
     }
 }
@@ -165,6 +165,12 @@ totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
             
         case totemPrivateDataType_Userdata:
             return totemPublicDataType_Userdata;
+            
+        case totemPrivateDataType_Boolean:
+            return totemPublicDataType_Boolean;
+            
+        case totemPrivateDataType_Null:
+            return totemPublicDataType_Null;
     }
     
     return totemPublicDataType_Max;
@@ -182,7 +188,11 @@ totemInstructionType totemOperationType_GetInstructionType(totemOperationType op
             return totemInstructionType_Abx;
             
         case totemOperationType_Goto:
+        case totemOperationType_Invoke:
             return totemInstructionType_Axx;
+            
+        case totemOperationType_PreInvoke:
+            return totemInstructionType_Abcx;
             
         default:
             return totemInstructionType_Abc;
@@ -204,6 +214,10 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
     
     switch(instType)
     {
+        case totemInstructionType_Abcx:
+            totemInstruction_PrintAbcxInstruction(file, instruction);
+            break;
+            
         case totemInstructionType_Abc:
             totemInstruction_PrintAbcInstruction(file, instruction);
             break;
@@ -217,6 +231,19 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
             break;
     }
 }
+
+void totemInstruction_PrintAbcxInstruction(FILE *file, totemInstruction instruction)
+{
+    fprintf(file, "%08x %s a:%c%d b:%c%d c:%08x\n",
+            instruction,
+            totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
+            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+            TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
+            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
+            TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction),
+            TOTEM_INSTRUCTION_GET_CX_UNSIGNED(instruction));
+}
+
 
 void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instruction)
 {
@@ -257,6 +284,7 @@ void totemInstruction_PrintBits(FILE *file, totemInstruction instruction)
     switch(instType)
     {
         case totemInstructionType_Abc:
+        case totemInstructionType_Abcx:
             totemInstruction_PrintAbcBits(file, instruction);
             break;
             
@@ -478,8 +506,17 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             fprintf(file, "%s %lli\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Int);
             break;
             
+        case totemPrivateDataType_Boolean:
+            fprintf(file, "%s %s\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Data ? "true" : "false");
+            break;
+            
+        case totemPrivateDataType_Null:
+        case totemPrivateDataType_Userdata:
+            fprintf(file, "%s\n", totemPrivateDataType_Describe(reg->DataType));
+            break;
+            
         default:
-            fprintf(file, "%s %d %f %lli %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.GCObject->Array);
+            fprintf(file, "%s %d %f %lli %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.GCObject);
             break;
     }
 }

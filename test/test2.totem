@@ -169,7 +169,7 @@ function dataTypeTest()
     assert(("str" as string) == "str");
     assert(("print" as function) == @print);
 
-    var local $x = @dataTypeTest as coroutine;
+    var $x = @dataTypeTest as coroutine;
     assert(($x as function) == @dataTypeTest);
     assert(($x as string) == "dataTypeTest");
     assert((($x as coroutine) as function) == @dataTypeTest);
@@ -286,7 +286,7 @@ function objectTest()
     print("object test");
     print("---");
 
-    var local $obj = {};
+    var $obj = {};
     $obj["test"] = 123;
     $obj["test2"] = 456;
     $obj["test3"] = 789;
@@ -340,7 +340,7 @@ function userDataTest()
 
 function localTest()
 {
-    var local $y = "This is a string!";
+    var $y = "This is a string!";
     print($y);
 }
 
@@ -349,7 +349,7 @@ function refCycleTest()
     print("ref cycle test");
     print("---");
 
-    var local $y = [1];
+    var $y = [1];
     $y[0] = [1];
     $y[0][0] = $y;
 
@@ -359,19 +359,18 @@ function refCycleTest()
 function shiftTest()
 {
 	print("shift test");
-
-	var local $a = {};
+	var $a = {};
 	$a["test"] = 123;
 
 	print("object to reg");
-	var local $b << $a["test"];
+	var $b << $a["test"];
 	assert(($a as int) == 0);
 	assert($b == 123);
 
 	print("reg to reg");
 	$a << $b;
 	assert($b != $a);
-	assert($b == 0);
+	assert($b == null);
 	assert($a == 123);
 
 	print("array to reg");
@@ -380,28 +379,35 @@ function shiftTest()
 	$a << $b[0];
 	assert($b is array);
 	assert(($b as int) == 1);
-	assert($b[0] == 0);
+	assert($b[0] == null);
 	assert($a == 456);
-
+	
 	print("reg to complex");
-	$a = 789;
 	$b[0] << $a;
-	assert($b[0] == 789);
+	assert($b[0] == 456);
 	assert($b[0] != $a);
-	assert($a == 0);
+	assert($a == null);
 }
 
 function nullBoolTest()
 {
-    var local $a = null;
+    print("nullBoolTest");
+
+	assert(true != false);
+	assert(true != null);
+	assert(false != null);
+
+    var $a = null;
     assert($a != 0);
     assert($a == null);
 
     $a = true;
     assert($a != 1);
     assert($a == true);
+	assert($a is boolean);
 
     $a = false;
     assert($a != 0);
     assert($a == false);
+	assert($a is boolean);
 }

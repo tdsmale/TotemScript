@@ -7,7 +7,7 @@ function whileLoop()
 
     var $c = 10;
 
-    while($c)
+    while($c != 0)
     {
         print($c);
         $c--;
@@ -32,7 +32,7 @@ function doWhileLoop()
         print($a);
         $a--;
     }
-    while($a);
+    while($a != 0);
 
     print($a);
     assert($a == 0);
@@ -59,7 +59,7 @@ function ifBlock()
 {
     print("If Block");
     print("---");
-    var local $x = 0;
+    var $x = 0;
 
     if($x < 0)
     {
