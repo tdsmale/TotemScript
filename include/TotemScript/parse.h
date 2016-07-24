@@ -52,7 +52,6 @@ extern "C" {
     {
         totemLoadScriptStatus_Success,
         totemLoadScriptStatus_FileNotFound,
-        totemLoadScriptStatus_Recursion,
         totemLoadScriptStatus_OutOfMemory
     }
     totemLoadScriptStatus;
@@ -276,6 +275,7 @@ extern "C" {
     {
         size_t LineNumber;
         size_t CharNumber;
+        const char *Start;
     }
     totemBufferPositionInfo;
     
@@ -313,6 +313,7 @@ extern "C" {
     typedef struct totemNewArrayPrototype
     {
         struct totemExpressionPrototype *Accessor;
+        totemBool isInitList;
     }
     totemNewArrayPrototype;
     
@@ -470,9 +471,6 @@ extern "C" {
     typedef struct
     {
         totemMemoryBuffer Tokens;
-        size_t CurrentLine;
-        size_t NextTokenStart;
-        size_t CurrentChar;
     }
     totemTokenList;
     
@@ -481,6 +479,7 @@ extern "C" {
         totemToken *CurrentToken;
         totemMemoryBlock *LastMemBlock;
         totemBlockPrototype *FirstBlock;
+        totemBufferPositionInfo *ErrorAt;
     }
     totemParseTree;
     
@@ -505,13 +504,11 @@ extern "C" {
     void totemTokenList_Reset(totemTokenList *list);
     void totemTokenList_Cleanup(totemTokenList *list);
     
-    totemToken *totemTokenList_Alloc(totemTokenList *list);
+    totemToken *totemTokenList_Alloc(totemTokenList *list, const char *start);
     totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length);
-    totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *token, const char *buffer);
+    totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *token, const char *buffer, totemBool *insideStringLiteral);
     totemLexStatus totemTokenList_LexReservedWordToken(totemTokenList *list, const char *buffer, size_t length);
-    totemLexStatus totemTokenList_LexNumberOrIdentifierToken(totemTokenList *list, const char *toCheck, size_t length);
-    
-#define TOTEM_LEX_ALLOC(dest, list) dest = totemTokenList_Alloc(list); if(!dest) return totemLexStatus_OutOfMemory;
+    totemLexStatus totemTokenList_LexNumberAndIdentifierTokens(totemTokenList *list, const char *toCheck, size_t length);
     
     /**
      * Grammatically parse tokens
@@ -531,8 +528,8 @@ extern "C" {
     totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totemParseTree *tree);
     totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclarationPrototype *func, totemParseTree *tree, totemBool isAnonymous);
     totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expression, totemParseTree *tree);
-    totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree);
-    totemParseStatus totemExpressionPrototype_ParseParameterInList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree);
+    totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree, totemTokenType start, totemTokenType end, totemTokenType split);
+    totemParseStatus totemExpressionPrototype_ParseParameterInList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree, totemTokenType end, totemTokenType split);
     totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument,  totemParseTree *tree);
     totemParseStatus totemNewArrayPrototype_Parse(totemNewArrayPrototype *arr, totemParseTree *tree);
     totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, totemParseTree *tree);

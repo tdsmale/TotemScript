@@ -60,6 +60,16 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
             break;
             
         case totemArgumentType_NewArray:
+        {
+            totemInt num = 0;
+            for (totemExpressionPrototype *exp = arg->NewArray->Accessor; exp; exp = exp->Next)
+            {
+                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(exp, build, totemEvalVariableFlag_MustBeDefined));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, num, &dummy));
+                num++;
+            }
+        }
+            
         case totemArgumentType_NewObject:
             break;
     }

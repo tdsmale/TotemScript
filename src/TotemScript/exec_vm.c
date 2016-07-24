@@ -8,10 +8,34 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 
-#if 1
+/*
+ ideal:
+ - compile-time type-hinting
+	- can have instructions tailored for specific type pairs, cutting down on type-checking costs at runtime
+ - have it be possible for each "dispatch target" to be interpreted as a function definition
+	- signature tailored to its instruction type (abc, abcx etc.)
+	- we can isolate the code for each instruction type in its own callable function
+	- don't have vm call them, though - inline it instead
+ - generate platform-specific ASM
+	- completely eliminate instruction parsing
+	- layout:
+ - have a table of gotos to each instruction
+ - on entry, check instruction offset is within bounds
+ - if so, lookup goto
+ - otherwise goto error
+ - on-return, we can just store the precomputed offset
+ - coroutines would use this table to resume
+ - gotos wouldn't need to use it however - the destination address can be precomputed
+ - for each instruction, generate an equivelant call to the predefined dispatch target, e.g. equivelant C code for an assign might look like:
+ a = localBase + aOffset
+ b = globalBase + bOffset
+ totemOperationType_Move_Dispatch(state, a, b);
+ */
+
+#if 0
 #define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, base, state) totemExecState_PrintInstructionDetailed(state, base, ins, stdout)
 #else
-#define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, state)
+#define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, base, state)
 #endif
 
 #define TOTEM_VM_PREDISPATCH() \
@@ -81,7 +105,7 @@
     { \
         TOTEM_VM_PREDISPATCH(); \
         switch(op)
-        #define TOTEM_VM_DISPATCH_END() \
+#define TOTEM_VM_DISPATCH_END() \
     }
 
 #endif
@@ -90,28 +114,34 @@
 #define TOTEM_VM_GET_OPERANDA(base, instruction) &base[TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)][(TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction))]
 #define TOTEM_VM_GET_OPERANDB(base, instruction) &base[TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)][(TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction))]
 #define TOTEM_VM_GET_OPERANDC(base, instruction) &base[TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)][(TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction))]
+#define TOTEM_VM_GET_GLOBAL(base, index) &base[totemOperandType_GlobalRegister][index]
 #else
-#define TOTEM_VM_GET_OPERANDA(base, instruction) &base[totemOperandType_LocalRegister][(TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction))]
-#define TOTEM_VM_GET_OPERANDB(base, instruction) &base[totemOperandType_LocalRegister][(TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction))]
-#define TOTEM_VM_GET_OPERANDC(base, instruction) &base[totemOperandType_LocalRegister][(TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction))]
+#define TOTEM_VM_GET_OPERANDA(base, instruction) &base[(TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction))]
+#define TOTEM_VM_GET_OPERANDB(base, instruction) &base[(TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction))]
+#define TOTEM_VM_GET_OPERANDC(base, instruction) &base[(TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction))]
+#define TOTEM_VM_GET_GLOBAL(base, index) &globals[index]
 #endif
 
 #define TOTEM_VM_ERROR(state, status) \
-state->JmpNode->Status = totemExecStatus_Break(status); \
-goto totem_vm_error; \
+    state->JmpNode->Status = totemExecStatus_Break(status); \
+    goto totem_vm_error; \
 
 #define TOTEM_VM_ASSERT(x, state, status) if(!(x)) { TOTEM_VM_ERROR(state, status); }
 
 #define TOTEM_VM_BREAK(x, state) \
-{ \
-    totemExecStatus status = (x); \
-    if(status != totemExecStatus_Continue) \
     { \
-        TOTEM_VM_ERROR(state, status); \
-    } \
-}
+        totemExecStatus status = (x); \
+        if(status != totemExecStatus_Continue) \
+        { \
+            TOTEM_VM_ERROR(state, status); \
+        } \
+    }
 
+#if TOTEM_VMOPT_GLOBAL_OPERANDS
 void totemExecState_PrintInstructionDetailed(totemExecState *state, totemRegister **base, totemInstruction ins, FILE *file)
+#else
+void totemExecState_PrintInstructionDetailed(totemExecState *state, totemRegister *base, totemInstruction ins, FILE *file)
+#endif
 {
     totemInstruction_Print(file, (ins));
     totemOperationType op = TOTEM_INSTRUCTION_GET_OP((ins));
@@ -165,15 +195,22 @@ void totemExecState_ExecuteInstructions(totemExecState *state)
     totemOperandXSigned xs;
     totemGCObject *gc;
     totemInstruction *insPtr;
-    totemRegister *base[2];
-    totemOperandXUnsigned numCalls = 0;
+    size_t numCalls = 0;
     totemFunctionCall *call = state->CallStack;
     
 totem_vm_reset:
     
     insPtr = call->ResumeAt;
+    
+#if TOTEM_VMOPT_GLOBAL_OPERANDS
+    totemRegister *base[2];
     base[totemOperandType_GlobalRegister] = state->GlobalRegisters;
     base[totemOperandType_LocalRegister] = state->LocalRegisters;
+#else
+    totemRegister *base, *globals;
+    base = state->LocalRegisters;
+    globals = state->GlobalRegisters;
+#endif
     
     TOTEM_VM_DISPATCH_START()
     {
@@ -362,6 +399,9 @@ totem_vm_reset:
                 numCalls--;
                 goto totem_vm_reset;
             }
+            
+            // never get here
+            TOTEM_VM_ERROR(state, totemExecStatus_InvalidDispatch);
         }
         
         TOTEM_VM_DISPATCH_TARGET(totemOperationType_NewArray)
@@ -384,21 +424,22 @@ totem_vm_reset:
             b = TOTEM_VM_GET_OPERANDB(base, ins);
             c = TOTEM_VM_GET_OPERANDC(base, ins);
             
-            switch (totemPrivateDataType_ToPublic(b->DataType))
+            switch (b->DataType)
             {
-                case totemPublicDataType_String:
+                case totemPrivateDataType_InternedString:
+                case totemPrivateDataType_MiniString:
                     TOTEM_VM_ASSERT(c->DataType == totemPrivateDataType_Int, state, totemExecStatus_InvalidKey);
                     TOTEM_VM_ASSERT(c->Value.Int >= 0 && c->Value.Int < UINT32_MAX, state, totemExecStatus_IndexOutOfBounds);
                     TOTEM_VM_BREAK(totemExecState_InternStringChar(state, b, (totemStringLength)c->Value.Int, a), state);
                     break;
                     
-                case totemPublicDataType_Array:
+                case totemPrivateDataType_Array:
                     TOTEM_VM_ASSERT(c->DataType == totemPrivateDataType_Int, state, totemExecStatus_InvalidKey);
                     TOTEM_VM_ASSERT(c->Value.Int >= 0 && c->Value.Int < UINT32_MAX, state, totemExecStatus_IndexOutOfBounds);
                     TOTEM_VM_BREAK(totemExecState_ArrayGet(state, b->Value.GCObject->Array, (uint32_t)c->Value.Int, a), state);
                     break;
                     
-                case totemPublicDataType_Object:
+                case totemPrivateDataType_Object:
                     TOTEM_VM_BREAK(totemExecState_ObjectGet(state, b->Value.GCObject->Object, c, a), state);
                     break;
                     
@@ -442,15 +483,15 @@ totem_vm_reset:
             b = TOTEM_VM_GET_OPERANDB(base, ins);
             c = TOTEM_VM_GET_OPERANDC(base, ins);
             
-            switch (totemPrivateDataType_ToPublic(b->DataType))
+            switch (b->DataType)
             {
-                case totemPublicDataType_Array:
+                case totemPrivateDataType_Array:
                     TOTEM_VM_ASSERT(c->DataType == totemPrivateDataType_Int, state, totemExecStatus_InvalidKey);
                     TOTEM_VM_ASSERT(c->Value.Int >= 0 && c->Value.Int < UINT32_MAX, state, totemExecStatus_IndexOutOfBounds);
                     TOTEM_VM_BREAK(totemExecState_ArrayShift(state, b->Value.GCObject->Array, (uint32_t)c->Value.Int, a), state);
                     break;
                     
-                case totemPublicDataType_Object:
+                case totemPrivateDataType_Object:
                     TOTEM_VM_BREAK(totemExecState_ObjectShift(state, b->Value.GCObject->Object, c, a), state);
                     break;
                     
@@ -466,7 +507,7 @@ totem_vm_reset:
         {
             a = TOTEM_VM_GET_OPERANDA(base, ins);
             xu = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins);
-            b = &base[totemOperandType_GlobalRegister][xu];
+            b = TOTEM_VM_GET_GLOBAL(base, xu);
             totemExecState_Assign(state, b, a);
             insPtr++;
             TOTEM_VM_DISPATCH();
@@ -476,7 +517,7 @@ totem_vm_reset:
         {
             a = TOTEM_VM_GET_OPERANDA(base, ins);
             xu = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins);
-            b = &base[totemOperandType_GlobalRegister][xu];
+            b = TOTEM_VM_GET_GLOBAL(base, xu);
             totemExecState_Assign(state, a, b);
             insPtr++;
             TOTEM_VM_DISPATCH();

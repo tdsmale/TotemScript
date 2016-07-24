@@ -126,7 +126,7 @@
 // lowers number of instructions
 #define TOTEM_VMOPT_GLOBAL_OPERANDS (1)
 
-// forces bytecode interpreter to use gotos instead of a switch statement
+// forces bytecode interpreter to use computed gotos instead of a switch statement
 // theoretically better performance (better branch prediction), but not supported on every platform
 #define TOTEM_VMOPT_THREADED_DISPATCH (defined(TOTEM_THREADED_DISPATCH))
 

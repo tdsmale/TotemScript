@@ -133,49 +133,6 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
     }
 }
 
-totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
-{
-    switch(type)
-    {
-        case totemPrivateDataType_InternedString:
-        case totemPrivateDataType_MiniString:
-            return totemPublicDataType_String;
-            
-        case totemPrivateDataType_Float:
-            return totemPublicDataType_Float;
-            
-        case totemPrivateDataType_Type:
-            return totemPublicDataType_Type;
-            
-        case totemPrivateDataType_Int:
-            return totemPublicDataType_Int;
-            
-        case totemPrivateDataType_NativeFunction:
-        case totemPrivateDataType_InstanceFunction:
-            return totemPublicDataType_Function;
-            
-        case totemPrivateDataType_Array:
-            return totemPublicDataType_Array;
-            
-        case totemPrivateDataType_Coroutine:
-            return totemPublicDataType_Coroutine;
-            
-        case totemPrivateDataType_Object:
-            return totemPublicDataType_Object;
-            
-        case totemPrivateDataType_Userdata:
-            return totemPublicDataType_Userdata;
-            
-        case totemPrivateDataType_Boolean:
-            return totemPublicDataType_Boolean;
-            
-        case totemPrivateDataType_Null:
-            return totemPublicDataType_Null;
-    }
-    
-    return totemPublicDataType_Max;
-}
-
 totemInstructionType totemOperationType_GetInstructionType(totemOperationType op)
 {
     switch(op)
@@ -587,8 +544,11 @@ void totem_Init()
     
     initialized = totemBool_True;
     
-    TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values expected to be 8 bytes");
-    TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction expected to be 4 bytes");
+    TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values must be 8 bytes");
+    TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction must be 4 bytes");
+    TOTEM_STATIC_ASSERT(sizeof(size_t) == sizeof(void*), "size_t must be able to hold any memory address");
+    
+    TOTEM_STATIC_ASSERT(&((totemGCObject*)0)->Header.NextHdr == &((totemGCHeader*)0)->NextHdr, "totemGCObject* must be able to masquerade as a totemGCHeader*");
     
 #ifdef TOTEM_X86
     TOTEM_STATIC_ASSERT(sizeof(void*) == 4, "Expected pointer size to be 4 bytes");

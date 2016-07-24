@@ -82,7 +82,7 @@ void totemScriptFile_Cleanup(totemScriptFile *script)
 
 totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPath, totemLoadScriptError *err, totemScriptName **tree)
 {
-    FILE *file = totem_fopen(srcPath, "r");
+    FILE *file = totem_fopen(srcPath, "rb");
     if (!file)
     {
         err->Status = totemLoadScriptStatus_FileNotFound;
@@ -108,16 +108,17 @@ totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPat
     }
     
     // look for include statements
-    while (totemBool_True)
+    while (1)
     {
-        long resetPos = ftell(file);
-        char cha = fgetc(file);
+        long resetPos = 0;
+        char cha = 0;
         
-        while ((cha == ' ' || cha == '\n' || cha == '\t' || cha == '\r') && cha != EOF)
+        do
         {
             resetPos = ftell(file);
             cha = fgetc(file);
         }
+        while ((cha == ' ' || cha == '\n' || cha == '\t' || cha == '\r') && cha != EOF);
         
         fseek(file, resetPos, SEEK_SET);
         
@@ -197,7 +198,8 @@ totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPat
         *tree = restore;
     }
     
-    char *buffer = totemMemoryBuffer_Secure(&dst->Buffer, fSize);
+    size_t existingLength = dst->Buffer.Length;
+    char *buffer = totemMemoryBuffer_Secure(&dst->Buffer, fSize + 1);
     if (!buffer)
     {
         fclose(file);
@@ -207,7 +209,9 @@ totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPat
         return totemBool_False;
     }
     
-    fread(buffer, 1, fSize, file);
+    size_t read = fread(buffer, 1, fSize, file);
+    buffer[read] = 0;
+    dst->Buffer.Length = existingLength + read;
     
     fclose(file);
     totemScriptName_Pop(tree);
@@ -221,21 +225,11 @@ totemBool totemScriptFile_Load(totemScriptFile *dst, const char *srcPath, totemL
     const char *currentDir = totem_getcwd();
     
     totemBool result = totemScriptFile_LoadRecursive(dst, srcPath, err, &nameTree);
-    
-    if (result == totemBool_True)
-    {
-        size_t bufferSize = totemMemoryBuffer_GetNumObjects(&dst->Buffer);
-        if (bufferSize > 0)
-        {
-            if (!totemMemoryBuffer_Secure(&dst->Buffer, 1))
-            {
-                return totemBool_False;
-            }
-            
-            dst->Buffer.Data[bufferSize] = 0;
-        }
-    }
-    
+    /*
+     FILE *file = fopen("load.txt", "w");
+     fprintf(file, "%.*s", dst->Buffer.Length, dst->Buffer.Data);
+     fclose(file);
+     */
     totem_chdir(currentDir);
     totem_freecwd(currentDir);
     return result;
@@ -247,7 +241,6 @@ const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status)
     {
             TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_OutOfMemory);
             TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_FileNotFound);
-            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Recursion);
             TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Success);
     }
     

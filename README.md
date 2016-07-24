@@ -19,9 +19,8 @@ Variables are dynamically-typed, supporting the following types:
 * coroutine - First-class coroutines
 * type - Type objects (e.g. int, float, type etc.)
 * userdata - Data supplied by native C functions
+* boolean - true/false
 * null
-* true
-* false
 ```
 // variables are declared thusly:
 var $var = 123;
@@ -138,6 +137,9 @@ var $b = $a[0] + $a[1];
 $a[20] = 1; // runtime error
 
 $a = "some other value"; // Arrays are automatically garbage-collected when no-longer referenced
+
+// Arrays can also be created with values already inserted
+$a = [1, 2, "3", $b];
 ```
 #### Objects
 ```

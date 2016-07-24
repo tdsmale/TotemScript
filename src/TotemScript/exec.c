@@ -18,6 +18,85 @@ totemLinkStatus totemLinkStatus_Break(totemLinkStatus status)
     return status;
 }
 
+void totemInterpreter_Init(totemInterpreter *interpreter)
+{
+    totemScriptFile_Init(&interpreter->Script);
+    totemTokenList_Init(&interpreter->TokenList);
+    totemParseTree_Init(&interpreter->ParseTree);
+    totemBuildPrototype_Init(&interpreter->Build);
+    interpreter->Result.Status = totemInterpreterStatus_Success;
+}
+
+void totemInterpreter_Reset(totemInterpreter *interpreter)
+{
+    totemScriptFile_Reset(&interpreter->Script);
+    totemTokenList_Reset(&interpreter->TokenList);
+    totemParseTree_Reset(&interpreter->ParseTree);
+    totemBuildPrototype_Reset(&interpreter->Build);
+    interpreter->Result.Status = totemInterpreterStatus_Success;
+}
+
+void totemInterpreter_Cleanup(totemInterpreter *interpreter)
+{
+    totemScriptFile_Cleanup(&interpreter->Script);
+    totemTokenList_Cleanup(&interpreter->TokenList);
+    totemParseTree_Cleanup(&interpreter->ParseTree);
+    totemBuildPrototype_Cleanup(&interpreter->Build);
+    interpreter->Result.Status = totemInterpreterStatus_Success;
+}
+
+totemBool totemInterpreter_InterpretFile(totemInterpreter *interpreter, const char *filename)
+{
+    totemScriptFile_Reset(&interpreter->Script);
+    
+    totemLoadScriptError err;
+    if (totemScriptFile_Load(&interpreter->Script, filename, &err) != totemBool_True)
+    {
+        interpreter->Result.Status = totemInterpreterStatus_FileError;
+        interpreter->Result.FileStatus = err.Status;
+        
+        return totemBool_False;
+    }
+    
+    totemString toParse;
+    toParse.Length = interpreter->Script.Buffer.Length;
+    toParse.Value = interpreter->Script.Buffer.Data;
+    return totemInterpreter_InterpretString(interpreter, &toParse);
+}
+
+totemBool totemInterpreter_InterpretString(totemInterpreter *interpreter, totemString *string)
+{
+    // lex
+    totemTokenList_Reset(&interpreter->TokenList);
+    interpreter->Result.LinkStatus = totemTokenList_Lex(&interpreter->TokenList, string->Value, string->Length);
+    if (interpreter->Result.LinkStatus != totemLexStatus_Success)
+    {
+        interpreter->Result.Status = totemInterpreterStatus_LexError;
+        return totemBool_False;
+    }
+    
+    // parse
+    totemParseTree_Reset(&interpreter->ParseTree);
+    interpreter->Result.ParseStatus = totemParseTree_Parse(&interpreter->ParseTree, &interpreter->TokenList);
+    if (interpreter->Result.ParseStatus != totemParseStatus_Success)
+    {
+        interpreter->Result.Status = totemInterpreterStatus_ParseError;
+        return totemBool_False;
+    }
+    
+    // eval
+    totemBuildPrototype_Reset(&interpreter->Build);
+    interpreter->Result.EvalStatus = totemBuildPrototype_Eval(&interpreter->Build, &interpreter->ParseTree);
+    if (interpreter->Result.EvalStatus != totemEvalStatus_Success)
+    {
+        interpreter->Result.Status = totemInterpreterStatus_EvalError;
+        return totemBool_False;
+    }
+    
+    interpreter->Result.Status = totemInterpreterStatus_Success;
+    return totemBool_True;
+}
+
 void totemInstance_Init(totemInstance *instance)
 {
     totemMemoryBuffer_Init(&instance->GlobalRegisters, sizeof(totemRegister));
@@ -376,6 +455,29 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
     return totemLinkStatus_Success;
 }
 
+totemLinkStatus totemRuntime_LinkNativeFunctions(totemRuntime *runtime, totemNativeFunctionPrototype *funcs, totemOperandXUnsigned num)
+{
+    if (totemMemoryBuffer_GetMaxObjects(&runtime->NativeFunctions) < num)
+    {
+        if (!totemMemoryBuffer_Reserve(&runtime->NativeFunctions, num))
+        {
+            return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
+        }
+    }
+    
+    for (totemOperandXUnsigned i = 0; i < num; i++)
+    {
+        totemOperandXUnsigned addr;
+        totemLinkStatus status = totemRuntime_LinkNativeFunction(runtime, funcs[i].Callback, &funcs[i].Name, &addr);
+        if (status != totemLinkStatus_Success)
+        {
+            return status;
+        }
+    }
+    
+    return totemLinkStatus_Success;
+}
+
 totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunctionCb cb, totemString *name, totemOperandXUnsigned *addressOut)
 {
     totemHashMapEntry *result = totemHashMap_Find(&runtime->NativeFunctionsLookup, name->Value, name->Length);
@@ -501,7 +603,18 @@ void *totemExecState_Alloc(totemExecState *state, size_t size)
 
 totemFunctionCall *totemExecState_SecureFunctionCall(totemExecState *state)
 {
-    totemFunctionCall *call = totemExecState_Alloc(state, sizeof(totemFunctionCall));
+    totemFunctionCall *call = NULL;
+    
+    if (state->CallStackFreeList)
+    {
+        call = state->CallStackFreeList;
+        state->CallStackFreeList = call->Prev;
+    }
+    else
+    {
+        call = totemExecState_Alloc(state, sizeof(totemFunctionCall));
+    }
+    
     if (!call)
     {
         return NULL;
@@ -513,7 +626,8 @@ totemFunctionCall *totemExecState_SecureFunctionCall(totemExecState *state)
 
 void totemExecState_FreeFunctionCall(totemExecState *state, totemFunctionCall *call)
 {
-    totem_CacheFree(call, sizeof(*call));
+    call->Prev = state->CallStackFreeList;
+    state->CallStackFreeList = call;
 }
 
 totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut)
@@ -546,6 +660,39 @@ void totemExecState_CleanupRegisterList(totemExecState *state, totemRegister *re
 void totemExecState_Init(totemExecState *state)
 {
     memset(state, 0, sizeof(*state));
+    
+    totemGCHeader_Init(&state->GC);
+    totemGCHeader_Init(&state->GC2);
+}
+
+totemExecStatus totemExecState_SetArgV(totemExecState *state, const char **argv, uint32_t num)
+{
+    if (state->ArgV)
+    {
+        totemExecState_DecRefCount(state, state->ArgV);
+    }
+    
+    totemGCObject *arr;
+    TOTEM_EXEC_CHECKRETURN(totemExecState_CreateArray(state, num, &arr));
+    totemExecState_IncRefCount(state, arr);
+    
+    totemRegister *regs = arr->Array->Registers;
+    
+    for (uint32_t i = 0; i < num; i++)
+    {
+        totemRegister *dst = &regs[i];
+        totemString str = TOTEM_STRING_VAL(argv[i]);
+        
+        totemExecStatus status = totemExecState_InternString(state, &str, dst);
+        if (status != totemExecStatus_Continue)
+        {
+            totemExecState_DestroyGCObject(state, arr);
+            return status;
+        }
+    }
+    
+    state->ArgV = arr;
+    return totemExecStatus_Continue;
 }
 
 void totemExecState_Cleanup(totemExecState *state)
@@ -553,12 +700,31 @@ void totemExecState_Cleanup(totemExecState *state)
     // clean up remaining registers
     totemExecState_CleanupRegisterList(state, state->LocalRegisters, (uint32_t)state->UsedLocalRegisters);
     
-    // collect until it's all gone
-    while(state->GCStart || state->GCStart2)
+    // cleanup remaining gc objects
+    totemExecState_CleanupGCList(state, &state->GC);
+    totemExecState_CleanupGCList(state, &state->GC2);
+    
+    // function call free-list
+    for (totemFunctionCall *call = state->CallStackFreeList; call; )
     {
-        totemExecState_CollectGarbage(state, totemBool_True);
+        totemFunctionCall *next = call->Prev;
+        totem_CacheFree(call, sizeof(totemFunctionCall));
+        call = next;
     }
     
+    state->CallStackFreeList = NULL;
+    
+    // gc free-list
+    for (totemGCObject *gc = state->GCFreeList; gc;)
+    {
+        totemGCObject *next = gc->Header.NextObj;
+        totem_CacheFree(gc, sizeof(totemGCObject));
+        gc = next;
+    }
+    
+    state->GCFreeList = NULL;
+    
+    // cleanup local stack
     totem_CacheFree(state->LocalRegisters, sizeof(totemRegister) * state->MaxLocalRegisters);
     state->LocalRegisters = NULL;
 }
@@ -627,60 +793,57 @@ void totemExecState_PushRoutine(totemExecState *state, totemFunctionCall *call, 
 
 void totemExecState_PopRoutine(totemExecState *state)
 {
-    if(state->CallStack)
+    totemExecState_CollectGarbage(state, totemBool_False);
+    
+    totemFunctionCall *call = state->CallStack;
+    totemFunctionCall *prev = call->Prev;
+    
+    state->LocalRegisters = call->PreviousFrameStart;
+    
+    if (call->Type == totemFunctionType_Script)
     {
-        totemExecState_CollectGarbage(state, totemBool_False);
+        state->GlobalRegisters = (totemRegister*)call->CurrentInstance->GlobalRegisters.Data;
+    }
+    
+    if (TOTEM_HASBITS(call->Flags, totemFunctionCallFlag_IsCoroutine))
+    {
+        totemInstruction ins = *call->ResumeAt;
+        totemOperationType opType = TOTEM_INSTRUCTION_GET_OP(ins);
         
-        totemFunctionCall *call = state->CallStack;
-        totemFunctionCall *prev = call->Prev;
-        
-        state->LocalRegisters = call->PreviousFrameStart;
-        
-        if (call->Type == totemFunctionType_Script)
+        // no more instructions - ensure it starts from the beginning next time
+        if (opType == totemOperationType_Return)
         {
-            state->GlobalRegisters = (totemRegister*)call->CurrentInstance->GlobalRegisters.Data;
-        }
-        
-        if (TOTEM_HASBITS(call->Flags, totemFunctionCallFlag_IsCoroutine))
-        {
-            totemInstruction ins = *call->ResumeAt;
-            totemOperationType opType = TOTEM_INSTRUCTION_GET_OP(ins);
+            totemOperandXUnsigned flags = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins);
             
-            // no more instructions - ensure it starts from the beginning next time
-            if (opType == totemOperationType_Return)
+            if (TOTEM_HASBITS(flags, totemReturnFlag_Last))
             {
-                totemOperandXUnsigned flags = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins);
-                
-                if (TOTEM_HASBITS(flags, totemReturnFlag_Last))
-                {
-                    call->ResumeAt = NULL;
-                }
-                else
-                {
-                    // start at next instruction
-                    call->ResumeAt++;
-                }
-            }
-        }
-        else
-        {
-            totemExecState_CleanupRegisterList(state, call->FrameStart, call->NumRegisters);
-            
-            if (TOTEM_HASBITS(call->Flags, totemFunctionCallFlag_FreeStack))
-            {
-                totem_CacheFree(call->FrameStart, sizeof(totemRegister) * call->NumRegisters);
+                call->ResumeAt = NULL;
             }
             else
             {
-                state->UsedLocalRegisters -= call->NumRegisters;
-                state->NextFreeRegister -= call->NumRegisters;
+                // start at next instruction
+                call->ResumeAt++;
             }
-            
-            totemExecState_FreeFunctionCall(state, call);
+        }
+    }
+    else
+    {
+        totemExecState_CleanupRegisterList(state, call->FrameStart, call->NumRegisters);
+        
+        if (TOTEM_HASBITS(call->Flags, totemFunctionCallFlag_FreeStack))
+        {
+            totem_CacheFree(call->FrameStart, sizeof(totemRegister) * call->NumRegisters);
+        }
+        else
+        {
+            state->UsedLocalRegisters -= call->NumRegisters;
+            state->NextFreeRegister -= call->NumRegisters;
         }
         
-        state->CallStack = prev;
+        totemExecState_FreeFunctionCall(state, call);
     }
+    
+    state->CallStack = prev;
 }
 
 totemExecStatus totemExecState_UnsafeExec(totemExecState *state, totemInstanceFunction *function, totemRegister *returnRegister)
@@ -730,7 +893,6 @@ const char *totemExecStatus_Describe(totemExecStatus status)
             TOTEM_STRINGIFY_CASE(totemExecStatus_NativeFunctionNotFound);
             TOTEM_STRINGIFY_CASE(totemExecStatus_OutOfMemory);
             TOTEM_STRINGIFY_CASE(totemExecStatus_RegisterOverflow);
-            TOTEM_STRINGIFY_CASE(totemExecStatus_Return);
             TOTEM_STRINGIFY_CASE(totemExecStatus_InstanceFunctionNotFound);
             TOTEM_STRINGIFY_CASE(totemExecStatus_ScriptNotFound);
             TOTEM_STRINGIFY_CASE(totemExecStatus_UnexpectedDataType);

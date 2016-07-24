@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <TotemScript/platform.h>
+#include <assert.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -112,7 +113,7 @@ extern "C" {
     
     void totemString_FromLiteral(totemString *strOut, const char *str);
     totemBool totemString_Equals(totemString *a, totemString *b);
-#define TOTEM_STRING_VAL(x) {x, strlen(x)}
+#define TOTEM_STRING_VAL(x) {x, (totemStringLength)strlen(x)}
     
     enum
     {
@@ -354,6 +355,7 @@ extern "C" {
     void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index);
     size_t totemMemoryBuffer_GetNumObjects(totemMemoryBuffer *buffer);
     size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer);
+    totemBool totemMemoryBuffer_Reserve(totemMemoryBuffer *buffer, size_t amount);
     
 #define TOTEM_MEMORYBLOCK_DATASIZE (512)
     
@@ -411,6 +413,12 @@ extern "C" {
     
 #define totem_setjmp(jmp) setjmp((int*)jmp)
 #define totem_longjmp(jmp) longjmp((int*)jmp, 1)
+    
+#ifdef TOTEM_DEBUG
+#define totem_assert(a) assert(a)
+#else
+#define totem_assert(a)
+#endif
     
 #ifdef __cplusplus
 }

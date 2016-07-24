@@ -1,3 +1,12 @@
+
+
+
+function commentTest()
+{
+	$literalStrTest = "// whatever";
+	assert($literalStrTest == "// whatever");	
+}
+
 var $x = "It Works! YAY";
 
 var $y = 0;
@@ -68,6 +77,12 @@ function arrayTest()
     $t[2] = 6;
 
     assert((($s + $t) as string) == "123456");
+
+	var $what = [123, 456, 789];
+	assert(($what as int) == 3);
+	assert($what[0] == 123);
+	assert($what[1] == 456);
+	assert($what[2] == 789);
 
     print("---");
 }
@@ -327,7 +342,7 @@ function userDataTest()
     print("userdata test");
     print("---");
 
-    var $file = fopen();
+    var $file = fopen("test.totem", "r");
     var $test = $file;
     assert($file is userdata);
 

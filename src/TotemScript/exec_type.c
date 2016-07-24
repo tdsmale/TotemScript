@@ -10,6 +10,50 @@
 
 #define TOTEM_EXEC_ARRAYSIZE(numRegisters) (sizeof(totemArray) + (sizeof(totemRegister) * (numRegisters - 1)))
 #define TOTEM_REGISTER_DECIFGC(dst) if (TOTEM_REGISTER_ISGC(dst)) totemExecState_DecRefCount(state, (dst)->Value.GCObject);
+#define TOTEM_REGISTER_ISSTRING(reg) ((reg)->DataType == totemPrivateDataType_InternedString || (reg)->DataType == totemPrivateDataType_MiniString)
+
+totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type)
+{
+    switch (type)
+    {
+        case totemPrivateDataType_InternedString:
+        case totemPrivateDataType_MiniString:
+            return totemPublicDataType_String;
+            
+        case totemPrivateDataType_Float:
+            return totemPublicDataType_Float;
+            
+        case totemPrivateDataType_Type:
+            return totemPublicDataType_Type;
+            
+        case totemPrivateDataType_Int:
+            return totemPublicDataType_Int;
+            
+        case totemPrivateDataType_NativeFunction:
+        case totemPrivateDataType_InstanceFunction:
+            return totemPublicDataType_Function;
+            
+        case totemPrivateDataType_Array:
+            return totemPublicDataType_Array;
+            
+        case totemPrivateDataType_Coroutine:
+            return totemPublicDataType_Coroutine;
+            
+        case totemPrivateDataType_Object:
+            return totemPublicDataType_Object;
+            
+        case totemPrivateDataType_Userdata:
+            return totemPublicDataType_Userdata;
+            
+        case totemPrivateDataType_Boolean:
+            return totemPublicDataType_Boolean;
+            
+        case totemPrivateDataType_Null:
+            return totemPublicDataType_Null;
+    }
+    
+    return totemPublicDataType_Max;
+}
 
 void totemExecState_Assign(totemExecState *state, totemRegister *dst, totemRegister *src)
 {
@@ -27,12 +71,6 @@ void totemExecState_AssignNull(totemExecState *state, totemRegister *dst)
     TOTEM_REGISTER_DECIFGC(dst);
     dst->DataType = totemPrivateDataType_Null;
     dst->Value.Data = 0;
-}
-
-void totemExecState_AssignQuick(totemExecState *state, totemRegister *dst, totemRegister *src)
-{
-    TOTEM_REGISTER_DECIFGC(dst);
-    memcpy((dst), (src), sizeof(totemRegister));
 }
 
 void totemExecState_AssignNewInt(totemExecState *state, totemRegister *dst, totemInt newVal)
@@ -115,38 +153,38 @@ void totemExecState_AssignNewString(totemExecState *state, totemRegister *dst, t
 void totemExecState_AssignNewBoolean(totemExecState *state, totemRegister *dst, totemBool newVal)
 {
     TOTEM_REGISTER_DECIFGC(dst);
-    dst->Value.Data = newVal != 0;
+    dst->Value.Data = newVal != totemBool_False;
     dst->DataType = totemPrivateDataType_Boolean;
 }
 
 totemExecStatus totemExecState_Add(totemExecState *state, totemRegister *destination, totemRegister *source1, totemRegister *source2)
 {
-    totemPublicDataType src1Type = totemPrivateDataType_ToPublic(source1->DataType);
-    totemPublicDataType src2Type = totemPrivateDataType_ToPublic(source2->DataType);
-    
-    switch (TOTEM_TYPEPAIR(src1Type, src2Type))
+    switch (TOTEM_TYPEPAIR(source1->DataType, source2->DataType))
     {
-        case TOTEM_TYPEPAIR(totemPublicDataType_Int, totemPublicDataType_Int):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_Int, totemPrivateDataType_Int):
             totemExecState_AssignNewInt(state, destination, source1->Value.Int + source2->Value.Int);
             return totemExecStatus_Continue;
             
-        case TOTEM_TYPEPAIR(totemPublicDataType_Int, totemPublicDataType_Float):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_Int, totemPrivateDataType_Float):
             totemExecState_AssignNewFloat(state, destination, ((totemFloat)source1->Value.Int) + source2->Value.Float);
             return totemExecStatus_Continue;
             
-        case TOTEM_TYPEPAIR(totemPublicDataType_Float, totemPublicDataType_Float):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_Float, totemPrivateDataType_Float):
             totemExecState_AssignNewFloat(state, destination, source1->Value.Float + source2->Value.Float);
             return totemExecStatus_Continue;
             
-        case TOTEM_TYPEPAIR(totemPublicDataType_Float, totemPublicDataType_Int):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_Float, totemPrivateDataType_Int):
             totemExecState_AssignNewFloat(state, destination, source1->Value.Float + ((totemFloat)source2->Value.Int));
             return totemExecStatus_Continue;
             
-        case TOTEM_TYPEPAIR(totemPublicDataType_Array, totemPublicDataType_Array):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_Array, totemPrivateDataType_Array):
             return totemExecState_ConcatArrays(state, source1, source2, destination);
             break;
             
-        case TOTEM_TYPEPAIR(totemPublicDataType_String, totemPublicDataType_String):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_MiniString, totemPrivateDataType_MiniString):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_InternedString, totemPrivateDataType_MiniString):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_MiniString, totemPrivateDataType_InternedString):
+        case TOTEM_TYPEPAIR(totemPrivateDataType_InternedString, totemPrivateDataType_InternedString):
             return totemExecState_ConcatStrings(state, source1, source2, destination);
             break;
             
@@ -365,7 +403,7 @@ totemExecStatus totemExecState_ArrayShift(totemExecState *state, totemArray *arr
     return totemExecStatus_Continue;
 }
 
-totemExecStatus totemExecState_ArraySet(totemExecState *state, totemArray *arr, uint32_t index, totemRegister *dst)
+totemExecStatus totemExecState_ArraySet(totemExecState *state, totemArray *arr, uint32_t index, totemRegister *src)
 {
     if (index >= arr->NumRegisters)
     {
@@ -373,7 +411,7 @@ totemExecStatus totemExecState_ArraySet(totemExecState *state, totemArray *arr, 
     }
     
     totemRegister *regs = arr->Registers;
-    totemExecState_Assign(state, &regs[index], dst);
+    totemExecState_Assign(state, &regs[index], src);
     return totemExecStatus_Continue;
 }
 
@@ -391,7 +429,7 @@ totemExecStatus totemExecState_ArrayGet(totemExecState *state, totemArray *arr, 
 
 totemExecStatus totemExecState_ObjectShift(totemExecState *state, totemObject *obj, totemRegister *key, totemRegister *dst)
 {
-    if (totemPrivateDataType_ToPublic(key->DataType) != totemPublicDataType_String)
+    if (!TOTEM_REGISTER_ISSTRING(key))
     {
         return totemExecStatus_Break(totemExecStatus_InvalidKey);
     }
@@ -421,7 +459,7 @@ totemExecStatus totemExecState_ObjectShift(totemExecState *state, totemObject *o
 
 totemExecStatus totemExecState_ObjectGet(totemExecState *state, totemObject *obj, totemRegister *key, totemRegister *dst)
 {
-    if (totemPrivateDataType_ToPublic(key->DataType) != totemPublicDataType_String)
+    if (!TOTEM_REGISTER_ISSTRING(key))
     {
         return totemExecStatus_Break(totemExecStatus_InvalidKey);
     }
@@ -451,7 +489,7 @@ totemExecStatus totemExecState_ObjectGet(totemExecState *state, totemObject *obj
 
 totemExecStatus totemExecState_ObjectSet(totemExecState *state, totemObject *obj, totemRegister *key, totemRegister *src)
 {
-    if (totemPrivateDataType_ToPublic(key->DataType) != totemPublicDataType_String)
+    if (!TOTEM_REGISTER_ISSTRING(key))
     {
         return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
     }
@@ -691,7 +729,7 @@ totemExecStatus totemExecState_Cast(totemExecState *state, totemRegister *dst, t
                 
                 // function as function
             case TOTEM_TYPEPAIR(totemPublicDataType_Function, totemPublicDataType_Function):
-                totemExecState_AssignQuick(state, dst, src);
+                totemExecState_AssignNewInstanceFunction(state, dst, src->Value.InstanceFunction);
                 break;
                 
                 // create coroutine
@@ -1170,7 +1208,6 @@ totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemInsta
     coroutine->Flags = totemFunctionCallFlag_IsCoroutine | totemFunctionCallFlag_FreeStack;
     coroutine->NumRegisters = function->Function->RegistersNeeded;
     coroutine->FrameStart = totemExecState_Alloc(state, sizeof(totemRegister) * function->Function->RegistersNeeded);
-    printf("3 %p\n", coroutine->FrameStart);
     
     if (!coroutine->FrameStart)
     {

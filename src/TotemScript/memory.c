@@ -374,6 +374,25 @@ void *totemMemoryBuffer_SecureDirect(totemMemoryBuffer *buffer, size_t amount)
     return ptr;
 }
 
+totemBool totemMemoryBuffer_Reserve(totemMemoryBuffer *buffer, size_t amount)
+{
+    amount *= buffer->ObjectSize;
+    
+    if (buffer->MaxLength < amount)
+    {
+        size_t currentAmount = buffer->Length;
+        
+        if (totemMemoryBuffer_SecureDirect(buffer, amount - buffer->MaxLength) == NULL)
+        {
+            return totemBool_False;
+        }
+        
+        buffer->Length = currentAmount;
+    }
+    
+    return totemBool_True;
+}
+
 void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount)
 {
     amount *= buffer->ObjectSize;

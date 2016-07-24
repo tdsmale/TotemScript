@@ -21,7 +21,6 @@ extern "C" {
         totemEvalStatus_Success,
         totemEvalStatus_OutOfMemory,
         totemEvalStatus_FunctionNotDefined,
-        totemEvalStatus_NativeFunctionAlreadyDefined,
         totemEvalStatus_ScriptFunctionAlreadyDefined,
         totemEvalStatus_TooManyRegisters,
         totemEvalStatus_InstructionOverflow,
@@ -202,6 +201,7 @@ extern "C" {
     totemEvalStatus totemFunctionCallPrototype_EvalValues(totemFunctionCallPrototype *call, totemBuildPrototype *build);
     totemEvalStatus totemVariablePrototype_EvalValues(totemVariablePrototype *call, totemBuildPrototype *build, totemEvalVariableFlag varFlags);
     
+	totemEvalStatus totemBuildPrototype_EvalInt(totemBuildPrototype *build, totemInt number, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemBuildPrototype_EvalNumber(totemBuildPrototype *build, totemString *number, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemBuildPrototype_EvalString(totemBuildPrototype *build, totemString *buffer, totemOperandRegisterPrototype *operand);
     totemEvalStatus totemBuildPrototype_EvalFunctionName(totemBuildPrototype *build, totemString *name, totemFunctionPointerPrototype *func);

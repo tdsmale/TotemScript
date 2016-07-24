@@ -64,7 +64,6 @@ totemEvalStatus totemRegisterListPrototype_FreeRegister(totemRegisterListPrototy
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
     
     reg->Flags = totemRegisterPrototypeFlag_None;
-    
     return totemEvalStatus_Success;
 }
 
