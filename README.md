@@ -83,7 +83,7 @@ function localTest()
 ```
 #### Combining scripts
 ```php
-#include "../otherDir/otherFile.totem";
+#include ../otherDir/otherFile.totem;
 // include statements must be the first statements in a file
 // file paths are relative to the current file's path
 ```
