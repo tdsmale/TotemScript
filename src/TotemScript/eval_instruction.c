@@ -132,3 +132,298 @@ totemEvalStatus totemInstruction_SetCxUnsigned(totemInstruction *instruction, to
     TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, cx, TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Cx), TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Cx), totemInstructionStart_C);
     return totemEvalStatus_Success;
 }
+
+totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build, totemInstruction **instructionOut)
+{
+    *instructionOut = totemMemoryBuffer_Secure(&build->Instructions, 1);
+    if (*instructionOut)
+    {
+        return totemEvalStatus_Success;
+    }
+    
+    return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+}
+
+totemEvalStatus totemBuildPrototype_SecureDst(totemBuildPrototype *build, totemOperationType op, totemOperandRegisterPrototype *a, totemOperandRegisterPrototype *aSrc)
+{
+    switch (op)
+    {
+        case totemOperationType_ConditionalGoto:
+        case totemOperationType_FunctionArg:
+        case totemOperationType_Return:
+        case totemOperationType_ComplexSet:
+        case totemOperationType_PreInvoke:
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, a));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, a, aSrc->RegisterIndex, totemOperationType_MoveToLocal));
+            break;
+            
+        case totemOperationType_MoveToLocal:
+        case totemOperationType_MoveToGlobal:
+            break;
+            
+        default:
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, a));
+            break;
+    }
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemBuildPrototype_RelinquishDst(totemBuildPrototype *build, totemOperationType op, totemOperandRegisterPrototype *a, totemOperandRegisterPrototype *aSrc)
+{
+    switch (op)
+    {
+        case totemOperationType_ConditionalGoto:
+        case totemOperationType_FunctionArg:
+        case totemOperationType_Return:
+        case totemOperationType_PreInvoke:
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, a));
+            break;
+            
+        case totemOperationType_MoveToLocal:
+        case totemOperationType_MoveToGlobal:
+            break;
+            
+        default:
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, a, aSrc->RegisterIndex, totemOperationType_MoveToGlobal));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, a));
+            break;
+    }
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemBuildPrototype_EvalAxxInstructionSigned(totemBuildPrototype *build, totemOperandXSigned ax, totemOperationType operationType)
+{
+    totemInstruction *instruction = NULL;
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetAxSigned(instruction, ax));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemBuildPrototype_EvalAxxInstructionUnsigned(totemBuildPrototype *build, totemOperandXUnsigned ax, totemOperationType operationType)
+{
+    totemInstruction *instruction = NULL;
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetAxUnsigned(instruction, ax));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemBuildPrototype_EvalAbxInstructionSigned(totemBuildPrototype *build, totemOperandRegisterPrototype *aSrc, totemOperandXSigned bx, totemOperationType operationType)
+{
+    totemInstruction *instruction = NULL;
+    
+#if TOTEM_EVALOPT_GLOBAL_CACHE || TOTEM_VMOPT_GLOBAL_OPERANDS
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetBxSigned(instruction, bx));
+#else
+    totemOperandRegisterPrototype a;
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_SecureDst(build, operationType, &a, aSrc));
+    }
+    else
+    {
+        memcpy(&a, aSrc, sizeof(totemOperandRegisterPrototype));
+    }
+    
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, a.RegisterIndex, a.RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetBxSigned(instruction, bx));
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RelinquishDst(build, operationType, &a, aSrc));
+    }
+#endif
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemBuildPrototype_EvalAbxInstructionUnsigned(totemBuildPrototype *build, totemOperandRegisterPrototype *aSrc, totemOperandXUnsigned bx, totemOperationType operationType)
+{
+    totemInstruction *instruction = NULL;
+    
+#if TOTEM_EVALOPT_GLOBAL_CACHE || TOTEM_VMOPT_GLOBAL_OPERANDS
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetBxUnsigned(instruction, bx));
+#else
+    totemOperandRegisterPrototype a;
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_SecureDst(build, operationType, &a, aSrc));
+    }
+    else
+    {
+        memcpy(&a, aSrc, sizeof(totemOperandRegisterPrototype));
+    }
+    
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, a.RegisterIndex, a.RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetBxUnsigned(instruction, bx));
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RelinquishDst(build, operationType, &a, aSrc));
+    }
+    
+#endif
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemBuildPrototype_EvalAbcxInstructionUnsigned(totemBuildPrototype *build, totemOperandRegisterPrototype *aSrc, totemOperandRegisterPrototype *bSrc, totemOperandXUnsigned cx, totemOperationType operationType)
+{
+    totemInstruction *instruction = NULL;
+    
+#if TOTEM_EVALOPT_GLOBAL_CACHE || TOTEM_VMOPT_GLOBAL_OPERANDS
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterB(instruction, bSrc->RegisterIndex, bSrc->RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetCxUnsigned(instruction, cx));
+#else
+    totemOperandRegisterPrototype a, b;
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_SecureDst(build, operationType, &a, aSrc));
+    }
+    else
+    {
+        memcpy(&a, aSrc, sizeof(totemOperandRegisterPrototype));
+    }
+    
+    if (bSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, &b));
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, &b, bSrc->RegisterIndex, totemOperationType_MoveToLocal));
+    }
+    else
+    {
+        memcpy(&b, bSrc, sizeof(totemOperandRegisterPrototype));
+    }
+    
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, a.RegisterIndex, a.RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterB(instruction, b.RegisterIndex, b.RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetCxUnsigned(instruction, cx));
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RelinquishDst(build, operationType, &a, aSrc));
+    }
+    
+    totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
+    if (bSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &b));
+    }
+    
+#endif
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemBuildPrototype_EvalAbcInstruction(totemBuildPrototype *build, totemOperandRegisterPrototype *aSrc, totemOperandRegisterPrototype *bSrc, totemOperandRegisterPrototype *cSrc, totemOperationType operationType)
+{
+    totemInstruction *instruction = NULL;
+    
+#if TOTEM_EVALOPT_GLOBAL_CACHE || TOTEM_VMOPT_GLOBAL_OPERANDS
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterB(instruction, bSrc->RegisterIndex, bSrc->RegisterScopeType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterC(instruction, cSrc->RegisterIndex, cSrc->RegisterScopeType));
+#else
+    totemOperandRegisterPrototype a, b, c;
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_SecureDst(build, operationType, &a, aSrc));
+    }
+    else
+    {
+        memcpy(&a, aSrc, sizeof(totemOperandRegisterPrototype));
+    }
+    
+    if (bSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, &b));
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, &b, bSrc->RegisterIndex, totemOperationType_MoveToLocal));
+    }
+    else
+    {
+        memcpy(&b, bSrc, sizeof(totemOperandRegisterPrototype));
+    }
+    
+    if (cSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddRegister(build, totemOperandType_LocalRegister, &c));
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, &c, cSrc->RegisterIndex, totemOperationType_MoveToLocal));
+    }
+    else
+    {
+        memcpy(&c, cSrc, sizeof(totemOperandRegisterPrototype));
+    }
+    
+    if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister && operationType == totemOperationType_Move)
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RelinquishDst(build, operationType, &b, aSrc));
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &a));
+        
+        if (bSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+        {
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &b));
+        }
+        
+        if (cSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+        {
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &c));
+        }
+    }
+    else
+    {
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction));
+        TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+        
+        TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterA(instruction, a.RegisterIndex, a.RegisterScopeType));
+        TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterB(instruction, b.RegisterIndex, b.RegisterScopeType));
+        TOTEM_EVAL_CHECKRETURN(totemInstruction_SetRegisterC(instruction, c.RegisterIndex, c.RegisterScopeType));
+        
+        if (aSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+        {
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RelinquishDst(build, operationType, &a, aSrc));
+        }
+        
+        if (bSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+        {
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &b));
+        }
+        
+        if (cSrc->RegisterScopeType == totemOperandType_GlobalRegister)
+        {
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &c));
+        }
+    }
+    
+#endif
+    
+    return totemEvalStatus_Success;
+}

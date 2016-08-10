@@ -1,0 +1,31 @@
+var $obj = {};
+$obj["test"] = 123;
+$obj["test2"] = 456;
+$obj["test3"] = 789;
+var $a = $obj["test"];
+var $b = $obj["test2"];
+var $c = $obj["test3"];
+
+$obj["test4"] = {};
+$obj["test4"]["what"] = "hello!";
+var $d = $obj["test4"]["what"];
+
+$obj["test5"] = [2];
+$obj["test5"][1] = "Doop!";
+
+assert($obj["test"] == $a);
+assert($obj["test2"] == $b);
+assert($obj["test3"] == $c);
+
+assert($obj["test4"] is object);
+assert($obj["test4"]["what"] == $d);
+assert($obj["test5"] is array);
+assert($obj["test5"][1] == "Doop!");
+
+assert($a == 123);
+assert($b == 456);
+assert($c == 789);
+assert($d == "hello!");
+
+$obj.invoke = function(var $a, var $b) { return $a + $b; };
+assert($obj.invoke(123, 456) == 123 + 456);

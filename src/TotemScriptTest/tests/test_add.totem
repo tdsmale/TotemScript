@@ -1,0 +1,24 @@
+var $a = 1;
+var $b = 2;
+assert(($a + $b) == 3);
+
+var $c = 0.5;
+assert(($a + $c) == 1.5);
+assert(($a + $c) != 1);
+
+var $d = 1.7;
+assert(($c + $d) == 2.2);
+assert(($c + $d) != 2);
+
+var $e = [1, 2, 3];
+var $f = [4, 5];
+var $g = $e + $f;
+assert($g[0] == $e[0]);
+assert($g[1] == $e[1]);
+assert($g[2] == $e[2]);
+assert($g[3] == $f[0]);
+assert($g[4] == $f[1]);
+
+var $h = "Hello, ";
+var $i = "World!";
+assert(($h + $i) == "Hello, World!");

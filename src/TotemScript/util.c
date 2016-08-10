@@ -11,6 +11,7 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 #include <errno.h>
+#include <stdio.h>
 
 #define TOTEM_SCOPE_CHAR(x) ((x) == totemOperandType_GlobalRegister ? 'g' : 'l')
 
@@ -142,14 +143,12 @@ totemInstructionType totemOperationType_GetInstructionType(totemOperationType op
         case totemOperationType_Return:
         case totemOperationType_MoveToGlobal:
         case totemOperationType_MoveToLocal:
+        case totemOperationType_PreInvoke:
+        case totemOperationType_Invoke:
             return totemInstructionType_Abx;
             
         case totemOperationType_Goto:
-        case totemOperationType_Invoke:
             return totemInstructionType_Axx;
-            
-        case totemOperationType_PreInvoke:
-            return totemInstructionType_Abcx;
             
         default:
             return totemInstructionType_Abc;
@@ -285,6 +284,19 @@ void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction)
     fprintf(file, "\n");
 }
 
+size_t totemMiniString_GetLength(char *c)
+{
+    for(size_t i = 0; i < TOTEM_MINISTRING_MAXLENGTH; i++)
+    {
+        if(!c[i])
+        {
+            return i;
+        }
+    }
+    
+    return TOTEM_MINISTRING_MAXLENGTH;
+}
+
 totemStringLength totemRegister_GetStringLength(totemRegister *reg)
 {
     switch(reg->DataType)
@@ -293,7 +305,7 @@ totemStringLength totemRegister_GetStringLength(totemRegister *reg)
             return reg->Value.InternedString->Length;
             
         case totemPrivateDataType_MiniString:
-            return (totemStringLength)strnlen(reg->Value.MiniString.Value, TOTEM_MINISTRING_MAXLENGTH);
+            return totemMiniString_GetLength(reg->Value.MiniString.Value);
             
         default:
             return 0;
@@ -308,7 +320,7 @@ totemHash totemRegister_GetStringHash(totemRegister *reg)
             return reg->Value.InternedString->Hash;
             
         case totemPrivateDataType_MiniString:
-            return totem_Hash(reg->Value.MiniString.Value, strnlen(reg->Value.MiniString.Value, TOTEM_MINISTRING_MAXLENGTH));
+            return totem_Hash(reg->Value.MiniString.Value, totemMiniString_GetLength(reg->Value.MiniString.Value));
             
         default:
             return 0;
@@ -344,7 +356,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             totemRegister val;
             if (totemRuntime_GetNativeFunctionName(state->Runtime, reg->Value.NativeFunction->Address, &val.Value, &val.DataType))
             {
-                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
+                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
             }
             break;
         }
@@ -354,7 +366,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             totemRegister val;
             if (totemScript_GetFunctionName(reg->Value.InstanceFunction->Instance->Script, reg->Value.InstanceFunction->Function->Address, &val.Value, &val.DataType))
             {
-                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
+                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
             }
             break;
         }
@@ -365,7 +377,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             totemRegister val;
             if (totemScript_GetFunctionName(cr->InstanceFunction->Instance->Script, cr->InstanceFunction->Function->Address, &val.Value, &val.DataType))
             {
-                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
+                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
             }
             break;
         }
@@ -378,9 +390,9 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
         case totemPrivateDataType_MiniString:
             fprintf(file, "%s \"%.*s\" (%i) \n",
                     totemPrivateDataType_Describe(reg->DataType),
-                    totemRegister_GetStringLength(reg),
+                    (int)totemRegister_GetStringLength(reg),
                     totemRegister_GetStringValue(reg),
-                    totemRegister_GetStringLength(reg));
+                    (int)totemRegister_GetStringLength(reg));
             break;
             
         case totemPrivateDataType_Object:
@@ -513,40 +525,25 @@ totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, 
     return val;
 }
 
-void totem_freecwd(const char *cwd)
+totemBool totem_getcwd(char *buffer, size_t size)
 {
-    totem_CacheFree((void*)cwd, PATH_MAX);
-}
-
-const char *totem_getcwd()
-{
-    size_t size = PATH_MAX;
-    
-    char *buffer = totem_CacheMalloc(size);
-    if(getcwd(buffer, size) == buffer)
-    {
-        return buffer;
-    }
-    else
-    {
-        totem_CacheFree(buffer, size);
-        return NULL;
-    }
+    return getcwd(buffer, (totemCwdSize_t)size) == buffer;
 }
 
 void totem_Init()
 {
-    static totemBool initialized = totemBool_False;
-    if(initialized)
-    {
-        return;
-    }
-    
-    initialized = totemBool_True;
+    TOTEM_STATIC_ASSERT(TOTEM_STRING_LITERAL_SIZE("test") == 4, "String length test");
     
     TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values must be 8 bytes");
     TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction must be 4 bytes");
     TOTEM_STATIC_ASSERT(sizeof(size_t) == sizeof(void*), "size_t must be able to hold any memory address");
+    
+    TOTEM_STATIC_ASSERT(sizeof(totemFloat) == sizeof(totemRegisterValue), "Value-size mismatch");
+    TOTEM_STATIC_ASSERT(sizeof(totemInt) == sizeof(totemRegisterValue), "Value-size mismatch");
+    TOTEM_STATIC_ASSERT(sizeof(void*) == sizeof(totemRegisterValue), "Value-size mismatch");
+    TOTEM_STATIC_ASSERT(sizeof(totemRuntimeMiniString) == sizeof(totemRegisterValue), "Value-size mismatch");
+    TOTEM_STATIC_ASSERT(sizeof(totemPublicDataType) == sizeof(totemRegisterValue), "Value-size mismatch");
+    TOTEM_STATIC_ASSERT(sizeof(uint64_t) == sizeof(totemRegisterValue), "Value-size mismatch");
     
     TOTEM_STATIC_ASSERT(&((totemGCObject*)0)->Header.NextHdr == &((totemGCHeader*)0)->NextHdr, "totemGCObject* must be able to masquerade as a totemGCHeader*");
     
@@ -568,7 +565,7 @@ void totem_Cleanup()
 
 FILE *totem_fopen(const char *path, const char *mode)
 {
-#ifdef TOTEM_WIN
+#ifdef TOTEM_MSC
     FILE *result = NULL;
     if(fopen_s(&result, path, mode) == 0)
     {
@@ -581,41 +578,32 @@ FILE *totem_fopen(const char *path, const char *mode)
 #endif
 }
 
-totemBool totem_chdir(const char *str)
-{
-#ifdef TOTEM_WIN
-    return _chdir(str) == 0;
-#else
-    return chdir(str) == 0;
-#endif
-}
-
 totemBool totem_fchdir(FILE *file)
 {
 #ifdef TOTEM_WIN
-    HANDLE handle = (HANDLE)_get_osfhandle(_fileno(file));
+    HANDLE handle = (HANDLE)_get_osfhandle(file->_file);
     if (handle == INVALID_HANDLE_VALUE)
     {
         return totemBool_False;
     }
     
-    TCHAR buffer[PATH_MAX];
-    LPWSTR filename = buffer;
+    CHAR buffer[PATH_MAX];
+    LPSTR filename = buffer;
     
-    DWORD length = GetFinalPathNameByHandle(handle, filename, TOTEM_ARRAYSIZE(buffer), VOLUME_NAME_DOS | FILE_NAME_NORMALIZED);
-    if (length < TOTEM_ARRAYSIZE(buffer))
+    DWORD length = GetFinalPathNameByHandleA(handle, filename, TOTEM_ARRAY_SIZE(buffer), VOLUME_NAME_DOS | FILE_NAME_NORMALIZED);
+    if (length < TOTEM_ARRAY_SIZE(buffer))
     {
         // skip \\?\ prefix
-        LPWSTR toSkip = L"\\\\?\\";
-        size_t toSkipLen = wcslen(toSkip);
-        if (wcsstr(filename, toSkip) == filename)
+        LPSTR toSkip = "\\\\?\\";
+        size_t toSkipLen = strlen(toSkip);
+        if (strstr(filename, toSkip) == filename)
         {
             filename += toSkipLen;
         }
         
-        size_t len = wcslen(filename);
+        size_t len = strlen(filename);
         
-        for (TCHAR *c = filename + len - 1; c >= filename; c--)
+        for (CHAR *c = filename + len - 1; c >= filename; c--)
         {
             if(c[0] == '/' || c[0] == '\\')
             {
@@ -624,7 +612,7 @@ totemBool totem_fchdir(FILE *file)
             }
         }
         
-        if(_wchdir(filename) == 0)
+        if(totem_chdir(filename) == 0)
         {
             return totemBool_True;
         }

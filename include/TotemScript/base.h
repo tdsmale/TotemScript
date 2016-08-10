@@ -9,11 +9,11 @@
 #ifndef TOTEMSCRIPT_BASE_H
 #define TOTEMSCRIPT_BASE_H
 
+#include <TotemScript/platform.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
-#include <TotemScript/platform.h>
 #include <assert.h>
 
 #ifdef __cplusplus
@@ -60,7 +60,8 @@ extern "C" {
      -----------------------------------------------------------------------
      */
     
-#define TOTEM_ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
+#define TOTEM_ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
+#define TOTEM_STRING_LITERAL_SIZE(x) (TOTEM_ARRAY_SIZE(x) - 1)
 #define TOTEM_STRINGIFY_CASE(x) case x: return #x
 #define TOTEM_STATIC_ASSERT(test, explanation) { char assert[(test) ? 1 : -1]; (void)assert; }
     
@@ -100,7 +101,7 @@ extern "C" {
     typedef int64_t totemInt;
     typedef uint32_t totemHash;
     typedef uintptr_t totemHashValue;
-    typedef uint32_t totemStringLength;
+    typedef size_t totemStringLength;
     
     totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t numBits);
     
@@ -137,7 +138,7 @@ extern "C" {
     }
     totemRuntimeMiniString;
     
-    typedef enum
+    enum
     {
         totemPublicDataType_Null = 0,
         totemPublicDataType_Int = 1,
@@ -151,8 +152,9 @@ extern "C" {
         totemPublicDataType_Userdata = 9,
         totemPublicDataType_Boolean = 10,
         totemPublicDataType_Max = 11
-    }
-    totemPublicDataType;
+    };
+    typedef uint64_t totemPublicDataType;
+    const char *totemPublicDataType_Describe(totemPublicDataType type);
     
     /**
      * Operation Types
@@ -183,10 +185,10 @@ extern "C" {
         totemOperationType_MoveToGlobal = 21,       // Bx = A
         totemOperationType_Is = 22,                 // A = B is C
         totemOperationType_As = 23,                 // A = B as C
-        totemOperationType_Invoke = 24,				// A = B()
+        totemOperationType_Invoke = 24,				// A = return
         totemOperationType_NewObject = 25,			// A = new object
         totemOperationType_ComplexShift = 26,		// A << B[C]
-        totemOperationType_PreInvoke = 27,			// A = B(C)
+        totemOperationType_PreInvoke = 27,			// B(C)
         totemOperationType_LogicalNegate = 28,		// A = !B
         totemOperationType_Max = 31
     };
@@ -327,8 +329,7 @@ extern "C" {
     void totem_CacheFree(void *ptr, size_t len);
     
     void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start);
-    const char *totem_getcwd();
-    void totem_freecwd(const char *cwd);
+    totemBool totem_getcwd(char *buffer, size_t size);
     
     uint32_t totem_Hash(const void *data, size_t len);
     void totem_SetMemoryCallbacks(totemMallocCb malloc, totemFreeCb free);
@@ -349,7 +350,7 @@ extern "C" {
     void *totemMemoryBuffer_Secure(totemMemoryBuffer *buffer, size_t amount);
     void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t amount);
     void *totemMemoryBuffer_TakeFrom(totemMemoryBuffer *buffer, totemMemoryBuffer *from);
-    size_t totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount);
+    void totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount);
     void *totemMemoryBuffer_Top(totemMemoryBuffer *buffer);
     void *totemMemoryBuffer_Bottom(totemMemoryBuffer *buffer);
     void *totemMemoryBuffer_Get(totemMemoryBuffer *buffer, size_t index);
@@ -409,10 +410,6 @@ extern "C" {
     
     FILE *totem_fopen(const char *str, const char *mode);
     totemBool totem_fchdir(FILE *file);
-    totemBool totem_chdir(const char *str);
-    
-#define totem_setjmp(jmp) setjmp((int*)jmp)
-#define totem_longjmp(jmp) longjmp((int*)jmp, 1)
     
 #ifdef TOTEM_DEBUG
 #define totem_assert(a) assert(a)

@@ -9,11 +9,11 @@
 #ifndef TOTEMSCRIPT_EXEC_H
 #define TOTEMSCRIPT_EXEC_H
 
+#include <TotemScript/base.h>
+#include <TotemScript/eval.h>
 #include <stdint.h>
 #include <setjmp.h>
 #include <limits.h>
-#include <TotemScript/base.h>
-#include <TotemScript/eval.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -255,7 +255,7 @@ extern "C" {
     
     typedef struct totemUserdata
     {
-        uint64_t Data;
+        void *Data;
         totemUserdataDestructor Destructor;
     }
     totemUserdata;
@@ -320,6 +320,7 @@ extern "C" {
         totemRegister *NextFreeRegister;
         size_t MaxLocalRegisters;
         size_t UsedLocalRegisters;
+        size_t NumGC;
     }
     totemExecState;
     
@@ -353,8 +354,9 @@ extern "C" {
     void totemInterpreter_Init(totemInterpreter *interpreter);
     void totemInterpreter_Reset(totemInterpreter *interpreter);
     void totemInterpreter_Cleanup(totemInterpreter *interpreter);
-    totemBool totemInterpreter_InterpretFile(totemInterpreter *interpreter, const char *filename);
+    totemBool totemInterpreter_InterpretFile(totemInterpreter *interpreter, totemString *filename);
     totemBool totemInterpreter_InterpretString(totemInterpreter *interpreter, totemString *string);
+    void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter);
     
     void totemInstance_Init(totemInstance *instance);
     void totemInstance_Reset(totemInstance *instance);
@@ -379,7 +381,7 @@ extern "C" {
     totemBool totemRuntime_GetNativeFunctionName(totemRuntime *runtime, totemOperandXUnsigned addr, totemRegisterValue *valOut, totemPrivateDataType *typeOut);
     
     void *totemExecState_Alloc(totemExecState *state, size_t size);
-    totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, size_t numRegisters, totemInstance *instance, totemRegister *returnReg, totemFunctionType funcType, void *function, totemFunctionCall **callOut);
+    totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, uint8_t numRegisters, totemInstance *instance, totemRegister *returnReg, totemFunctionType funcType, void *function, totemFunctionCall **callOut);
     void totemExecState_PushRoutine(totemExecState *state, totemFunctionCall *call, totemInstruction *startAt);
     void totemExecState_PopRoutine(totemExecState *state);
     
@@ -390,7 +392,7 @@ extern "C" {
     totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemInstanceFunction *function, totemGCObject **gcOut);
     totemExecStatus totemExecState_CreateObject(totemExecState *state, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateArray(totemExecState *state, uint32_t numRegisters, totemGCObject **objOut);
-    totemExecStatus totemExecState_CreateUserdata(totemExecState *state, uint64_t data, totemUserdataDestructor destructor, totemGCObject **gcOut);
+    totemExecStatus totemExecState_CreateUserdata(totemExecState *state, void *data, totemUserdataDestructor destructor, totemGCObject **gcOut);
     totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, totemRegister *registers, uint32_t numRegisters, totemGCObject **objOut);
     void totemExecState_IncRefCount(totemExecState *state, totemGCObject *gc);
     void totemExecState_DecRefCount(totemExecState *state, totemGCObject *gc);
@@ -470,6 +472,14 @@ extern "C" {
     totemExecStatus totemExecState_MoreThan(totemExecState *state, totemRegister *dst, totemRegister *src1, totemRegister *src2);
     totemExecStatus totemExecState_MoreThanEquals(totemExecState *state, totemRegister *dst, totemRegister *src1, totemRegister *src2);
     totemExecStatus totemExecState_Cast(totemExecState *state, totemRegister *dst, totemRegister *src1, totemRegister *src2);
+    
+    typedef enum
+    {
+        totemCmdFlags_None = 0,
+        totemCmdFlags_DumpInstructions = 1,
+        totemCmdFlags_DoNotRun = 1 << 1
+    }
+    totemCmdFlags;
     
 #define TOTEM_REGISTER_ISGC(x) ((x)->DataType >= totemPrivateDataType_Array && (x)->DataType <= totemPrivateDataType_Userdata)
 #define TOTEM_EXEC_CHECKRETURN(x) { totemExecStatus status = x; if(status != totemExecStatus_Continue) return status; }

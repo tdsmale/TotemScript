@@ -11,40 +11,37 @@
 #include <TotemScript/totem.h>
 
 #ifdef TOTEM_WIN
+#include <TotemScriptTest/dirent.h>
 #define TOTEMSCRIPTCMD "TotemScriptCmd.exe"
 #else
 #define TOTEMSCRIPTCMD "time ./TotemScriptCmd"
 #endif
 
-#define TOTEMSCRIPTCMD_RUN(x) TOTEMSCRIPTCMD " " x
-
-#define TEST(x) \
-    printf("Next test: "TOTEMSCRIPTCMD_RUN(x)"\n"); \
-    printf("Press the return key to run"); \
-    getchar(); \
-    system(TOTEMSCRIPTCMD_RUN(x));
-
 int main(int argc, const char * argv[])
 {
-    TEST("");
+    char buffer[PATH_MAX];
+    const char *dir = "./tests";
     
-    TEST("--version");
-    TEST("-v");
+    DIR *d = opendir(dir);
+    if (d)
+    {
+        for (struct dirent *f = readdir(d); f; f = readdir(d))
+        {
+            if (strstr(f->d_name, ".totem"))
+            {
+                totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), TOTEMSCRIPTCMD " -f %s/%s", dir, f->d_name);
+                fprintf(stdout, "\n\n##########\nNext test: %s\n\n", buffer);
+                printf("Press the return key to run\n\n");
+                getchar();
+                system(buffer);
+            }
+        }
+    }
     
-    TEST("--help");
-    TEST("-h");
+    closedir(d);
     
-    TEST("--file test.totem");
-    TEST("-f test.totem");
-    
-    TEST("--string \"print(1 + 2);\"");
-    TEST("-s \"print(1 + 2);\"");
-    
-    TEST("--file --dump test.totem");
-    TEST("-f -d test.totem");
-    
-    TEST("-f benchmark_nbody.totem 50000000");
-    TEST("-f benchmark_mandelbrot.totem 16000");
+    printf("All tests run - press the return key to exit\n\n");
+    getchar();
     
     return 0;
 }

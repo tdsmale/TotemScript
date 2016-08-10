@@ -1,0 +1,37 @@
+function test(var $start, var $end)
+{
+	var $start2 = $start;
+	var $end2 = $end;
+	return $start2 * $end2;
+
+    for(var $i = $start2; $i < $end2; $i++)
+    {
+        return $i;
+    }
+
+    return 0;
+}
+
+function run(var $co, var $start, var $end)
+{
+	var $maxLoops = $end - $start;
+	var $numLoops = 0;
+	var $val = null;
+
+	assert($co($start, $end) == ($start * $end));
+
+	for($numLoops = 0; $val = $co(); $numLoops++)
+	{
+		assert($val == ($start + $numLoops));
+	}
+
+	assert($numLoops == $maxLoops);
+	assert($val == 0);	
+}
+
+var $co = @test as coroutine;
+var $start = 11;
+var $end = 20;
+
+run($co, $start, $end);
+run($co, $start, $end);

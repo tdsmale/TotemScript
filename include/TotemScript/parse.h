@@ -9,9 +9,9 @@
 #ifndef ColossusEngine_parse_h
 #define ColossusEngine_parse_h
 
+#include <TotemScript/base.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <TotemScript/base.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,18 +52,14 @@ extern "C" {
     {
         totemLoadScriptStatus_Success,
         totemLoadScriptStatus_FileNotFound,
-        totemLoadScriptStatus_OutOfMemory
+        totemLoadScriptStatus_OutOfMemory,
+        totemLoadScriptStatus_CwdTooLarge,
+        totemLoadScriptStatus_FChDirError,
+        totemLoadScriptStatus_FilenameTooLarge
     }
     totemLoadScriptStatus;
     
     const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status);
-    
-    typedef struct
-    {
-        totemString Description;
-        totemLoadScriptStatus Status;
-    }
-    totemLoadScriptError;
     
     typedef enum
     {
@@ -268,6 +264,7 @@ extern "C" {
         totemTokenType Type;
         totemTokenCategory Category;
         const char *Value;
+        size_t Length;
     }
     totemTokenDesc;
     
@@ -275,13 +272,13 @@ extern "C" {
     {
         size_t LineNumber;
         size_t CharNumber;
+        size_t Length;
         const char *Start;
     }
     totemBufferPositionInfo;
     
     typedef struct
     {
-        totemString Value;
         totemBufferPositionInfo Position;
         totemTokenType Type;
         totemTokenCategory Category;
@@ -471,6 +468,8 @@ extern "C" {
     typedef struct
     {
         totemMemoryBuffer Tokens;
+        size_t CurrentChar;
+        size_t CurrentLine;
     }
     totemTokenList;
     
@@ -485,7 +484,19 @@ extern "C" {
     
     typedef struct
     {
+        char *Value;
+        size_t Length;
+        size_t Offset;
+        size_t Parent;
+        size_t LineStart;
+    }
+    totemScriptFileBlock;
+    
+    typedef struct
+    {
         totemMemoryBuffer Buffer;
+        totemMemoryBuffer FileBlock;
+        char FilenameBuffer[PATH_MAX];
     }
     totemScriptFile;
     
@@ -495,7 +506,7 @@ extern "C" {
     void totemScriptFile_Init(totemScriptFile *file);
     void totemScriptFile_Reset(totemScriptFile *file);
     void totemScriptFile_Cleanup(totemScriptFile *file);
-    totemBool totemScriptFile_Load(totemScriptFile *dst, const char *srcPath, totemLoadScriptError *err);
+    totemLoadScriptStatus totemScriptFile_Load(totemScriptFile *dst, totemString *filename);
     
     /**
      * Lex script into tokens
@@ -504,11 +515,7 @@ extern "C" {
     void totemTokenList_Reset(totemTokenList *list);
     void totemTokenList_Cleanup(totemTokenList *list);
     
-    totemToken *totemTokenList_Alloc(totemTokenList *list, const char *start);
     totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length);
-    totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *token, const char *buffer, totemBool *insideStringLiteral);
-    totemLexStatus totemTokenList_LexReservedWordToken(totemTokenList *list, const char *buffer, size_t length);
-    totemLexStatus totemTokenList_LexNumberAndIdentifierTokens(totemTokenList *list, const char *toCheck, size_t length);
     
     /**
      * Grammatically parse tokens

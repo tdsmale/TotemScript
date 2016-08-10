@@ -93,7 +93,7 @@ totemExecStatus totemFOpen(totemExecState *state)
     }
     
     totemGCObject *gc = NULL;
-    totemExecStatus status = totemExecState_CreateUserdata(state, (uint64_t)f, totemFileDestructor, &gc);
+    totemExecStatus status = totemExecState_CreateUserdata(state, f, totemFileDestructor, &gc);
     if (status != totemExecStatus_Continue)
     {
         fclose(f);
@@ -104,9 +104,15 @@ totemExecStatus totemFOpen(totemExecState *state)
     return status;
 }
 
-totemExecStatus totemGCTest(totemExecState *state)
+totemExecStatus totemGCCollect(totemExecState *state)
 {
-    totemExecState_CollectGarbage(state, totemBool_True);
+    totemExecState_CollectGarbage(state, state->CallStack->NumArguments ? state->LocalRegisters[0].Value.Data != 0 : totemBool_False);
+    return totemExecStatus_Continue;
+}
+
+totemExecStatus totemGCNum(totemExecState *state)
+{
+    totemExecState_AssignNewInt(state, state->CallStack->ReturnRegister, state->NumGC);
     return totemExecStatus_Continue;
 }
 
@@ -117,10 +123,11 @@ totemLinkStatus totemRuntime_LinkStdLib(totemRuntime *runtime)
         { totemPrint, TOTEM_STRING_VAL("print") },
         { totemAssert, TOTEM_STRING_VAL("assert") },
         { totemFOpen, TOTEM_STRING_VAL("fopen") },
-        { totemGCTest, TOTEM_STRING_VAL("collectGC") },
+        { totemGCCollect, TOTEM_STRING_VAL("gc_collect") },
+        { totemGCNum, TOTEM_STRING_VAL("gc_num") },
         { totemSqrt, TOTEM_STRING_VAL("sqrt") },
         { totemArgV, TOTEM_STRING_VAL("argv") }
     };
     
-    return totemRuntime_LinkNativeFunctions(runtime, funcs, TOTEM_ARRAYSIZE(funcs));
+    return totemRuntime_LinkNativeFunctions(runtime, funcs, TOTEM_ARRAY_SIZE(funcs));
 }

@@ -9,85 +9,76 @@
 #include <TotemScript/parse.h>
 #include <string.h>
 
-typedef struct totemScriptName
-{
-    const char *Filename;
-    struct totemScriptName *Next;
-}
-totemScriptName;
-
 #define TOTEM_LOADSCRIPT_SKIPWHITESPACE(str) while(str[0] == ' ' || str[0] == '\n' || str[0] == '\t' || str[0] == '\r') str++;
-
-totemBool totemScriptName_Push(totemScriptName **tree, const char *name)
-{
-    totemScriptName *treeEntry = totem_CacheMalloc(sizeof(totemScriptName));
-    if (treeEntry == NULL)
-    {
-        return totemBool_False;
-    }
-    
-    treeEntry->Filename = name;
-    treeEntry->Next = *tree;
-    *tree = treeEntry;
-    
-    return totemBool_True;
-}
-
-totemBool totemScriptName_Search(totemScriptName **tree, const char *filename)
-{
-    totemScriptName *treeEntry = *tree;
-    while (treeEntry != NULL)
-    {
-        if (strcmp(treeEntry->Filename, filename) == 0)
-        {
-            return totemBool_True;
-        }
-        
-        treeEntry = treeEntry->Next;
-    }
-    
-    return totemBool_False;
-}
-
-const char *totemScriptName_Pop(totemScriptName **tree)
-{
-    if (*tree)
-    {
-        totemScriptName *toDelete = *tree;
-        *tree = (*tree)->Next;
-        
-        const char *filename = toDelete->Filename;
-        totem_CacheFree(toDelete, sizeof(totemScriptName));
-        
-        return filename;
-    }
-    
-    return NULL;
-}
 
 void totemScriptFile_Init(totemScriptFile *script)
 {
     totemMemoryBuffer_Init(&script->Buffer, 1);
+    totemMemoryBuffer_Init(&script->FileBlock, sizeof(totemScriptFileBlock));
+}
+
+void totemScriptFile_PopOffset(totemScriptFile *file)
+{
+    totemScriptFileBlock *off = totemMemoryBuffer_Top(&file->FileBlock);
+    totem_CacheFree(off->Value, off->Length);
+    totemMemoryBuffer_Pop(&file->FileBlock, 1);
+}
+
+void totemScriptFile_CleanupOffsets(totemScriptFile *file)
+{
+    size_t max = totemMemoryBuffer_GetNumObjects(&file->FileBlock);
+    for (size_t i = 0; i < max; i++)
+    {
+        totemScriptFile_PopOffset(file);
+    }
 }
 
 void totemScriptFile_Reset(totemScriptFile *script)
 {
+    totemScriptFile_CleanupOffsets(script);
     totemMemoryBuffer_Reset(&script->Buffer);
+    totemMemoryBuffer_Reset(&script->FileBlock);
 }
 
 void totemScriptFile_Cleanup(totemScriptFile *script)
 {
+    totemScriptFile_CleanupOffsets(script);
     totemMemoryBuffer_Cleanup(&script->Buffer);
+    totemMemoryBuffer_Cleanup(&script->FileBlock);
 }
 
-totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPath, totemLoadScriptError *err, totemScriptName **tree)
+totemScriptFileBlock *totemScriptFile_AddOffset(totemScriptFile *dst, const char *filename, size_t filenameLen, size_t parent)
 {
-    FILE *file = totem_fopen(srcPath, "rb");
+    totemScriptFileBlock *offset = totemMemoryBuffer_Secure(&dst->FileBlock, 1);
+    if (!offset)
+    {
+        return NULL;
+    }
+    
+    offset->Value = totem_CacheMalloc(filenameLen + 1);
+    if (!offset->Value)
+    {
+        totemMemoryBuffer_Pop(&dst->FileBlock, 1);
+        return NULL;
+    }
+    
+    memcpy(offset->Value, filename, filenameLen);
+    offset->Value[filenameLen] = 0;
+    offset->Length = filenameLen;
+    offset->Parent = parent;
+    offset->LineStart = 0;
+    return offset;
+}
+
+totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
+{
+    size_t blockIndex = totemMemoryBuffer_GetNumObjects(&dst->FileBlock) - 1;
+    totemScriptFileBlock *block = totemMemoryBuffer_Get(&dst->FileBlock, blockIndex);
+    
+    FILE *file = totem_fopen(block->Value, "rb");
     if (!file)
     {
-        err->Status = totemLoadScriptStatus_FileNotFound;
-        totemString_FromLiteral(&err->Description, srcPath);
-        return totemBool_False;
+        return totemLoadScriptStatus_FileNotFound;
     }
     
     fseek(file, 0, SEEK_END);
@@ -96,15 +87,8 @@ totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPat
     
     if (!totem_fchdir(file))
     {
-        return totemBool_False;
-    }
-    
-    // add to tree
-    if (totemScriptName_Push(tree, srcPath) == totemBool_False)
-    {
-        err->Status = totemLoadScriptStatus_OutOfMemory;
         fclose(file);
-        return totemBool_False;
+        return totemLoadScriptStatus_FChDirError;
     }
     
     // look for include statements
@@ -120,7 +104,11 @@ totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPat
         }
         while ((cha == ' ' || cha == '\n' || cha == '\t' || cha == '\r') && cha != EOF);
         
-        fseek(file, resetPos, SEEK_SET);
+        if (cha != '#')
+        {
+            fseek(file, resetPos, SEEK_SET);
+            break;
+        }
         
         // any include statements?
         char include[8];
@@ -159,43 +147,81 @@ totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPat
             cha = fgetc(file);
         }
         
-        char *filename = totem_CacheMalloc(filenameSize + 1);
-        if (filename == NULL)
+        if (filenameSize >= TOTEM_ARRAY_SIZE(dst->FilenameBuffer))
         {
             fclose(file);
-            totemScriptName_Pop(tree);
-            err->Status = totemLoadScriptStatus_OutOfMemory;
-            return totemBool_False;
+            return totemLoadScriptStatus_FilenameTooLarge;
         }
         
         fseek(file, resetPos, SEEK_SET);
-        fread(filename, 1, filenameSize, file);
-        filename[filenameSize] = 0;
+        fread(dst->FilenameBuffer, 1, filenameSize, file);
+        dst->FilenameBuffer[filenameSize] = 0;
         fseek(file, 2, SEEK_CUR);
         
+        totemBool loadFile = totemBool_True;
+        size_t maxFiles = totemMemoryBuffer_GetNumObjects(&dst->FileBlock);
+        for (size_t i = 0; i < maxFiles; i++)
+        {
+            totemScriptFileBlock *off = totemMemoryBuffer_Get(&dst->FileBlock, i);
+            if (strncmp(off->Value, dst->FilenameBuffer, off->Length) == 0)
+            {
+                loadFile = totemBool_False;
+                break;
+            }
+        }
+        
         // already in tree? skip this 'un
-        if (totemScriptName_Search(tree, filename) == totemBool_True)
+        if (!loadFile)
         {
             continue;
         }
         
-        totemScriptName *restore = *tree;
-        
-        totemBool result = totemScriptFile_LoadRecursive(dst, filename, err, tree);
-        totem_CacheFree(filename, filenameSize + 1);
-        if (!result)
+        // add to tree
+        totemScriptFileBlock *newOffset = totemScriptFile_AddOffset(dst, dst->FilenameBuffer, filenameSize + 1, blockIndex);
+        if (!newOffset)
         {
             fclose(file);
-            totemScriptName_Pop(tree);
-            return totemBool_False;
+            return totemLoadScriptStatus_OutOfMemory;
+        }
+        
+        totemLoadScriptStatus status = totemScriptFile_LoadRecursive(dst);
+        if (status != totemLoadScriptStatus_Success)
+        {
+            fclose(file);
+            return status;
         }
         
         if (!totem_fchdir(file))
         {
-            return totemBool_False;
+            fclose(file);
+            return totemLoadScriptStatus_FChDirError;
         }
+    }
+    
+    block = totemMemoryBuffer_Get(&dst->FileBlock, blockIndex);
+    
+    // num lines start
+    if (totemMemoryBuffer_GetNumObjects(&dst->FileBlock) > 1)
+    {
+        totemScriptFileBlock *lastBlock = block - 1;
+        block->LineStart = lastBlock->LineStart;
         
-        *tree = restore;
+        const char *toCheck = totemMemoryBuffer_Get(&dst->Buffer, block->Offset);
+        const char *end = totemMemoryBuffer_Top(&dst->Buffer);
+        
+        while (toCheck != end)
+        {
+            if (toCheck[0] == '\n')
+            {
+                block->LineStart++;
+            }
+            
+            toCheck++;
+        }
+    }
+    else
+    {
+        block->LineStart = 0;
     }
     
     size_t existingLength = dst->Buffer.Length;
@@ -203,35 +229,45 @@ totemBool totemScriptFile_LoadRecursive(totemScriptFile *dst, const char *srcPat
     if (!buffer)
     {
         fclose(file);
-        totemScriptName_Pop(tree);
-        err->Status = totemLoadScriptStatus_OutOfMemory;
-        totemString_FromLiteral(&err->Description, "");
-        return totemBool_False;
+        return totemLoadScriptStatus_OutOfMemory;
     }
+    
+    // set file offset
+    block->Offset = existingLength;
     
     size_t read = fread(buffer, 1, fSize, file);
     buffer[read] = 0;
     dst->Buffer.Length = existingLength + read;
     
     fclose(file);
-    totemScriptName_Pop(tree);
-    return totemBool_True;
+    return totemLoadScriptStatus_Success;
 }
 
-totemBool totemScriptFile_Load(totemScriptFile *dst, const char *srcPath, totemLoadScriptError *err)
+totemLoadScriptStatus totemScriptFile_Load(totemScriptFile *dst, totemString *srcPath)
 {
     totemScriptFile_Reset(dst);
-    totemScriptName *nameTree = NULL;
-    const char *currentDir = totem_getcwd();
     
-    totemBool result = totemScriptFile_LoadRecursive(dst, srcPath, err, &nameTree);
+    char cwd[PATH_MAX];
+    if (!totem_getcwd(cwd, TOTEM_ARRAY_SIZE(cwd)))
+    {
+        return totemLoadScriptStatus_CwdTooLarge;
+    }
+    
+    totemScriptFileBlock *newOffset = totemScriptFile_AddOffset(dst, srcPath->Value, srcPath->Length, 0);
+    if (!newOffset)
+    {
+        return totemLoadScriptStatus_OutOfMemory;
+    }
+    
+    totemLoadScriptStatus result = totemScriptFile_LoadRecursive(dst);
+    totem_chdir(cwd);
+    
     /*
      FILE *file = fopen("load.txt", "w");
      fprintf(file, "%.*s", dst->Buffer.Length, dst->Buffer.Data);
      fclose(file);
      */
-    totem_chdir(currentDir);
-    totem_freecwd(currentDir);
+    
     return result;
 }
 
@@ -239,8 +275,11 @@ const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status)
 {
     switch (status)
     {
+            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_FChDirError);
+            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_CwdTooLarge);
             TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_OutOfMemory);
             TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_FileNotFound);
+            TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_FilenameTooLarge);
             TOTEM_STRINGIFY_CASE(totemLoadScriptStatus_Success);
     }
     

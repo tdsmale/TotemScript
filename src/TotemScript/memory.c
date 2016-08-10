@@ -13,6 +13,12 @@
 #define TOTEM_MEM_PAGESIZE (TOTEM_MEM_FREELIST_DIVISOR * 512)
 #define TOTEM_MEM_NUM_FREELISTS (TOTEM_MEM_PAGESIZE / TOTEM_MEM_FREELIST_DIVISOR)
 
+#if 0
+#define totemHashMap_Assert(x) totemHashMap_AssertList(x)
+#else
+#define totemHashMap_Assert(x)
+#endif
+
 typedef struct totemMemoryPageObject
 {
     struct totemMemoryPageObject *Next;
@@ -307,15 +313,16 @@ void *totemMemoryBuffer_Bottom(totemMemoryBuffer *buffer)
     return NULL;
 }
 
-size_t totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount)
+void totemMemoryBuffer_Pop(totemMemoryBuffer *buffer, size_t amount)
 {
+    amount *= buffer->ObjectSize;
+    
     if(amount > buffer->Length)
     {
         amount = buffer->Length;
     }
     
-    buffer->Length -= (amount * buffer->ObjectSize);
-    return amount;
+    buffer->Length -= amount;
 }
 
 void *totemMemoryBuffer_Insert(totemMemoryBuffer *buffer, void *data, size_t numObjects)
@@ -432,44 +439,87 @@ size_t totemMemoryBuffer_GetMaxObjects(totemMemoryBuffer *buffer)
     return buffer->MaxLength / buffer->ObjectSize;
 }
 
+void totemHashMap_AssertList(totemHashMap *hashmap)
+{
+    for (size_t i = 0; i < hashmap->NumBuckets; i++)
+    {
+        totemHashMapEntry *bucket = hashmap->Buckets[i];
+        
+        for (size_t k = 0; bucket; k++)
+        {
+            totem_assert(k < 50000);
+            bucket = bucket->Next;
+        }
+    }
+    
+    totemHashMapEntry *bucket = hashmap->FreeList;
+    
+    for (size_t i = 0; bucket; i++)
+    {
+        totem_assert(i < 50000);
+        bucket = bucket->Next;
+    }
+}
+
 void totemHashMap_Init(totemHashMap *hashmap)
 {
     memset(hashmap, 0, sizeof(totemHashMap));
+    totemHashMap_Assert(hashmap);
 }
 
 void totemHashMap_FreeEntry(totemHashMap *hashmap, totemHashMapEntry *entry)
 {
+    totemHashMap_Assert(hashmap);
     totem_CacheFree((void*)entry->Key, entry->KeyLen);
     
     entry->Next = hashmap->FreeList;
     hashmap->FreeList = entry;
+    totemHashMap_Assert(hashmap);
 }
 
 totemHashMapEntry *totemHashMap_SecureEntry(totemHashMap *hashmap)
 {
+    totemHashMapEntry *entry = NULL;
+    
     if (hashmap->FreeList)
     {
-        totemHashMapEntry *entry = hashmap->FreeList;
+        totemHashMap_Assert(hashmap);
+        entry = hashmap->FreeList;
         hashmap->FreeList = entry->Next;
-        return entry;
+        totemHashMap_Assert(hashmap);
     }
     else
     {
-        return totem_CacheMalloc(sizeof(totemHashMapEntry));
+        totemHashMap_Assert(hashmap);
+        entry = totem_CacheMalloc(sizeof(totemHashMapEntry));
+        totemHashMap_Assert(hashmap);
     }
+    
+    totemHashMap_Assert(hashmap);
+    return entry;
 }
 
 void totemHashMap_MoveKeysToFreeList(totemHashMap *hashmap)
 {
+    totemHashMap_Assert(hashmap);
+    
     for(size_t i = 0; i < hashmap->NumBuckets; i++)
     {
+        totemHashMap_Assert(hashmap);
         while(hashmap->Buckets[i])
         {
+            totemHashMap_Assert(hashmap);
             totemHashMapEntry *entry = hashmap->Buckets[i];
             hashmap->Buckets[i] = entry->Next;
+            totemHashMap_Assert(hashmap);
             totemHashMap_FreeEntry(hashmap, entry);
+            totemHashMap_Assert(hashmap);
         }
+        totemHashMap_Assert(hashmap);
     }
+    totemHashMap_Assert(hashmap);
+    
+    totemHashMap_Assert(hashmap);
     
     hashmap->NumKeys = 0;
 }
@@ -496,8 +546,10 @@ void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, t
 
 totemBool totemHashMap_InsertPrecomputedWithoutSearch(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash)
 {
+    totemHashMap_Assert(hashmap);
     if (hashmap->NumKeys >= hashmap->NumBuckets)
     {
+        totemHashMap_Assert(hashmap);
         // buckets realloc
         size_t newNumBuckets = 0;
         if (hashmap->NumKeys == 0)
@@ -509,168 +561,240 @@ totemBool totemHashMap_InsertPrecomputedWithoutSearch(totemHashMap *hashmap, con
             newNumBuckets = hashmap->NumKeys * 2;
         }
         
+        totemHashMap_Assert(hashmap);
         totemHashMapEntry **newBuckets = totem_CacheMalloc(sizeof(totemHashMapEntry**) * newNumBuckets);
         if (!newBuckets)
         {
+            totemHashMap_Assert(hashmap);
             return totemBool_False;
         }
         
+        totemHashMap_Assert(hashmap);
         // reassign
         memset(newBuckets, 0, newNumBuckets * sizeof(totemHashMapEntry**));
         for (size_t i = 0; i < hashmap->NumBuckets; i++)
         {
+            totemHashMap_Assert(hashmap);
             totemHashMapEntry *next = NULL;
             for (totemHashMapEntry *entry = hashmap->Buckets[i]; entry != NULL; entry = next)
             {
+                totemHashMap_Assert(hashmap);
                 next = entry->Next;
                 entry->Next = NULL;
                 totemHashMap_InsertDirect(newBuckets, newNumBuckets, entry);
+                totemHashMap_Assert(hashmap);
             }
+            totemHashMap_Assert(hashmap);
         }
         
+        totemHashMap_Assert(hashmap);
         // replace buckets
         totem_CacheFree(hashmap->Buckets, sizeof(totemHashMapEntry**) * hashmap->NumBuckets);
         hashmap->Buckets = newBuckets;
         hashmap->NumBuckets = newNumBuckets;
+        totemHashMap_Assert(hashmap);
     }
     
+    totemHashMap_Assert(hashmap);
     totemHashMapEntry *entry = totemHashMap_SecureEntry(hashmap);
     if (!entry)
     {
+        totemHashMap_Assert(hashmap);
         return totemBool_False;
     }
     
+    totemHashMap_Assert(hashmap);
     void *persistKey = totem_CacheMalloc(keyLen);
     if (!persistKey)
     {
         return totemBool_False;
     }
     
+    totemHashMap_Assert(hashmap);
     memcpy(persistKey, key, keyLen);
+    totemHashMap_Assert(hashmap);
     
     entry->Next = NULL;
     entry->Value = value;
     entry->Key = persistKey;
     entry->KeyLen = keyLen;
     entry->Hash = hash;
+    totemHashMap_Assert(hashmap);
     totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
+    totemHashMap_Assert(hashmap);
     
     hashmap->NumKeys++;
+    totemHashMap_Assert(hashmap);
     return totemBool_True;
 }
 
 totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value, totemHash hash)
 {
+    totemHashMap_Assert(hashmap);
     totemHashMapEntry *existingEntry = totemHashMap_Find(hashmap, key, keyLen);
     if(existingEntry)
     {
+        totemHashMap_Assert(hashmap);
         existingEntry->Value = value;
+        totemHashMap_Assert(hashmap);
         return totemBool_True;
     }
     else
     {
-        return totemHashMap_InsertPrecomputedWithoutSearch(hashmap, key, keyLen, value, hash);
+        totemHashMap_Assert(hashmap);
+        totemBool result = totemHashMap_InsertPrecomputedWithoutSearch(hashmap, key, keyLen, value, hash);
+        totemHashMap_Assert(hashmap);
+        return result;
     }
 }
 
 totemBool totemHashMap_Insert(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue value)
 {
+    totemHashMap_Assert(hashmap);
     totemHash hash = totem_Hash(key, keyLen);
-    return totemHashMap_InsertPrecomputed(hashmap, key, keyLen, value, hash);
+    totemHashMap_Assert(hashmap);
+    totemBool result = totemHashMap_InsertPrecomputed(hashmap, key, keyLen, value, hash);
+    totemHashMap_Assert(hashmap);
+    return result;
 }
 
 totemBool totemHashMap_TakeFrom(totemHashMap *hashmap, totemHashMap *from)
 {
+    totemHashMap_Assert(hashmap);
     // todo: if this fails half-way through the list, free previously allocated entries
     for(size_t i = 0; i < from->NumBuckets; i++)
     {
+        totemHashMap_Assert(hashmap);
         for(totemHashMapEntry *entry = from->Buckets[i]; entry != NULL; entry = entry->Next)
         {
+            totemHashMap_Assert(hashmap);
             if(!totemHashMap_InsertPrecomputed(hashmap, entry->Key, entry->KeyLen, entry->Value, entry->Hash))
             {
+                totemHashMap_Assert(hashmap);
                 return totemBool_False;
             }
+            
+            totemHashMap_Assert(hashmap);
         }
+        totemHashMap_Assert(hashmap);
     }
+    totemHashMap_Assert(hashmap);
     
     return totemBool_True;
 }
 
 totemHashMapEntry *totemHashMap_RemovePrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHash hash)
 {
+    totemHashMap_Assert(hashmap);
     if (hashmap->NumBuckets > 0)
     {
+        totemHashMap_Assert(hashmap);
         int index = hash % hashmap->NumBuckets;
-        
+        totemHashMap_Assert(hashmap);
         for (totemHashMapEntry *entry = hashmap->Buckets[index], *prev = NULL; entry != NULL; prev = entry, entry = entry->Next)
         {
+            totemHashMap_Assert(hashmap);
             if (entry->Hash == hash && memcmp(entry->Key, key, keyLen) == 0)
             {
+                totemHashMap_Assert(hashmap);
                 if (prev)
                 {
+                    totemHashMap_Assert(hashmap);
                     prev->Next = entry->Next;
+                    totemHashMap_Assert(hashmap);
                 }
                 else
                 {
+                    totemHashMap_Assert(hashmap);
                     hashmap->Buckets[index] = entry->Next;
+                    totemHashMap_Assert(hashmap);
                 }
                 
+                totemHashMap_Assert(hashmap);
                 totemHashMap_FreeEntry(hashmap, entry);
+                totemHashMap_Assert(hashmap);
                 hashmap->NumKeys--;
                 return entry;
             }
+            totemHashMap_Assert(hashmap);
         }
+        totemHashMap_Assert(hashmap);
     }
     
+    totemHashMap_Assert(hashmap);
     return NULL;
 }
 
 totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, size_t keyLen)
 {
+    totemHashMap_Assert(hashmap);
     totemHash hash = totem_Hash(key, keyLen);
-    return totemHashMap_RemovePrecomputed(hashmap, key, keyLen, hash);
+    totemHashMap_Assert(hashmap);
+    totemHashMapEntry *result = totemHashMap_RemovePrecomputed(hashmap, key, keyLen, hash);
+    totemHashMap_Assert(hashmap);
+    return result;
 }
 
 totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *key, size_t keyLen)
 {
+    totemHashMap_Assert(hashmap);
     totemHash hash = totem_Hash(key, keyLen);
-    return totemHashMap_FindPrecomputed(hashmap, key, keyLen, hash);
+    totemHashMap_Assert(hashmap);
+    totemHashMapEntry *result = totemHashMap_FindPrecomputed(hashmap, key, keyLen, hash);
+    totemHashMap_Assert(hashmap);
+    return result;
 }
 
 totemHashMapEntry *totemHashMap_FindPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHash hash)
 {
+    totemHashMap_Assert(hashmap);
     if(hashmap->NumBuckets > 0)
     {
+        totemHashMap_Assert(hashmap);
         int index = hash % hashmap->NumBuckets;
-        
+        totemHashMap_Assert(hashmap);
         for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
         {
+            totemHashMap_Assert(hashmap);
             if(entry->Hash == hash && memcmp(entry->Key, key, entry->KeyLen) == 0)
             {
+                totemHashMap_Assert(hashmap);
                 return entry;
             }
+            totemHashMap_Assert(hashmap);
         }
     }
     
+    totemHashMap_Assert(hashmap);
     return NULL;
 }
 
 void totemHashMap_Reset(totemHashMap *hashmap)
 {
+    totemHashMap_Assert(hashmap);
     totemHashMap_MoveKeysToFreeList(hashmap);
+    totemHashMap_Assert(hashmap);
     hashmap->NumKeys = 0;
+    totemHashMap_Assert(hashmap);
 }
 
 void totemHashMap_Cleanup(totemHashMap *map)
 {
+    totemHashMap_Assert(map);
     totemHashMap_MoveKeysToFreeList(map);
+    totemHashMap_Assert(map);
     while(map->FreeList)
     {
+        totemHashMap_Assert(map);
         totemHashMapEntry *entry = map->FreeList;
         map->FreeList = entry->Next;
         totem_CacheFree(entry, sizeof(totemHashMapEntry));
+        totemHashMap_Assert(map);
     }
     
-    totem_CacheFree(map->Buckets, sizeof(totemHashMapEntry) * map->NumBuckets);
+    totemHashMap_Assert(map);
+    totem_CacheFree(map->Buckets, sizeof(totemHashMapEntry**) * map->NumBuckets);
     map->Buckets = NULL;
+    map->NumBuckets = 0;
+    totemHashMap_Assert(map);
 }

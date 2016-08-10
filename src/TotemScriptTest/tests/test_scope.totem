@@ -1,0 +1,22 @@
+var $e = 123;
+var $x = 111;
+var $y = 222;
+
+function test(var $e)
+{
+	assert($e != 123);
+	let $x = 456;
+	$y = 789;
+	
+	for(var $i = 0; $i < 1; $i++)
+	{
+		var $y = 101010;
+	}
+}
+
+test($y);
+assert($e == 123);
+assert($x == 111);
+assert($x != 456);
+assert($y == 789);
+assert($y != 222);

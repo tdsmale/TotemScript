@@ -1,0 +1,4 @@
+let $g = null;
+assert($g == null);
+assert(null == null);
+assert(($g as type) == (null as type));

@@ -36,10 +36,14 @@
 #endif // mac / ios
 
 // windows
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__MINGW64__)
 #define TOTEM_WIN
 
-#ifdef _WIN64
+#if defined(__MINGW32__) || defined(__MINGW64__)
+#define TOTEM_MINGW
+#endif
+
+#if defined(_WIN64) || defined(__MINGW64__)
 #define TOTEM_WIN64
 #define TOTEM_64
 
@@ -65,26 +69,50 @@
 
 // visual studio compiler
 #ifdef _MSC_VER
+#define TOTEM_MSC
 #define TOTEM_INLINE __forceinline
 #define TOTEM_CDECL _cdecl
+#define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
+#define PATH_MAX (_MAX_PATH)
+#define totem_chdir _chdir
 #endif
 
 // clang
-#ifdef __clang__
+#if defined(__clang__)
+#define TOTEM_CLANG
 #define TOTEM_INLINE __attribute__((always_inline))
 #define TOTEM_CDECL __attribute__((cdecl))
 #define TOTEM_THREADED_DISPATCH
+#define totem_snprintf snprintf
+#define totem_chdir chdir
+#endif
+
+#if defined(__GNUC__)
+#define TOTEM_GNUC
+#define TOTEM_INLINE __attribute__((always_inline))
+#define TOTEM_CDECL __attribute__((cdecl))
+#define TOTEM_THREADED_DISPATCH
+#define totem_snprintf snprintf
+#define totem_chdir chdir
 #endif
 
 // winlib
 #ifdef TOTEM_WIN
+
+#ifdef TOTEM_MINGW
+#define _WIN32_WINNT 0x0601 // target win7
+#define PATH_MAX (260)
+#define VOLUME_NAME_DOS (0x0)
+#define FILE_NAME_NORMALIZED (0x0)
+#endif
+
 #include <Windows.h>
 #include <direct.h>
 #include <io.h>
 #include <Shlwapi.h>
 
+typedef int totemCwdSize_t;
 #define getcwd _getcwd
-#define PATH_MAX (_MAX_PATH)
 
 #define totemLock CRITICAL_SECTION
 #define totemLock_Init InitializeCriticalSection
@@ -92,7 +120,14 @@
 #define totemLock_Acquire EnterCriticalSection
 #define totemLock_Release LeaveCriticalSection
 
-#define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
+#ifdef TOTEM_64
+#define totem_setjmp(jmp) setjmp(jmp)
+#define totem_longjmp(jmp) longjmp(jmp, 1)
+#else
+#define totem_setjmp(jmp) setjmp((int*)jmp)
+#define totem_longjmp(jmp) longjmp((int*)jmp, 1)
+#endif
+
 #endif
 
 // apple
@@ -103,7 +138,10 @@
 #include <dirent.h>
 #include <libkern/OSAtomic.h>
 
-#define totem_snprintf snprintf
+typedef size_t totemCwdSize_t;
+
+#define totem_setjmp(jmp) setjmp((int*)jmp)
+#define totem_longjmp(jmp) longjmp((int*)jmp, 1)
 #endif
 
 // posix
@@ -118,12 +156,18 @@
 #define totemLock_Release pthread_mutex_unlock
 #endif
 
+// compiliation options
+
+// global values are cached in local scope
+// globals are accessed less often, but synchronization is required when exiting scope
+#define TOTEM_EVALOPT_GLOBAL_CACHE (1)
+
 // vm options
 
 // globals, functions & constants up to TOTEM_MAX_LOCAL_REGISTERS don't need moving to local scope to be accessible
 // all register accesses become slightly more expensive
-// halves maximum number of local registers
-// lowers number of instructions
+// halves maximum number of local registers, but uses less of them
+// lowers total number of instructions
 #define TOTEM_VMOPT_GLOBAL_OPERANDS (1)
 
 // forces bytecode interpreter to use computed gotos instead of a switch statement

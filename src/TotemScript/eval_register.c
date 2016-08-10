@@ -15,21 +15,23 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
 {
     totemOperandXUnsigned index = 0;
     totemRegisterPrototype *reg = NULL;
-    totemBool isFromFreeList = totemBool_False;
+    totemBool fromFreeList = totemBool_False;
+    size_t freelistSize = totemMemoryBuffer_GetNumObjects(&list->RegisterFreeList);
+    size_t numRegisters = totemMemoryBuffer_GetNumObjects(&list->Registers);
     
-    if (totemMemoryBuffer_GetNumObjects(&list->RegisterFreeList) > 0)
+    if (freelistSize > 0)
     {
         totemOperandXUnsigned *indexPtr = totemMemoryBuffer_Top(&list->RegisterFreeList);
         index = *indexPtr;
         totemMemoryBuffer_Pop(&list->RegisterFreeList, 1);
         reg = totemMemoryBuffer_Get(&list->Registers, index);
-        isFromFreeList = totemBool_True;
+        fromFreeList = totemBool_True;
     }
     else
     {
-        size_t max = list->Scope == totemOperandType_GlobalRegister ? TOTEM_MAX_GLOBAL_REGISTERS : TOTEM_MAX_LOCAL_REGISTERS;
+        size_t max = list->ScopeType == totemOperandType_GlobalRegister ? TOTEM_MAX_GLOBAL_REGISTERS : TOTEM_MAX_LOCAL_REGISTERS;
         
-        if (totemMemoryBuffer_GetNumObjects(&list->Registers) >= max)
+        if (numRegisters >= max)
         {
             return totemEvalStatus_Break(totemEvalStatus_TooManyRegisters);
         }
@@ -45,25 +47,36 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
     
     reg->Int = 0;
     reg->RefCount = 1;
-    reg->GlobalAssoc = 0;
+    reg->GlobalCache = 0;
     reg->DataType = totemPublicDataType_Null;
     reg->Flags = totemRegisterPrototypeFlag_IsTemporary | totemRegisterPrototypeFlag_IsUsed;
     
     operand->RegisterIndex = index;
-    operand->RegisterScopeType = list->Scope;
+    operand->RegisterScopeType = list->ScopeType;
+    
+    //printf("add %p %i %i %i %i %i %i %i\n", list, freelistSize, numRegisters, list->ScopeType, a, fromFreeList, operand->RegisterIndex, operand->RegisterScopeType);
+    
     return totemEvalStatus_Success;
 }
 
 totemEvalStatus totemRegisterListPrototype_FreeRegister(totemRegisterListPrototype *list, totemOperandRegisterPrototype *operand)
 {
-    if (!totemMemoryBuffer_Insert(&list->RegisterFreeList, &operand->RegisterIndex, 1))
-    {
-        return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
-    }
+    totem_assert(list->ScopeType == operand->RegisterScopeType);
     
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
     
-    reg->Flags = totemRegisterPrototypeFlag_None;
+    if (reg->Flags != totemRegisterPrototypeFlag_None)
+    {
+        if (!totemMemoryBuffer_Insert(&list->RegisterFreeList, &operand->RegisterIndex, 1))
+        {
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+        }
+        
+        //printf("free %i %i\n", operand->RegisterIndex, operand->RegisterScopeType);
+        
+        reg->Flags = totemRegisterPrototypeFlag_None;
+    }
+    
     return totemEvalStatus_Success;
 }
 
@@ -181,7 +194,7 @@ totemBool totemRegisterListPrototype_GetRegisterRefCount(totemRegisterListProtot
     return totemBool_True;
 }
 
-totemBool totemRegisterListPrototype_SetRegisterGlobalAssoc(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemOperandXUnsigned assoc)
+totemBool totemRegisterListPrototype_SetRegisterGlobalCache(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemOperandXUnsigned assoc)
 {
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, index);
     if (!reg || !TOTEM_HASBITS(reg->Flags, totemRegisterPrototypeFlag_IsUsed))
@@ -189,11 +202,11 @@ totemBool totemRegisterListPrototype_SetRegisterGlobalAssoc(totemRegisterListPro
         return totemBool_False;
     }
     
-    reg->GlobalAssoc = assoc;
+    reg->GlobalCache = assoc;
     return totemBool_True;
 }
 
-totemBool totemRegisterListPrototype_GetRegisterGlobalAssoc(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemOperandXUnsigned *assoc)
+totemBool totemRegisterListPrototype_GetRegisterGlobalCache(totemRegisterListPrototype *list, totemOperandXUnsigned index, totemOperandXUnsigned *assoc)
 {
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, index);
     if (!reg || !TOTEM_HASBITS(reg->Flags, totemRegisterPrototypeFlag_IsUsed))
@@ -201,7 +214,7 @@ totemBool totemRegisterListPrototype_GetRegisterGlobalAssoc(totemRegisterListPro
         return totemBool_False;
     }
     
-    *assoc = reg->GlobalAssoc;
+    *assoc = reg->GlobalCache;
     return totemBool_True;
 }
 
@@ -215,7 +228,7 @@ totemEvalStatus totemRegisterListPrototype_AddType(totemRegisterListPrototype *l
     if (list->HasDataType[type])
     {
         op->RegisterIndex = list->DataTypes[type];
-        op->RegisterScopeType = list->Scope;
+        op->RegisterScopeType = list->ScopeType;
         totemRegisterListPrototype_IncRegisterRefCount(list, op->RegisterIndex, NULL);
         return totemEvalStatus_Success;
     }
@@ -243,7 +256,7 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
     if (searchResult != NULL)
     {
         operand->RegisterIndex = (totemOperandXUnsigned)searchResult->Value;
-        operand->RegisterScopeType = list->Scope;
+        operand->RegisterScopeType = list->ScopeType;
         totemRegisterListPrototype_IncRegisterRefCount(list, operand->RegisterIndex, NULL);
     }
     else
@@ -269,15 +282,28 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
     return totemEvalStatus_Success;
 }
 
-totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand)
+totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand, totemBool currentOnly)
 {
-    totemHashMapEntry *searchResult = totemHashMap_Find(&list->Variables, name->Value, name->Length);
-    if (searchResult != NULL)
+    for (totemRegisterListPrototypeScope *scope = list->Scope;
+         scope;
+         scope = scope->Prev)
     {
-        operand->RegisterIndex = (totemOperandXUnsigned)searchResult->Value;
-        operand->RegisterScopeType = list->Scope;
-        totemRegisterListPrototype_IncRegisterRefCount(list, operand->RegisterIndex, NULL);
-        return totemBool_True;
+        totemHashMapEntry *searchResult = totemHashMap_Find(&scope->Variables, name->Value, name->Length);
+        
+        if (searchResult != NULL)
+        {
+            operand->RegisterIndex = (totemOperandXUnsigned)searchResult->Value;
+            operand->RegisterScopeType = list->ScopeType;
+            
+            totemRegisterListPrototype_IncRegisterRefCount(list, operand->RegisterIndex, NULL);
+            
+            return totemBool_True;
+        }
+        
+        if (currentOnly)
+        {
+            break;
+        }
     }
     
     return totemBool_False;
@@ -286,17 +312,19 @@ totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *lis
 totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *prototype)
 {
     totemEvalStatus status = totemRegisterListPrototype_AddRegister(list, prototype);
+    
     if (status != totemEvalStatus_Success)
     {
         return status;
     }
     
-    if (!totemHashMap_Insert(&list->Variables, name->Value, name->Length, prototype->RegisterIndex))
+    if (!totemHashMap_Insert(&list->Scope->Variables, name->Value, name->Length, prototype->RegisterIndex))
     {
         return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
     
     totemRegisterPrototype *reg = totemMemoryBuffer_Get(&list->Registers, prototype->RegisterIndex);
+    
     TOTEM_SETBITS(reg->Flags, totemRegisterPrototypeFlag_IsVariable);
     TOTEM_UNSETBITS(reg->Flags, totemRegisterPrototypeFlag_IsTemporary);
     
@@ -308,7 +336,7 @@ totemEvalStatus totemRegisterListPrototype_AddNull(totemRegisterListPrototype *l
     if (list->HasNull)
     {
         op->RegisterIndex = list->Null;
-        op->RegisterScopeType = list->Scope;
+        op->RegisterScopeType = list->ScopeType;
         return totemEvalStatus_Success;
     }
     
@@ -337,7 +365,7 @@ totemEvalStatus totemRegisterListPrototype_AddBoolean(totemRegisterListPrototype
     if (list->HasBoolean[val])
     {
         op->RegisterIndex = list->Boolean[val];
-        op->RegisterScopeType = list->Scope;
+        op->RegisterScopeType = list->ScopeType;
         return totemEvalStatus_Success;
     }
     
@@ -366,7 +394,7 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
     if (searchResult != NULL)
     {
         operand->RegisterIndex = (totemOperandXUnsigned)searchResult->Value;
-        operand->RegisterScopeType = list->Scope;
+        operand->RegisterScopeType = list->ScopeType;
         totemRegisterListPrototype_IncRegisterRefCount(list, operand->RegisterIndex, NULL);
     }
     else
@@ -408,7 +436,7 @@ totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListP
     if (result)
     {
         operand->RegisterIndex = (totemOperandXUnsigned)result->Value;
-        operand->RegisterScopeType = list->Scope;
+        operand->RegisterScopeType = list->ScopeType;
         totemRegisterListPrototype_IncRegisterRefCount(list, operand->RegisterIndex, NULL);
         return totemEvalStatus_Success;
     }
@@ -434,8 +462,94 @@ totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListP
     return totemEvalStatus_Success;
 }
 
+void totemRegisterListPrototypeScope_Init(totemRegisterListPrototypeScope *scope)
+{
+    totemHashMap_Init(&scope->MoveToLocalVars);
+    totemHashMap_Init(&scope->Variables);
+    scope->Prev = NULL;
+}
+
+void totemRegisterListPrototypeScope_Reset(totemRegisterListPrototypeScope *scope)
+{
+    totemHashMap_Reset(&scope->MoveToLocalVars);
+    totemHashMap_Reset(&scope->Variables);
+    scope->Prev = NULL;
+}
+
+void totemRegisterListPrototypeScope_Cleanup(totemRegisterListPrototypeScope *scope)
+{
+    totemHashMap_Cleanup(&scope->MoveToLocalVars);
+    totemHashMap_Cleanup(&scope->Variables);
+    scope->Prev = NULL;
+}
+
+totemEvalStatus totemRegisterListPrototype_EnterScope(totemRegisterListPrototype *list)
+{
+    totemRegisterListPrototypeScope *newScope = totem_CacheMalloc(sizeof(totemRegisterListPrototypeScope));
+    if (!newScope)
+    {
+        return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+    }
+    
+    totemRegisterListPrototypeScope_Init(newScope);
+    
+    newScope->Prev = list->Scope;
+    list->Scope = newScope;
+    return totemEvalStatus_Success;
+}
+
+void totemRegisterListPrototype_FreeScope(totemRegisterListPrototype *list)
+{
+    totemRegisterListPrototypeScope *scope = list->Scope;
+    list->Scope = scope->Prev;
+    totemRegisterListPrototypeScope_Cleanup(scope);
+    totem_CacheFree(scope, sizeof(totemRegisterListPrototypeScope));
+}
+
+totemEvalStatus totemRegisterListPrototypeScope_FreeGlobalCache(totemRegisterListPrototypeScope *scope, totemRegisterListPrototype *list)
+{
+    for (size_t i = 0; i < scope->MoveToLocalVars.NumBuckets; i++)
+    {
+        totemHashMapEntry *bucket = scope->MoveToLocalVars.Buckets[i];
+        while (bucket)
+        {
+            totemOperandRegisterPrototype operand;
+            operand.RegisterIndex = (totemOperandXUnsigned)bucket->Value;
+            operand.RegisterScopeType = list->ScopeType;
+            TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_FreeRegister(list, &operand));
+            
+            bucket = bucket->Next;
+        }
+    }
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemRegisterListPrototype_ExitScope(totemRegisterListPrototype *list)
+{
+    for (size_t i = 0; i < list->Scope->Variables.NumBuckets; i++)
+    {
+        totemHashMapEntry *bucket = list->Scope->Variables.Buckets[i];
+        while (bucket)
+        {
+            totemOperandRegisterPrototype operand;
+            operand.RegisterIndex = (totemOperandXUnsigned)bucket->Value;
+            operand.RegisterScopeType = list->ScopeType;
+            TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_FreeRegister(list, &operand));
+            
+            bucket = bucket->Next;
+        }
+    }
+    
+    TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototypeScope_FreeGlobalCache(list->Scope, list));
+    
+    totemRegisterListPrototype_FreeScope(list);
+    return totemEvalStatus_Success;
+}
+
 void totemRegisterListPrototype_Init(totemRegisterListPrototype *list, totemOperandType scope)
 {
+    list->ScopeType = scope;
     memset(list->DataTypes, 0, sizeof(list->DataTypes));
     memset(list->HasDataType, 0, sizeof(list->HasDataType));
     memset(list->Boolean, 0, sizeof(list->Boolean));
@@ -444,16 +558,19 @@ void totemRegisterListPrototype_Init(totemRegisterListPrototype *list, totemOper
     list->Null = 0;
     totemHashMap_Init(&list->Numbers);
     totemHashMap_Init(&list->Strings);
-    totemHashMap_Init(&list->Variables);
-    totemHashMap_Init(&list->MoveToLocalVars);
     totemHashMap_Init(&list->FunctionPointers);
     totemMemoryBuffer_Init(&list->Registers, sizeof(totemRegisterPrototype));
     totemMemoryBuffer_Init(&list->RegisterFreeList, sizeof(totemOperandXUnsigned));
-    list->Scope = scope;
+    list->Scope = NULL;
 }
 
 void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
 {
+    while (list->Scope)
+    {
+        totemRegisterListPrototype_FreeScope(list);
+    }
+    
     memset(list->DataTypes, 0, sizeof(list->DataTypes));
     memset(list->HasDataType, 0, sizeof(list->HasDataType));
     memset(list->Boolean, 0, sizeof(list->Boolean));
@@ -462,8 +579,6 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
     list->Null = 0;
     totemHashMap_Reset(&list->Numbers);
     totemHashMap_Reset(&list->Strings);
-    totemHashMap_Reset(&list->Variables);
-    totemHashMap_Reset(&list->MoveToLocalVars);
     totemHashMap_Reset(&list->FunctionPointers);
     totemMemoryBuffer_Reset(&list->Registers);
     totemMemoryBuffer_Reset(&list->RegisterFreeList);
@@ -471,6 +586,11 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
 
 void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
 {
+    while (list->Scope)
+    {
+        totemRegisterListPrototype_FreeScope(list);
+    }
+    
     memset(list->DataTypes, 0, sizeof(list->DataTypes));
     memset(list->HasDataType, 0, sizeof(list->HasDataType));
     memset(list->Boolean, 0, sizeof(list->Boolean));
@@ -479,8 +599,6 @@ void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
     list->Null = 0;
     totemHashMap_Cleanup(&list->Numbers);
     totemHashMap_Cleanup(&list->Strings);
-    totemHashMap_Cleanup(&list->Variables);
-    totemHashMap_Cleanup(&list->MoveToLocalVars);
     totemHashMap_Cleanup(&list->FunctionPointers);
     totemMemoryBuffer_Cleanup(&list->Registers);
     totemMemoryBuffer_Cleanup(&list->RegisterFreeList);

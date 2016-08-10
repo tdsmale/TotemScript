@@ -1,0 +1,10 @@
+var $d = "This is an interned string!";
+assert($d == "This is an interned string!");
+
+var $e = " Ain't this great?";
+assert(($d + $e) == "This is an interned string! Ain't this great?");
+
+assert(("123" + "456" + "789") == "123456789");
+assert(("123" + "456" + "789")[3] == "4");
+assert(("123" + "456")[3] == "4");
+assert($e[3] == "n");

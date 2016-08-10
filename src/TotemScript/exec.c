@@ -6,95 +6,16 @@
 //  Copyright (c) 2013 Timothy Smale. All rights reserved.
 //
 
-#include <stdarg.h>
-#include <math.h>
+#include <TotemScript/base.h>
 #include <TotemScript/exec.h>
 #include <TotemScript/eval.h>
-#include <TotemScript/base.h>
 #include <string.h>
+#include <stdarg.h>
+#include <math.h>
 
 totemLinkStatus totemLinkStatus_Break(totemLinkStatus status)
 {
     return status;
-}
-
-void totemInterpreter_Init(totemInterpreter *interpreter)
-{
-    totemScriptFile_Init(&interpreter->Script);
-    totemTokenList_Init(&interpreter->TokenList);
-    totemParseTree_Init(&interpreter->ParseTree);
-    totemBuildPrototype_Init(&interpreter->Build);
-    interpreter->Result.Status = totemInterpreterStatus_Success;
-}
-
-void totemInterpreter_Reset(totemInterpreter *interpreter)
-{
-    totemScriptFile_Reset(&interpreter->Script);
-    totemTokenList_Reset(&interpreter->TokenList);
-    totemParseTree_Reset(&interpreter->ParseTree);
-    totemBuildPrototype_Reset(&interpreter->Build);
-    interpreter->Result.Status = totemInterpreterStatus_Success;
-}
-
-void totemInterpreter_Cleanup(totemInterpreter *interpreter)
-{
-    totemScriptFile_Cleanup(&interpreter->Script);
-    totemTokenList_Cleanup(&interpreter->TokenList);
-    totemParseTree_Cleanup(&interpreter->ParseTree);
-    totemBuildPrototype_Cleanup(&interpreter->Build);
-    interpreter->Result.Status = totemInterpreterStatus_Success;
-}
-
-totemBool totemInterpreter_InterpretFile(totemInterpreter *interpreter, const char *filename)
-{
-    totemScriptFile_Reset(&interpreter->Script);
-    
-    totemLoadScriptError err;
-    if (totemScriptFile_Load(&interpreter->Script, filename, &err) != totemBool_True)
-    {
-        interpreter->Result.Status = totemInterpreterStatus_FileError;
-        interpreter->Result.FileStatus = err.Status;
-        
-        return totemBool_False;
-    }
-    
-    totemString toParse;
-    toParse.Length = interpreter->Script.Buffer.Length;
-    toParse.Value = interpreter->Script.Buffer.Data;
-    return totemInterpreter_InterpretString(interpreter, &toParse);
-}
-
-totemBool totemInterpreter_InterpretString(totemInterpreter *interpreter, totemString *string)
-{
-    // lex
-    totemTokenList_Reset(&interpreter->TokenList);
-    interpreter->Result.LinkStatus = totemTokenList_Lex(&interpreter->TokenList, string->Value, string->Length);
-    if (interpreter->Result.LinkStatus != totemLexStatus_Success)
-    {
-        interpreter->Result.Status = totemInterpreterStatus_LexError;
-        return totemBool_False;
-    }
-    
-    // parse
-    totemParseTree_Reset(&interpreter->ParseTree);
-    interpreter->Result.ParseStatus = totemParseTree_Parse(&interpreter->ParseTree, &interpreter->TokenList);
-    if (interpreter->Result.ParseStatus != totemParseStatus_Success)
-    {
-        interpreter->Result.Status = totemInterpreterStatus_ParseError;
-        return totemBool_False;
-    }
-    
-    // eval
-    totemBuildPrototype_Reset(&interpreter->Build);
-    interpreter->Result.EvalStatus = totemBuildPrototype_Eval(&interpreter->Build, &interpreter->ParseTree);
-    if (interpreter->Result.EvalStatus != totemEvalStatus_Success)
-    {
-        interpreter->Result.Status = totemInterpreterStatus_EvalError;
-        return totemBool_False;
-    }
-    
-    interpreter->Result.Status = totemInterpreterStatus_Success;
-    return totemBool_True;
 }
 
 void totemInstance_Init(totemInstance *instance)
@@ -354,7 +275,6 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
         {
             if (totemRuntime_GetNativeFunctionAddress(runtime, &func->Name, &dummyAddr) == totemBool_True)
             {
-                build->ErrorContext = func;
                 return totemLinkStatus_Break(totemLinkStatus_FunctionAlreadyDeclared);
             }
         }
@@ -401,14 +321,12 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
                     totemOperandXUnsigned funcAddr = 0;
                     if(!totemRuntime_GetNativeFunctionAddress(runtime, funcName, &funcAddr))
                     {
-                        build->ErrorContext = funcName;
                         return totemLinkStatus_Break(totemLinkStatus_FunctionNotDeclared);
                     }
                     
                     totemNativeFunction *func = totemMemoryBuffer_Get(&runtime->NativeFunctions, funcAddr);
                     if (!func)
                     {
-                        build->ErrorContext = funcName;
                         return totemLinkStatus_Break(totemLinkStatus_FunctionNotDeclared);
                     }
                     
@@ -511,7 +429,7 @@ totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNati
             return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }
         
-        if(!totemMemoryBuffer_Insert(&runtime->NativeFunctionNames, &value, sizeof(totemRegister)))
+        if(!totemMemoryBuffer_Insert(&runtime->NativeFunctionNames, &value, 1))
         {
             return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }
@@ -729,7 +647,7 @@ void totemExecState_Cleanup(totemExecState *state)
     state->LocalRegisters = NULL;
 }
 
-totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, size_t numRegisters, totemInstance *instance, totemRegister *returnReg, totemFunctionType funcType, void *function, totemFunctionCall **callOut)
+totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, uint8_t numRegisters, totemInstance *instance, totemRegister *returnReg, totemFunctionType funcType, void *function, totemFunctionCall **callOut)
 {
     totemFunctionCall *call = totemExecState_SecureFunctionCall(state);
     if (call == NULL)

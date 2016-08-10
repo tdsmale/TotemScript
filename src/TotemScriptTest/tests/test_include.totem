@@ -1,0 +1,7 @@
+#include test_gc.totem;
+#include test_function.totem;
+#include test_function.totem;
+#include test_include.totem;
+
+assert($g(123, 456, 123) == (123 + 456 + 123));
+assert($num is int);

@@ -13,10 +13,10 @@
 
 #define TOTEM_PARSE_SKIPWHITESPACE(token) while(token->Type == totemTokenType_Whitespace) { token++; }
 #define TOTEM_PARSE_COPYPOSITION(token, dest) memcpy(&dest->Position, &token->Position, sizeof(totemBufferPositionInfo))
-#define TOTEM_PARSE_ALLOC(dest, type, tree) dest = (type*)totemParseTree_Alloc(tree, sizeof(type)); if(!dest) return totemParseStatus_Break(tree, totemParseStatus_OutOfMemory, NULL);
+#define TOTEM_PARSE_ALLOC(dest, type, tree) dest = (type*)totemParseTree_Alloc(tree, sizeof(type)); if(!dest) return totemParseTree_Break(tree, totemParseStatus_OutOfMemory, NULL);
 #define TOTEM_PARSE_CHECKRETURN(exp) { totemParseStatus s = exp; if(s != totemParseStatus_Success) return s; }
-#define TOTEM_PARSE_ENFORCETOKEN(tree, token, type) if(token->Type != type) return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &token->Position);
-#define TOTEM_PARSE_ENFORCENOTTOKEN(tree, token, type) if(token->Type == type) return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &token->Position);
+#define TOTEM_PARSE_ENFORCETOKEN(tree, token, type) if(token->Type != type) return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &token->Position);
+#define TOTEM_PARSE_ENFORCENOTTOKEN(tree, token, type) if(token->Type == type) return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &token->Position);
 #define TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, token) token++; TOTEM_PARSE_ENFORCENOTTOKEN(tree, token, totemTokenType_EndScript);
 
 void *totemParseTree_Alloc(totemParseTree *tree, size_t objectSize)
@@ -43,7 +43,7 @@ void totemParseTree_Init(totemParseTree *tree)
     totemParseTree_Reset(tree);
 }
 
-totemParseStatus totemParseStatus_Break(totemParseTree *tree, totemParseStatus status, totemBufferPositionInfo *location)
+totemParseStatus totemParseTree_Break(totemParseTree *tree, totemParseStatus status, totemBufferPositionInfo *location)
 {
     tree->ErrorAt = location;
     return status;
@@ -112,34 +112,44 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
     
     memcpy(&statement->Position, &tree->CurrentToken->Position, sizeof(totemBufferPositionInfo));
     
+    totemParseStatus status = totemParseStatus_Success;
+    
     switch (tree->CurrentToken->Type)
     {
         case totemTokenType_While:
         {
             statement->Type = totemStatementType_WhileLoop;
             TOTEM_PARSE_ALLOC(statement->WhileLoop, totemWhileLoopPrototype, tree);
-            return totemWhileLoopPrototype_Parse(statement->WhileLoop, tree);
+            status = totemWhileLoopPrototype_Parse(statement->WhileLoop, tree);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
         }
             
         case totemTokenType_Do:
         {
             statement->Type = totemStatementType_DoWhileLoop;
             TOTEM_PARSE_ALLOC(statement->DoWhileLoop, totemDoWhileLoopPrototype, tree);
-            return totemDoWhileLoopPrototype_Parse(statement->DoWhileLoop, tree);
+            status = totemDoWhileLoopPrototype_Parse(statement->DoWhileLoop, tree);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
         }
             
         case totemTokenType_For:
         {
             statement->Type = totemStatementType_ForLoop;
             TOTEM_PARSE_ALLOC(statement->ForLoop, totemForLoopPrototype, tree);
-            return totemForLoopPrototype_Parse(statement->ForLoop, tree);
+            status = totemForLoopPrototype_Parse(statement->ForLoop, tree);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
         }
             
         case totemTokenType_If:
         {
             statement->Type = totemStatementType_IfBlock;
             TOTEM_PARSE_ALLOC(statement->IfBlock, totemIfBlockPrototype, tree);
-            return totemIfBlockPrototype_Parse(statement->IfBlock, tree);
+            status = totemIfBlockPrototype_Parse(statement->IfBlock, tree);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
         }
             
         case totemTokenType_Return:
@@ -154,7 +164,8 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
             TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Semicolon);
             tree->CurrentToken++;
-            return totemParseStatus_Success;
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
         }
             
         default:
@@ -166,9 +177,12 @@ totemParseStatus totemStatementPrototype_Parse(totemStatementPrototype *statemen
             TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
             TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Semicolon);
             tree->CurrentToken++;
-            return totemParseStatus_Success;
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
         }
     }
+    
+    return status;
 }
 
 totemParseStatus totemStatementPrototype_ParseInSet(totemStatementPrototype **first, totemStatementPrototype **last, totemParseTree *tree)
@@ -251,7 +265,7 @@ totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionProt
         }
         else
         {
-            return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+            return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
         }
     }
     
@@ -270,7 +284,7 @@ totemParseStatus totemVariablePrototype_ParseParameterInList(totemVariableProtot
     
     if(nextType != totemTokenType_RBracket && nextType != totemTokenType_Comma)
     {
-        return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+        return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
     }
     
     if(*first == NULL)
@@ -295,7 +309,7 @@ totemParseStatus totemExpressionPrototype_ParseParameterInList(totemExpressionPr
     
     if(tree->CurrentToken->Type != end && tree->CurrentToken->Type != split)
     {
-        return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+        return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
     }
     
     if(*first == NULL)
@@ -399,7 +413,7 @@ totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totem
             }
                 
             default:
-                return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+                return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
         }
     }
     
@@ -860,7 +874,7 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
             case totemTokenType_Let:
                 if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration))
                 {
-                    return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+                    return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
                 }
                 
                 TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsConst);
@@ -871,7 +885,7 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
             case totemTokenType_Var:
                 if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsConst))
                 {
-                    return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+                    return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
                 }
                 
                 TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration);
@@ -907,11 +921,11 @@ totemParseStatus totemFunctionCallPrototype_Parse(totemFunctionCallPrototype *ca
 totemParseStatus totemString_ParseNumber(totemString *number, totemParseTree *tree)
 {
     number->Length = 0;
-    number->Value = tree->CurrentToken->Value.Value;
+    number->Value = tree->CurrentToken->Position.Start;
     
     if (tree->CurrentToken->Type == totemTokenType_Minus)
     {
-        number->Length += tree->CurrentToken->Value.Length;
+        number->Length += tree->CurrentToken->Position.Length;
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
     }
     
@@ -923,13 +937,13 @@ totemParseStatus totemString_ParseNumber(totemString *number, totemParseTree *tr
         {
             if (dot)
             {
-                return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+                return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
             }
             
             dot = totemBool_True;
         }
         
-        number->Length += tree->CurrentToken->Value.Length;
+        number->Length += tree->CurrentToken->Position.Length;
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
     }
     
@@ -937,20 +951,22 @@ totemParseStatus totemString_ParseNumber(totemString *number, totemParseTree *tr
     TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Number);
     TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
     
-    if (tree->CurrentToken->Type == totemTokenType_Identifier &&
-        (strncmp("e", tree->CurrentToken->Value.Value, tree->CurrentToken->Value.Length) == 0 || strncmp("E", tree->CurrentToken->Value.Value, tree->CurrentToken->Value.Length) == 0))
+    if (tree->CurrentToken->Type == totemTokenType_Identifier && (
+                                                                  (tree->CurrentToken->Position.Start[0] == 'e' && tree->CurrentToken->Position.Length == 1) ||
+                                                                  (tree->CurrentToken->Position.Start[0] == 'E' && tree->CurrentToken->Position.Length == 1)
+                                                                  ))
     {
-        number->Length += tree->CurrentToken->Value.Length;
+        number->Length += tree->CurrentToken->Position.Length;
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
         
         if (tree->CurrentToken->Type == totemTokenType_Minus || tree->CurrentToken->Type == totemTokenType_Plus)
         {
-            number->Length += tree->CurrentToken->Value.Length;
+            number->Length += tree->CurrentToken->Position.Length;
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
         }
         
         TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Number);
-        number->Length += tree->CurrentToken->Value.Length;
+        number->Length += tree->CurrentToken->Position.Length;
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
     }
     
@@ -1102,12 +1118,12 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
             
             argument->Type = totemArgumentType_String;
-            const char *begin = tree->CurrentToken->Value.Value;
-            uint32_t len = 0;
+            const char *begin = tree->CurrentToken->Position.Start;
+            totemStringLength len = 0;
             
             while(tree->CurrentToken->Type != totemTokenType_DoubleQuote)
             {
-                len += tree->CurrentToken->Value.Length;
+                len += tree->CurrentToken->Position.Length;
                 
                 if(tree->CurrentToken->Type == totemTokenType_Backslash)
                 {
@@ -1115,7 +1131,7 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
                     
                     if(tree->CurrentToken->Type == totemTokenType_DoubleQuote)
                     {
-                        len += tree->CurrentToken->Value.Length;
+                        len += tree->CurrentToken->Position.Length;
                         TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
                     }
                 }
@@ -1140,7 +1156,7 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             break;
             
         default:
-            return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+            return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
     }
     
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
@@ -1157,7 +1173,7 @@ totemParseStatus totemNewArrayPrototype_Parse(totemNewArrayPrototype *arr, totem
     
     if (!first)
     {
-        return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &token->Position);
+        return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &token->Position);
     }
     
     arr->Accessor = first;
@@ -1171,8 +1187,8 @@ totemParseStatus totemString_ParseIdentifier(totemString *string, totemParseTree
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
     totemToken *startingToken = tree->CurrentToken;
     
-    const char *start = tree->CurrentToken->Value.Value;
-    uint32_t length = 0;
+    const char *start = tree->CurrentToken->Position.Start;
+    totemStringLength length = 0;
     totemBool onlyNumbers = totemBool_True;
     uint32_t categories = 0;
     size_t numTokens = 0;
@@ -1187,7 +1203,7 @@ totemParseStatus totemString_ParseIdentifier(totemString *string, totemParseTree
     {
         categories |= 1 << tree->CurrentToken->Category;
         onlyNumbers &= tree->CurrentToken->Type == totemTokenType_Number;
-        length += tree->CurrentToken->Value.Length;
+        length += tree->CurrentToken->Position.Length;
         numTokens++;
         TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
     }
@@ -1195,7 +1211,7 @@ totemParseStatus totemString_ParseIdentifier(totemString *string, totemParseTree
     // empty identifier
     if (numTokens == 0 || length == 0)
     {
-        return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &startingToken->Position);
+        return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &startingToken->Position);
     }
     
     if (strict)
@@ -1203,13 +1219,13 @@ totemParseStatus totemString_ParseIdentifier(totemString *string, totemParseTree
         // cannot just be a single reserved word
         if (categories == (1 << totemTokenCategory_ReservedWord) && numTokens == 1)
         {
-            return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &startingToken->Position);
+            return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &startingToken->Position);
         }
         
         // cannot just have numbers
         if (onlyNumbers)
         {
-            return totemParseStatus_Break(tree, totemParseStatus_UnexpectedToken, &startingToken->Position);
+            return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &startingToken->Position);
         }
     }
     

@@ -1,11 +1,10 @@
 ### TotemScript?
-* A small, accessible language built for no particular reason.
-* Heavily inspired by languages like LUA, PHP and JavaScript.
+* A small, accessible scripting language.
 * Designed to be small, simple and dumb - easily plugged into existing applications.
 * Features dynamic typing, full garbage-collection, cooperative multitasking, and a silly name.
 
 ### Examples
-```
+```php
 print("Hello, World!");
 ```
 #### Defining Variables
@@ -21,7 +20,7 @@ Variables are dynamically-typed, supporting the following types:
 * userdata - Data supplied by native C functions
 * boolean - true/false
 * null
-```
+```php
 // variables are declared thusly:
 var $var = 123;
 
@@ -53,7 +52,7 @@ function test()
 }
 ```
 #### Variable Scope
-```
+```php
 // Variables declared outside of functions are in global scope, and can be accessed by any function.
 var $global = "This can be accessed by any function.";
 
@@ -69,22 +68,27 @@ function localTest()
 
     var $b = function()
     {
-        return $a; // scope error
+        return $a; // "variable undefined" error
     }
 
-    // global variable names can be reused locally by just redefining them
+    // variable names can be reused within a new scope by just redefining them
     var $global = 123;
+	
+	if(true)
+	{
+		var $a = 456; // control loops also have their own scope
+	}
 }
 
 ```
 #### Combining scripts
-```
-include "..otherDir/otherFile.totem";
-// include statements must be at the top of the file
+```php
+#include "../otherDir/otherFile.totem";
+// include statements must be the first statements in a file
 // file paths are relative to the current file's path
 ```
 #### Functions
-```
+```php
 // declaring a function
 // named functions can only be declared in global scope
 function test(var $a, var $b)
@@ -113,7 +117,7 @@ $a = function(var $b, var $c)
 (456, 123);
 ```
 #### Strings
-```
+```php
 // Strings are immutable, but can be combined to create new strings
 var $a = "Hello, ";
 var $b = $a + " World!";
@@ -122,7 +126,7 @@ var $c = $a[2];
 print($c); // l
 ```
 #### Arrays
-```
+```php
 // Defines an Array that holds 20 values
 var $a = [20];
 
@@ -142,7 +146,7 @@ $a = "some other value"; // Arrays are automatically garbage-collected when no-l
 $a = [1, 2, "3", $b];
 ```
 #### Objects
-```
+```php
 // Create new garbage-collected object
 var $obj = {};
 
@@ -173,7 +177,7 @@ for(var $i = 0; $i < 20; $i++)
 $key << $obj[$key];
 ```
 #### Coroutines
-```
+```php
 // Coroutines are functions that pause when they return, and can be resumed later
 
 // Coroutines are created by casting any function to a coroutine, and invoked like a regular function
@@ -200,7 +204,7 @@ for(var $numLoops = 1; var $val = $co(); $numLoops++)
 
 // Coroutines reset once they reach the end of a function
 $co($start + 1, $end + 1);
-for($numLoops = 0; $val = $co(); $numLoops++)
+for(var $numLoops = 1; var $val = $co(); $numLoops++)
 {
     print($val);
 }
@@ -210,7 +214,20 @@ $co = 123;
 
 ```
 ### Feature Creep
-* Default Argument Values & skipping arguments
-* Instances - load a script as a callable value, e.g. $a = <test.totem>; $a(); $a.callNamedFunction();
-* Compile-time type hinting, e.g. $a:int = 0; type number = int|float; $b:number = 0.0; $c = $b is number; function test:number() { return 123; }
-* Complex custom classes that eval to arrays at runtime, e.g. type Vec2 = {public $x:0.0, public $y:0.0, public lengthSquared:float() { return ($x * $x) + ($y * $y;) }}; $a:Vec2 = {$x:123.0, $y:456.0}; $b:float = $a.lengthSquared();
+* Break statement
+* Continue statement
+* Array ranges e.g. var $x = [ 0 .. 12 ];
+* Object init lists e.g. var $x = { "a":123, $b:$c };
+* Object/Array keys - anything not valid is implicitly cast to the correct type
+* Strict compile-time type-hinting e.g. var $x:int = 4;
+* Investigate NaN-boxing for representing register values more efficiently
+* Investigate equalizing the size of all operands (including opcodes) to a single byte
+ * Will expand total number of possible opcodes, making room for more specialised operations
+ * Won't waste operands on certain opcodes
+* Operator precedence
+* #import statement 
+ * same as #include, but stored in a local variable  e.g. #import math.totem as $math; $math.abs($a);
+ * global variables are inaccessible
+ * modules get stored in execState and are ran once when loaded
+* make #include & #import part of the parser
+* bytecode serialization

@@ -1,0 +1,11 @@
+var $a = 1;
+var $b = 2;
+assert(($b - $a) == 1);
+
+var $c = 0.5;
+assert(($a - $c) == 0.5);
+assert(($a - $c) != 0);
+
+var $d = 1.7;
+assert(($d - $c) == 1.2);
+assert(($d - $c) != 1);

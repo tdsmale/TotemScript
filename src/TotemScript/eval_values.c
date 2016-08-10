@@ -28,29 +28,29 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
     switch (arg->Type)
     {
         case totemArgumentType_Null:
-            return totemBuildPrototype_EvalNull(build, &dummy);
+            return totemBuildPrototype_EvalNull(build, &dummy, NULL);
             
         case totemArgumentType_Boolean:
-            return totemBuildPrototype_EvalBoolean(build, arg->Boolean, &dummy);
+            return totemBuildPrototype_EvalBoolean(build, arg->Boolean, &dummy, NULL);
             
         case totemArgumentType_Number:
-            return totemBuildPrototype_EvalNumber(build, arg->Number, &dummy);
+            return totemBuildPrototype_EvalNumber(build, arg->Number, &dummy, NULL);
             
         case totemArgumentType_String:
-            return totemBuildPrototype_EvalString(build, arg->String, &dummy);
+            return totemBuildPrototype_EvalString(build, arg->String, &dummy, NULL);
             
         case totemArgumentType_FunctionCall:
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNamedFunctionPointer(build, &arg->FunctionCall->Identifier, &dummy));
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNamedFunctionPointer(build, &arg->FunctionCall->Identifier, &dummy, NULL));
             return totemFunctionCallPrototype_EvalValues(arg->FunctionCall, build);
             
         case totemArgumentType_FunctionPointer:
-            return totemBuildPrototype_EvalNamedFunctionPointer(build, arg->FunctionPointer, &dummy);
+            return totemBuildPrototype_EvalNamedFunctionPointer(build, arg->FunctionPointer, &dummy, NULL);
             
         case totemArgumentType_FunctionDeclaration:
-            return totemBuildPrototype_EvalAnonymousFunction(build, arg->FunctionDeclaration, &dummy);
+            return totemBuildPrototype_EvalAnonymousFunction(build, arg->FunctionDeclaration, &dummy, NULL);
             
         case totemArgumentType_Type:
-            return totemBuildPrototype_EvalType(build, arg->DataType, &dummy);
+            return totemBuildPrototype_EvalType(build, arg->DataType, &dummy, NULL);
             
         case totemArgumentType_Variable:
             if (TOTEM_HASBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables))
@@ -65,7 +65,7 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
             for (totemExpressionPrototype *exp = arg->NewArray->Accessor; exp; exp = exp->Next)
             {
                 TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(exp, build, totemEvalVariableFlag_MustBeDefined));
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, num, &dummy));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, num, &dummy, NULL));
                 num++;
             }
         }
@@ -102,23 +102,23 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
         {
             case totemPreUnaryOperatorType_Dec:
                 totemString_FromLiteral(&preUnaryNumber, "1");
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister, NULL));
                 break;
                 
             case totemPreUnaryOperatorType_Inc:
                 totemString_FromLiteral(&preUnaryNumber, "1");
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister, NULL));
                 break;
                 
             case totemPreUnaryOperatorType_LogicalNegate:
                 totemString_FromLiteral(&preUnaryNumber, "0");
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister, NULL));
                 // A = B == C(0)
                 break;
                 
             case totemPreUnaryOperatorType_Negative:
                 totemString_FromLiteral(&preUnaryNumber, "-1");
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister, NULL));
                 // A = B * -1
                 break;
                 
@@ -139,12 +139,12 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
         {
             case totemPostUnaryOperatorType_Dec:
                 totemString_FromLiteral(&postUnaryNumber, "1");
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &postUnaryNumber, &postUnaryRegister));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &postUnaryNumber, &postUnaryRegister, NULL));
                 break;
                 
             case totemPostUnaryOperatorType_Inc:
                 totemString_FromLiteral(&postUnaryNumber, "1");
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &postUnaryNumber, &postUnaryRegister));
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &postUnaryNumber, &postUnaryRegister, NULL));
                 break;
                 
             case totemPostUnaryOperatorType_ArrayAccess:
@@ -173,19 +173,34 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
 
 totemEvalStatus totemStatementPrototype_EvalValues(totemStatementPrototype *statement, totemBuildPrototype *build)
 {
+    totemBuildPrototypeFlag prevFlags = build->Flags;
+    totemEvalStatus status = totemEvalStatus_Success;
+    
     switch (statement->Type)
     {
         case totemStatementType_DoWhileLoop:
-            return totemDoWhileLoopPrototype_EvalValues(statement->DoWhileLoop, build);
+            TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
+            status = totemDoWhileLoopPrototype_EvalValues(statement->DoWhileLoop, build);
+            build->Flags = prevFlags;
+            break;
             
         case totemStatementType_ForLoop:
-            return totemForLoopPrototype_EvalValues(statement->ForLoop, build);
+            TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
+            status = totemForLoopPrototype_EvalValues(statement->ForLoop, build);
+            build->Flags = prevFlags;
+            break;
             
         case totemStatementType_IfBlock:
-            return totemIfBlockPrototype_EvalValues(statement->IfBlock, build);
+            TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
+            status = totemIfBlockPrototype_EvalValues(statement->IfBlock, build);
+            build->Flags = prevFlags;
+            break;
             
         case totemStatementType_WhileLoop:
-            return totemWhileLoopPrototype_EvalValues(statement->WhileLoop, build);
+            TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
+            status = totemWhileLoopPrototype_EvalValues(statement->WhileLoop, build);
+            build->Flags = prevFlags;
+            break;
             
         case totemStatementType_Simple:
             return totemExpressionPrototype_EvalValues(statement->Simple, build, totemEvalVariableFlag_None);

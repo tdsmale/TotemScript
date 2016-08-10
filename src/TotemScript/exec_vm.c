@@ -7,33 +7,14 @@
 //
 #include <TotemScript/exec.h>
 #include <string.h>
-
-/*
- ideal:
- - compile-time type-hinting
-	- can have instructions tailored for specific type pairs, cutting down on type-checking costs at runtime
- - have it be possible for each "dispatch target" to be interpreted as a function definition
-	- signature tailored to its instruction type (abc, abcx etc.)
-	- we can isolate the code for each instruction type in its own callable function
-	- don't have vm call them, though - inline it instead
- - generate platform-specific ASM
-	- completely eliminate instruction parsing
-	- layout:
- - have a table of gotos to each instruction
- - on entry, check instruction offset is within bounds
- - if so, lookup goto
- - otherwise goto error
- - on-return, we can just store the precomputed offset
- - coroutines would use this table to resume
- - gotos wouldn't need to use it however - the destination address can be precomputed
- - for each instruction, generate an equivelant call to the predefined dispatch target, e.g. equivelant C code for an assign might look like:
- a = localBase + aOffset
- b = globalBase + bOffset
- totemOperationType_Move_Dispatch(state, a, b);
- */
+#include <limits.h>
 
 #if 0
-#define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, base, state) totemExecState_PrintInstructionDetailed(state, base, ins, stdout)
+#if TOTEM_VMOPT_GLOBAL_OPERANDS
+#define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, base, state) totemExecState_PrintInstructionDetailed(state, base, base, ins, stdout)
+#else
+#define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, base, state) totemExecState_PrintInstructionDetailed(state, base, globals, ins, stdout)
+#endif
 #else
 #define TOTEM_INSTRUCTION_PRINT_DEBUG(ins, base, state)
 #endif
@@ -101,12 +82,12 @@
 #define TOTEM_VM_DISPATCH_DEFAULT_TARGET() default:
 #define TOTEM_VM_DISPATCH() continue
 #define TOTEM_VM_DISPATCH_START() \
-    for(;;) \
-    { \
-        TOTEM_VM_PREDISPATCH(); \
-        switch(op)
+for(;;) \
+{ \
+    TOTEM_VM_PREDISPATCH(); \
+    switch(op)
 #define TOTEM_VM_DISPATCH_END() \
-    }
+}
 
 #endif
 
@@ -129,22 +110,37 @@
 #define TOTEM_VM_ASSERT(x, state, status) if(!(x)) { TOTEM_VM_ERROR(state, status); }
 
 #define TOTEM_VM_BREAK(x, state) \
+{ \
+    totemExecStatus status = (x); \
+    if(status != totemExecStatus_Continue) \
     { \
-        totemExecStatus status = (x); \
-        if(status != totemExecStatus_Continue) \
-        { \
-            TOTEM_VM_ERROR(state, status); \
-        } \
-    }
+        TOTEM_VM_ERROR(state, status); \
+    } \
+}
 
 #if TOTEM_VMOPT_GLOBAL_OPERANDS
-void totemExecState_PrintInstructionDetailed(totemExecState *state, totemRegister **base, totemInstruction ins, FILE *file)
+void totemExecState_PrintInstructionDetailed(totemExecState *state, totemRegister **base, totemRegister **globals, totemInstruction ins, FILE *file)
 #else
-void totemExecState_PrintInstructionDetailed(totemExecState *state, totemRegister *base, totemInstruction ins, FILE *file)
+void totemExecState_PrintInstructionDetailed(totemExecState *state, totemRegister *base, totemRegister *globals, totemInstruction ins, FILE *file)
 #endif
 {
-    totemInstruction_Print(file, (ins));
     totemOperationType op = TOTEM_INSTRUCTION_GET_OP((ins));
+    
+    /*
+     if (op != totemOperationType_MoveToLocal)
+     {
+     return;
+     }
+     
+     totemRegister *a = TOTEM_VM_GET_OPERANDA(base, ins);
+     totemRegister *b = TOTEM_VM_GET_GLOBAL(global, TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins));
+     totemExecState_PrintRegister(state, file, a);
+     totemExecState_PrintRegister(state, file, b);
+     fprintf(stdout, "\n");
+     return;
+     */
+    
+    totemInstruction_Print(file, (ins));
     
     totemInstructionType type = totemOperationType_GetInstructionType(op);
     switch (type)
@@ -176,7 +172,16 @@ void totemExecState_PrintInstructionDetailed(totemExecState *state, totemRegiste
         case totemInstructionType_Abx:
         {
             totemRegister *a = TOTEM_VM_GET_OPERANDA(base, ins);
+            fprintf(file, "local :");
             totemExecState_PrintRegister(state, file, a);
+            
+            if (op == totemOperationType_MoveToLocal || op == totemOperationType_MoveToGlobal)
+            {
+                a = TOTEM_VM_GET_GLOBAL(base, TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins));
+                fprintf(file, "global:");
+                totemExecState_PrintRegister(state, file, a);
+            }
+            
             break;
         }
         case totemInstructionType_Axx:
@@ -556,19 +561,18 @@ totem_vm_reset:
         TOTEM_VM_DISPATCH_TARGET(totemOperationType_PreInvoke)
         {
             a = TOTEM_VM_GET_OPERANDA(base, ins);
-            b = TOTEM_VM_GET_OPERANDB(base, ins);
-            xu = TOTEM_INSTRUCTION_GET_CX_UNSIGNED(ins);
+            xu = TOTEM_INSTRUCTION_GET_BX_UNSIGNED(ins);
             
-            switch (b->DataType)
+            switch (a->DataType)
             {
                 case totemPrivateDataType_NativeFunction:
                     TOTEM_VM_BREAK(totemExecState_CreateSubroutine(
                                                                    state,
                                                                    xu,
                                                                    call->CurrentInstance,
-                                                                   a,
+                                                                   NULL,
                                                                    totemFunctionType_Native,
-                                                                   b->Value.NativeFunction,
+                                                                   a->Value.NativeFunction,
                                                                    &call), state);
                     totemExecState_PushRoutine(state, call, NULL);
                     break;
@@ -576,20 +580,20 @@ totem_vm_reset:
                 case totemPrivateDataType_InstanceFunction:
                     TOTEM_VM_BREAK(totemExecState_CreateSubroutine(
                                                                    state,
-                                                                   xu <= b->Value.InstanceFunction->Function->RegistersNeeded ? b->Value.InstanceFunction->Function->RegistersNeeded : xu,
-                                                                   b->Value.InstanceFunction->Instance,
-                                                                   a,
+                                                                   xu <= a->Value.InstanceFunction->Function->RegistersNeeded ? a->Value.InstanceFunction->Function->RegistersNeeded : xu,
+                                                                   a->Value.InstanceFunction->Instance,
+                                                                   NULL,
                                                                    totemFunctionType_Script,
-                                                                   b->Value.InstanceFunction,
+                                                                   a->Value.InstanceFunction,
                                                                    &call), state);
                     
-                    totemExecState_PushRoutine(state, call, b->Value.InstanceFunction->Function->InstructionsStart);
+                    totemExecState_PushRoutine(state, call, a->Value.InstanceFunction->Function->InstructionsStart);
                     break;
                     
                 case totemPrivateDataType_Coroutine:
-                    TOTEM_VM_ASSERT(xu <= call->NumRegisters, state, totemExecStatus_RegisterOverflow);
+                    TOTEM_VM_ASSERT(xu <= a->Value.GCObject->Coroutine->NumRegisters, state, totemExecStatus_RegisterOverflow);
                     
-                    call = b->Value.GCObject->Coroutine;
+                    call = a->Value.GCObject->Coroutine;
                     call->NumArguments = 0;
                     call->ReturnRegister = a;
                     
@@ -615,9 +619,8 @@ totem_vm_reset:
         TOTEM_VM_DISPATCH_TARGET(totemOperationType_Invoke)
         {
             a = TOTEM_VM_GET_OPERANDA(base, ins);
-            b = TOTEM_VM_GET_OPERANDB(base, ins);
-            c = TOTEM_VM_GET_OPERANDC(base, ins);
             call->Prev->ResumeAt = ++insPtr;
+            call->ReturnRegister = a;
             
             switch (call->Type)
             {

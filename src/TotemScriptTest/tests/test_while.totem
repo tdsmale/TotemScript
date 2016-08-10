@@ -1,0 +1,14 @@
+let $numLoops = 10;
+
+var $c = $numLoops;
+var $d = 0;
+
+while($c != 0)
+{
+	$c--;
+	$d++;
+	assert(($c + $d) == $numLoops);
+}
+
+assert($c == 0);
+assert($d == $numLoops);

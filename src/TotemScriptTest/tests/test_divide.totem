@@ -1,0 +1,10 @@
+var $a = 1;
+var $b = 2;
+assert(($a / $b) == 0);
+
+var $c = 0.5;
+assert(($b / $c) == 4.0);
+assert(($a / $c) == 2.0);
+
+var $d = 1.7;
+assert(($d / $c) == 3.4);

@@ -8,7 +8,7 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 
-#define TOTEM_EXEC_ARRAYSIZE(numRegisters) (sizeof(totemArray) + (sizeof(totemRegister) * (numRegisters - 1)))
+#define TOTEM_EXEC_ARRAYSIZE(numRegisters) (sizeof(totemArray) + (numRegisters ? (sizeof(totemRegister) * (numRegisters - 1)) : 0))
 #define TOTEM_REGISTER_DECIFGC(dst) if (TOTEM_REGISTER_ISGC(dst)) totemExecState_DecRefCount(state, (dst)->Value.GCObject);
 #define TOTEM_REGISTER_ISSTRING(reg) ((reg)->DataType == totemPrivateDataType_InternedString || (reg)->DataType == totemPrivateDataType_MiniString)
 
@@ -572,7 +572,7 @@ totemExecStatus totemExecState_Cast(totemExecState *state, totemRegister *dst, t
             {
                 const char *str = totemRegister_GetStringValue(src);
                 totemGCObject *gc = NULL;
-                TOTEM_EXEC_CHECKRETURN(totemExecState_CreateArray(state, totemRegister_GetStringLength(src), &gc));
+                TOTEM_EXEC_CHECKRETURN(totemExecState_CreateArray(state, (uint32_t)totemRegister_GetStringLength(src), &gc));
                 
                 totemRegister *regs = gc->Array->Registers;
                 for (size_t i = 0; i < gc->Array->NumRegisters; i++)
@@ -797,7 +797,7 @@ totemExecStatus totemExecState_Cast(totemExecState *state, totemRegister *dst, t
                 
                 // object as float (length)
             case TOTEM_TYPEPAIR(totemPublicDataType_Object, totemPublicDataType_Float):
-                totemExecState_AssignNewFloat(state, dst, src->Value.GCObject->Object->Lookup.NumKeys);
+                totemExecState_AssignNewFloat(state, dst, (totemFloat)(src->Value.GCObject->Object->Lookup.NumKeys));
                 break;
                 
             default:
@@ -856,9 +856,9 @@ totemExecStatus totemExecState_EmptyString(totemExecState *state, totemRegister 
 totemExecStatus totemExecState_IntToString(totemExecState *state, totemInt val, totemRegister *strOut)
 {
     char buffer[256];
-    int result = totem_snprintf(buffer, TOTEM_ARRAYSIZE(buffer), "%llu", val);
+    int result = totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), "%llu", val);
     
-    if (result < 0 || result >= TOTEM_ARRAYSIZE(buffer))
+    if (result < 0 || result >= TOTEM_ARRAY_SIZE(buffer))
     {
         return totemExecStatus_Break(totemExecStatus_InternalBufferOverrun);
     }
@@ -873,8 +873,8 @@ totemExecStatus totemExecState_IntToString(totemExecState *state, totemInt val, 
 totemExecStatus totemExecState_FloatToString(totemExecState *state, totemFloat val, totemRegister *strOut)
 {
     char buffer[256];
-    int result = totem_snprintf(buffer, TOTEM_ARRAYSIZE(buffer), "%.6g", val);
-    if (result < 0 || result >= TOTEM_ARRAYSIZE(buffer))
+    int result = totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), "%.6g", val);
+    if (result < 0 || result >= TOTEM_ARRAY_SIZE(buffer))
     {
         return totemExecStatus_Break(totemExecStatus_InternalBufferOverrun);
     }
@@ -981,7 +981,7 @@ totemExecStatus totemExecState_ArrayToString(totemExecState *state, totemArray *
     }
     
     memset(strings, 0, sizeof(totemRegister) * arr->NumRegisters);
-    uint32_t totalLen = 0;
+    totemStringLength totalLen = 0;
     totemExecStatus status = totemExecStatus_Continue;
     
     for (size_t i = 0; i < arr->NumRegisters; i++)
@@ -1230,7 +1230,7 @@ totemExecStatus totemExecState_CreateCoroutine(totemExecState *state, totemInsta
     return totemExecStatus_Continue;
 }
 
-totemExecStatus totemExecState_CreateUserdata(totemExecState *state, uint64_t data, totemUserdataDestructor destructor, totemGCObject **gcOut)
+totemExecStatus totemExecState_CreateUserdata(totemExecState *state, void *data, totemUserdataDestructor destructor, totemGCObject **gcOut)
 {
     totemUserdata *obj = totemExecState_Alloc(state, sizeof(totemUserdata));
     if (!obj)

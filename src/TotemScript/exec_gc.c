@@ -29,16 +29,18 @@ void totemGCHeader_AssertList(totemGCHeader *head, totemGCHeader *no)
     for (totemGCHeader *hdr = head->NextHdr; hdr != head; hdr = hdr->NextHdr)
     {
         totem_assert(no == NULL || hdr != no);
-        totem_assert(i++ < 5000);
+        totem_assert(i < 5000);
         totem_assert(hdr != NULL);
+        i++;
     }
     
     size_t j = 0;
     for (totemGCHeader *hdr = head->PrevHdr; hdr != head; hdr = hdr->PrevHdr)
     {
         totem_assert(no == NULL || hdr != no);
-        totem_assert(j++ < 5000);
+        totem_assert(j < 5000);
         totem_assert(hdr != NULL);
+        j++;
     }
     
     totem_assert(i == j);
@@ -95,13 +97,12 @@ void totemGCHeader_Migrate(totemGCHeader *from, totemGCHeader *to)
         from->NextHdr->PrevHdr = to->PrevHdr;
         to->PrevHdr = from->PrevHdr;
         to->PrevHdr->NextHdr = to;
+        totemGCHeader_Init(from);
     }
     else
     {
         totem_assert(from->PrevHdr == from);
     }
-    
-    totemGCHeader_Init(from);
     
     totemGCHeader_Assert(from, to);
     totemGCHeader_Assert(to, from);
@@ -132,6 +133,7 @@ totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjec
     hdr->Array = NULL;
     
     totemGCHeader_Prepend(&hdr->Header, &state->GC);
+    state->NumGC++;
     
     TOTEM_GC_LOG(gccount++);
     TOTEM_GC_LOG(printf("add %i %p %s %p %p\n", gccount, hdr, totemGCObjectType_Describe(type), state->GC.NextHdr, state->GC2.NextHdr));
@@ -178,6 +180,7 @@ totemGCObject *totemExecState_DestroyGCObject(totemExecState *state, totemGCObje
     
     obj->Header.NextObj = state->GCFreeList;
     state->GCFreeList = obj;
+    state->NumGC--;
     return next;
 }
 

@@ -1,0 +1,64 @@
+var $a = float;
+var $b = 3.75;
+
+assert(!($b is int));
+
+var $d = int;
+var $c = $b as $d;
+
+assert($c == 3);
+
+assert((123 as int) == 123);
+assert((123 as string) == "123");
+assert((123 as array)[0] == 123);
+assert((123 as float) == 123.00);
+assert((123 as type) == int);
+
+assert((123.45 as float) == 123.45);
+assert((123.45 as string) == "123.45");
+assert((123.45 as array)[0] == 123.45);
+assert((123.45 as int) == 123);
+assert((123.45 as type) == float);
+
+var $rep = [2];
+$rep[0] = 456;
+$rep[1] = 789;
+
+assert(($rep as array)[0] == $rep[0]);
+assert(($rep as array)[0] == 456);
+assert(($rep as int) == 2);
+assert(($rep as float) == 2.00);
+assert(($rep as string) == "456789");
+assert(($rep as type) == array);
+
+assert((array as array)[0] == array);
+assert((array as type) == type);
+assert((array as string) == "array");
+assert(((array as array) as int) == 1);
+assert(((array as array) as float) == 1.0);
+
+assert(("6664" as int) == 6664);
+assert(("567.123" as float) == 567.123);
+assert(("45.123" as int) == 45);
+assert(("doop" as array)[2] == "o");
+assert(("str" as type) == string);
+assert(("str" as string) == "str");
+assert(("print" as function) == @print);
+
+function dataTypeTest()
+{
+	return 0;
+}
+
+var $x = @dataTypeTest as coroutine;
+assert(($x as function) == @dataTypeTest);
+assert(($x as string) == "dataTypeTest");
+assert((($x as coroutine) as function) == @dataTypeTest);
+assert(($x as coroutine) != $x);
+assert(($x as coroutine) is coroutine);
+
+$x = {};
+$x["what"] = 123;
+assert(($x as type) == object);
+assert(($x as int) == 1);
+assert(($x as float) == 1.0);
