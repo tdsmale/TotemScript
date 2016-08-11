@@ -1,22 +1,22 @@
-let $x = 0;
-var $result = false;
-var $visits = 0;
+let x = 0;
+var result = false;
+var visits = 0;
 
-if($x < 0)
+if(x < 0)
 {
-	$visits++;
-	$result = false;
+	visits++;
+	result = false;
 }
-else if($x > 0)
+else if(x > 0)
 {
-	$visits++;
-	$result = false;
+	visits++;
+	result = false;
 }
 else
 {
-	$visits++;
-	$result = true;
+	visits++;
+	result = true;
 }
 
-assert($result);
-assert($visits == 1);
+assert(result);
+assert(visits == 1);

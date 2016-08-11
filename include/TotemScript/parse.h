@@ -20,17 +20,15 @@ extern "C" {
     /*
      grammatically parses a given string buffer and creates a tree structure that can then be eval()'d
      
-     variable = [ const-token ] variable-start-token identifier-token [ colon-token identifier-token ]
+     variable = [ const-token | var-token ] identifier-token [ colon-token identifier-token ]
      string = double-quote-token { * } double-quote-token
-     function-call = function-token identifier-token lbracket-token { expression } rbracket-token
      type = array-token | string-token | int-token | float-token | type-token
-     function-pointer = at-token identifier [ lbracket { identifier } rbracket colon identifier ]
      
      new-array = lsbracket array-accessor rsbracket
      new-object = rbracket lbracket
      array-access = expression lcbracket expression rcbracket
      
-     argument = variable | number-token | string | function-call | new-array | type | function-declaration-body | new-object
+     argument = variable | number-token | string | identifier | new-array | type | function-declaration-body | new-object
      
      expression = { pre-unary operator } ( argument | lbracket expression rbracket ) { post-unary operator } { binary-operator expression }
      
@@ -95,11 +93,10 @@ extern "C" {
         totemArgumentType_Variable = 1,
         totemArgumentType_String,
         totemArgumentType_Number,
-        totemArgumentType_FunctionCall,
         totemArgumentType_NewArray,
         totemArgumentType_NewObject,
         totemArgumentType_Type,
-        totemArgumentType_FunctionPointer,
+        totemArgumentType_Identifier,
         totemArgumentType_FunctionDeclaration,
         totemArgumentType_Boolean,
         totemArgumentType_Null
@@ -189,7 +186,6 @@ extern "C" {
     {
         totemTokenType_None = 0,
         totemTokenType_Null,
-        totemTokenType_Variable,
         totemTokenType_Var,
         totemTokenType_Identifier,
         totemTokenType_Plus,
@@ -295,15 +291,6 @@ extern "C" {
     totemVariablePrototype;
     
     struct totemExpressionPrototype;
-    
-    typedef struct totemFunctionCallPrototype
-    {
-        struct totemExpressionPrototype *ParametersStart;
-        totemString Identifier;
-        totemBufferPositionInfo Position;
-    }
-    totemFunctionCallPrototype;
-    
     struct totemArrayMemberPrototype;
     struct totemNewArrayPrototype;
     
@@ -323,8 +310,7 @@ extern "C" {
             totemVariablePrototype *Variable;
             totemString *String;
             totemString *Number;
-            totemString *FunctionPointer;
-            totemFunctionCallPrototype *FunctionCall;
+            totemString *Identifier;
             struct totemFunctionDeclarationPrototype *FunctionDeclaration;
             totemNewArrayPrototype *NewArray;
             totemPublicDataType DataType;
@@ -540,7 +526,6 @@ extern "C" {
     totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument,  totemParseTree *tree);
     totemParseStatus totemNewArrayPrototype_Parse(totemNewArrayPrototype *arr, totemParseTree *tree);
     totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, totemParseTree *tree);
-    totemParseStatus totemFunctionCallPrototype_Parse(totemFunctionCallPrototype *call, totemParseTree *tree);
     totemParseStatus totemVariablePrototype_ParseParameterList(totemVariablePrototype **first, totemVariablePrototype **last, totemParseTree *tree);
     totemParseStatus totemVariablePrototype_ParseParameterInList(totemVariablePrototype **first, totemVariablePrototype **last, totemParseTree *tree);
     

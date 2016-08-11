@@ -249,11 +249,15 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
     
     for (size_t i = 0; i < numFunctions; i++)
     {
-        funcs[i].Address = (totemOperandXUnsigned)i;
-        funcs[i].InstructionsStart = instructions + (funcProts[i].InstructionsStart);
-        funcs[i].RegistersNeeded = funcProts[i].RegistersNeeded;
+        totemRegister *str = &strs[i];
+        totemScriptFunctionPrototype *funcProt = &funcProts[i];
+        totemScriptFunction *func = &funcs[i];
         
-        if (totemRuntime_InternString(runtime, &funcProts[i].Name, &strs[i].Value, &strs[i].DataType) != totemLinkStatus_Success)
+        func->Address = (totemOperandXUnsigned)i;
+        func->InstructionsStart = instructions + (funcProt->InstructionsStart);
+        func->RegistersNeeded = funcProt->RegistersNeeded;
+        
+        if (totemRuntime_InternString(runtime, &funcProt->Name, &str->Value, &str->DataType) != totemLinkStatus_Success)
         {
             return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }

@@ -1,7 +1,7 @@
-var $file = fopen("tests/test_add.totem", "r");
-var $test = $file;
-assert($file is userdata);
+var file = fopen("tests/test_add.totem", "r");
+var test = file;
+assert(file is userdata);
 
-$file = 123;
-assert($file is int);
-assert($test is userdata);
+file = 123;
+assert(file is int);
+assert(test is userdata);

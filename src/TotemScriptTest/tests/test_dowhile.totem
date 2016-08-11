@@ -1,15 +1,15 @@
-let $numLoops = 10;
+let numLoops = 10;
 
-var $c = $numLoops;
-var $d = 0;
+var c = numLoops;
+var d = 0;
 
 do
 {
-	$c--;
-	$d++;
-	assert(($c + $d) == $numLoops);
+	c--;
+	d++;
+	assert((c + d) == numLoops);
 }
-while($c != 0);
+while(c != 0);
 
-assert($c == 0);
-assert($d == $numLoops);
+assert(c == 0);
+assert(d == numLoops);

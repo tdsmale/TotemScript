@@ -27,48 +27,48 @@ void totemBuildPrototype_Init(totemBuildPrototype *build)
 {
     totemRegisterListPrototype_Init(&build->GlobalRegisters, totemOperandType_GlobalRegister);
     totemHashMap_Init(&build->FunctionLookup);
-    totemHashMap_Init(&build->NativeFunctionNamesLookup);
-    totemHashMap_Init(&build->AnonymousFunctions);
     totemMemoryBuffer_Init(&build->Functions, sizeof(totemScriptFunctionPrototype));
     totemMemoryBuffer_Init(&build->Instructions, sizeof(totemInstruction));
     totemMemoryBuffer_Init(&build->NativeFunctionNames, sizeof(totemString));
     totemMemoryBuffer_Init(&build->FunctionArguments, sizeof(totemOperandRegisterPrototype));
     totemMemoryBuffer_Init(&build->RecycledRegisters, sizeof(totemOperandRegisterPrototype));
+    totemMemoryBuffer_Init(&build->AnonFunctions, sizeof(totemOperandXUnsigned));
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
     build->LocalRegisters = NULL;
+    build->CurrentAnonFunc = 0;
 }
 
 void totemBuildPrototype_Reset(totemBuildPrototype *build)
 {
     totemRegisterListPrototype_Reset(&build->GlobalRegisters);
     totemHashMap_Reset(&build->FunctionLookup);
-    totemHashMap_Reset(&build->NativeFunctionNamesLookup);
-    totemHashMap_Reset(&build->AnonymousFunctions);
     totemMemoryBuffer_Reset(&build->Functions);
     totemMemoryBuffer_Reset(&build->Instructions);
     totemMemoryBuffer_Reset(&build->NativeFunctionNames);
     totemMemoryBuffer_Reset(&build->FunctionArguments);
     totemMemoryBuffer_Reset(&build->RecycledRegisters);
+    totemMemoryBuffer_Reset(&build->AnonFunctions);
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
     build->LocalRegisters = NULL;
+    build->CurrentAnonFunc = 0;
 }
 
 void totemBuildPrototype_Cleanup(totemBuildPrototype *build)
 {
     totemRegisterListPrototype_Cleanup(&build->GlobalRegisters);
     totemHashMap_Cleanup(&build->FunctionLookup);
-    totemHashMap_Cleanup(&build->NativeFunctionNamesLookup);
-    totemHashMap_Cleanup(&build->AnonymousFunctions);
     totemMemoryBuffer_Cleanup(&build->Functions);
     totemMemoryBuffer_Cleanup(&build->Instructions);
     totemMemoryBuffer_Cleanup(&build->NativeFunctionNames);
     totemMemoryBuffer_Cleanup(&build->FunctionArguments);
     totemMemoryBuffer_Cleanup(&build->RecycledRegisters);
+    totemMemoryBuffer_Cleanup(&build->AnonFunctions);
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
     build->LocalRegisters = NULL;
+    build->CurrentAnonFunc = 0;
 }
 
 totemEvalStatus totemBuildPrototype_EnterLocalScope(totemBuildPrototype *build)
@@ -93,8 +93,6 @@ totemEvalStatus totemBuildPrototype_ExitLocalScope(totemBuildPrototype *build)
 
 totemEvalStatus totemBuildPrototype_EvalFunctionCall(totemBuildPrototype *build, totemExpressionPrototype *parametersStart, totemOperandRegisterPrototype *dst, totemOperandRegisterPrototype *src)
 {
-    
-    
     // we need to eval the func-args before we call the function
     // 1. count num args
     totemOperandXUnsigned numArgs = 0;
@@ -106,8 +104,6 @@ totemEvalStatus totemBuildPrototype_EvalFunctionCall(totemBuildPrototype *build,
         }
     }
     
-    
-    
     // 2. alloc mem
     totemMemoryBuffer_Reset(&build->FunctionArguments);
     totemOperandRegisterPrototype *funcArgs = totemMemoryBuffer_Secure(&build->FunctionArguments, numArgs);
@@ -116,27 +112,19 @@ totemEvalStatus totemBuildPrototype_EvalFunctionCall(totemBuildPrototype *build,
         return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
     
-    
-    
     // 3. eval args
     totemOperandXUnsigned currentArg = 0;
     for (totemExpressionPrototype *parameter = parametersStart; parameter != NULL; parameter = parameter->Next)
     {
         totemOperandRegisterPrototype *operand = &funcArgs[currentArg];
-        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(parameter, build, NULL, operand, totemEvalVariableFlag_MustBeDefined, totemEvalExpressionFlag_None));
+        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(parameter, build, NULL, operand, totemEvalExpressionFlag_None));
         currentArg++;
     }
-    
-    
     
     // start function call
     totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
     
-    
-    
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, src, numArgs, totemOperationType_PreInvoke));
-    
-    
     
     // function arguments
     for (size_t i = 0; i < numArgs; i++)
@@ -146,14 +134,10 @@ totemEvalStatus totemBuildPrototype_EvalFunctionCall(totemBuildPrototype *build,
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, operand));
     }
     
-    
-    
     // finish function call
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RotateAllGlobalCaches(build, localScope, totemBool_False));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionUnsigned(build, dst, 0, totemOperationType_Invoke));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RotateAllGlobalCaches(build, localScope, totemBool_True));
-    
-    
     
     return totemEvalStatus_Success;
 }
@@ -180,8 +164,6 @@ totemRegisterListPrototype *totemBuildPrototype_GetLocalScope(totemBuildPrototyp
 
 totemEvalStatus totemBuildPrototype_AddRegister(totemBuildPrototype *build, totemOperandType preferredScope, totemOperandRegisterPrototype *opOut)
 {
-    
-    
     totemEvalStatus status = totemEvalStatus_Success;
     totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
     
@@ -208,11 +190,7 @@ totemEvalStatus totemBuildPrototype_AddRegister(totemBuildPrototype *build, tote
 
 totemEvalStatus totemBuildPrototype_RecycleRegister(totemBuildPrototype *build, totemOperandRegisterPrototype *op)
 {
-    
-    
     totemRegisterListPrototype *scope = totemBuildPrototype_GetRegisterList(build, op->RegisterScopeType);
-    
-    
     
     totemRegisterPrototypeFlag flags;
     if(totemRegisterListPrototype_GetRegisterFlags(scope, op->RegisterIndex, &flags) && TOTEM_HASBITS(flags, totemRegisterPrototypeFlag_IsUsed))
@@ -223,14 +201,10 @@ totemEvalStatus totemBuildPrototype_RecycleRegister(totemBuildPrototype *build, 
             // free if temp
             if (TOTEM_HASANYBITS(flags, totemRegisterPrototypeFlag_IsTemporary))
             {
-                
-                
                 if (!totemMemoryBuffer_Insert(&build->RecycledRegisters, op, 1))
                 {
                     return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
                 }
-                
-                
             }
         }
     }
@@ -240,12 +214,8 @@ totemEvalStatus totemBuildPrototype_RecycleRegister(totemBuildPrototype *build, 
 
 totemEvalStatus totemBuildPrototype_FlushRecycledRegisters(totemBuildPrototype *build)
 {
-    
-    
     size_t max = totemMemoryBuffer_GetNumObjects(&build->RecycledRegisters);
     totemOperandRegisterPrototype *ops = totemMemoryBuffer_Bottom(&build->RecycledRegisters);
-    
-    
     
     for (size_t i = 0; i < max; i++)
     {
@@ -257,15 +227,11 @@ totemEvalStatus totemBuildPrototype_FlushRecycledRegisters(totemBuildPrototype *
     
     totemMemoryBuffer_Reset(&build->RecycledRegisters);
     
-    
-    
     return totemEvalStatus_Success;
 }
 
 totemEvalStatus totemBuildPrototype_EvalBoolean(totemBuildPrototype *build, totemBool val, totemOperandRegisterPrototype *op, totemOperandRegisterPrototype *hint)
 {
-    
-    
     totemEvalStatus status = totemRegisterListPrototype_AddBoolean(&build->GlobalRegisters, val, op);
     if (status == totemEvalStatus_Success)
     {
@@ -277,8 +243,6 @@ totemEvalStatus totemBuildPrototype_EvalBoolean(totemBuildPrototype *build, tote
 
 totemEvalStatus totemBuildPrototype_EvalNull(totemBuildPrototype *build, totemOperandRegisterPrototype *op, totemOperandRegisterPrototype *hint)
 {
-    
-    
     totemEvalStatus status = totemRegisterListPrototype_AddNull(&build->GlobalRegisters, op);
     if (status == totemEvalStatus_Success)
     {
@@ -307,8 +271,6 @@ totemEvalStatus totemBuildPrototype_EvalInt(totemBuildPrototype *build, totemInt
 
 totemEvalStatus totemBuildPrototype_EvalNumber(totemBuildPrototype *build, totemString *number, totemOperandRegisterPrototype *operand, totemOperandRegisterPrototype *hint)
 {
-    
-    
     totemEvalStatus status = totemRegisterListPrototype_AddNumberConstant(&build->GlobalRegisters, number, operand);
     if(status == totemEvalStatus_Success)
     {
@@ -320,8 +282,6 @@ totemEvalStatus totemBuildPrototype_EvalNumber(totemBuildPrototype *build, totem
 
 totemEvalStatus totemBuildPrototype_EvalString(totemBuildPrototype *build, totemString *buffer, totemOperandRegisterPrototype *operand, totemOperandRegisterPrototype *hint)
 {
-    
-    
     totemEvalStatus status = totemRegisterListPrototype_AddStringConstant(&build->GlobalRegisters, buffer, operand);
     if(status == totemEvalStatus_Success)
     {
@@ -331,56 +291,40 @@ totemEvalStatus totemBuildPrototype_EvalString(totemBuildPrototype *build, totem
     return status;
 }
 
-totemEvalStatus totemBuildPrototype_EvalFunctionName(totemBuildPrototype *build, totemString *name, totemFunctionPointerPrototype *func)
+totemEvalStatus totemBuildPrototype_EvalIdentifier(totemBuildPrototype *build, totemString *name, totemOperandRegisterPrototype *op, totemOperandRegisterPrototype *hint)
 {
-    
-    
-    // did we define this function in the script?
-    totemHashMapEntry *searchResult = totemHashMap_Find(&build->FunctionLookup, name->Value, name->Length);
-    if(searchResult)
+    totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
+    if (totemRegisterListPrototype_GetIdentifier(localScope, name, op, totemBool_False))
     {
-        func->Address = (totemOperandXUnsigned)searchResult->Value;
-        func->Type = totemFunctionType_Script;
-    }
-    else
-    {
-        func->Type = totemFunctionType_Native;
-        
-        // add native function name
-        totemHashMapEntry *result = totemHashMap_Find(&build->NativeFunctionNamesLookup, name->Value, name->Length);
-        if(result)
-        {
-            func->Address = (totemOperandXUnsigned)result->Value;
-        }
-        else
-        {
-            if(totemMemoryBuffer_GetNumObjects(&build->NativeFunctionNames) >= TOTEM_MAX_NATIVEFUNCTIONS)
-            {
-                return totemEvalStatus_Break(totemEvalStatus_TooManyNativeFunctions);
-            }
-            
-            func->Address = (totemOperandXUnsigned)totemMemoryBuffer_GetNumObjects(&build->NativeFunctionNames);
-            
-            if(totemMemoryBuffer_Insert(&build->NativeFunctionNames, name, 1) == NULL)
-            {
-                return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
-            }
-            
-            if(!totemHashMap_Insert(&build->NativeFunctionNamesLookup, name->Value, name->Length, func->Address))
-            {
-                return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
-            }
-        }
+        return totemEvalStatus_Success;
     }
     
-    return totemEvalStatus_Success;
+    if (totemRegisterListPrototype_GetIdentifier(&build->GlobalRegisters, name, op, totemBool_False))
+    {
+        return totemEvalStatus_Success;
+    }
+    
+    // add native function name
+    if(totemMemoryBuffer_GetNumObjects(&build->NativeFunctionNames) >= TOTEM_MAX_NATIVEFUNCTIONS)
+    {
+        return totemEvalStatus_Break(totemEvalStatus_TooManyNativeFunctions);
+    }
+    
+    totemFunctionPointerPrototype ptr;
+    ptr.Type = totemFunctionType_Native;
+    ptr.Address = (totemOperandXUnsigned)totemMemoryBuffer_GetNumObjects(&build->NativeFunctionNames);
+    
+    if(totemMemoryBuffer_Insert(&build->NativeFunctionNames, name, 1) == NULL)
+    {
+        return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+    }
+    
+    return totemBuildPrototype_EvalFunctionPointer(build, name, &ptr, op, hint);
 }
 
-totemEvalStatus totemBuildPrototype_EvalFunctionPointer(totemBuildPrototype *build, totemFunctionPointerPrototype *value, totemOperandRegisterPrototype *op, totemOperandRegisterPrototype *hint)
+totemEvalStatus totemBuildPrototype_EvalFunctionPointer(totemBuildPrototype *build, totemString *val, totemFunctionPointerPrototype *value, totemOperandRegisterPrototype *op, totemOperandRegisterPrototype *hint)
 {
-    
-    
-    totemEvalStatus status = totemRegisterListPrototype_AddFunctionPointer(&build->GlobalRegisters, value, op);
+    totemEvalStatus status = totemRegisterListPrototype_AddFunctionPointer(&build->GlobalRegisters, val, value, op);
     if(status == totemEvalStatus_Success)
     {
         status = totemBuildPrototype_GlobalCacheCheck(build, op, hint);
@@ -391,20 +335,18 @@ totemEvalStatus totemBuildPrototype_EvalFunctionPointer(totemBuildPrototype *bui
 
 totemEvalStatus totemBuildPrototype_EvalAnonymousFunction(totemBuildPrototype *build, totemFunctionDeclarationPrototype *func, totemOperandRegisterPrototype *op, totemOperandRegisterPrototype *hint)
 {
-    
-    
     totemFunctionPointerPrototype ptr;
     ptr.Type = totemFunctionType_Script;
     
-    totemHashMapEntry *result = totemHashMap_Find(&build->AnonymousFunctions, &func, sizeof(totemFunctionDeclarationPrototype*));
-    if(result)
+    if (build->CurrentAnonFunc < totemMemoryBuffer_GetNumObjects(&build->AnonFunctions))
     {
-        ptr.Address = (totemOperandXUnsigned)result->Value;
+        totemOperandXUnsigned *addr = totemMemoryBuffer_Get(&build->AnonFunctions, build->CurrentAnonFunc);
+        ptr.Address = *addr;
     }
     else
     {
         // increment script function count
-        if(totemMemoryBuffer_GetNumObjects(&build->Functions) + 1 >= TOTEM_MAX_SCRIPTFUNCTIONS)
+        if (totemMemoryBuffer_GetNumObjects(&build->Functions) + 1 >= TOTEM_MAX_SCRIPTFUNCTIONS)
         {
             return totemBuildPrototype_Break(build, totemEvalStatus_TooManyScriptFunctions, &func->Position);
         }
@@ -413,17 +355,17 @@ totemEvalStatus totemBuildPrototype_EvalAnonymousFunction(totemBuildPrototype *b
         totemScriptFunctionPrototype *functionPrototype;
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocFunction(build, &functionPrototype));
         
-        if(!totemHashMap_Insert(&build->AnonymousFunctions, &func, sizeof(totemFunctionDeclarationPrototype*), funcIndex))
-        {
-            return totemBuildPrototype_Break(build, totemEvalStatus_OutOfMemory, &func->Position);
-        }
-        
         ptr.Address = funcIndex;
+        
+        if (!totemMemoryBuffer_Insert(&build->AnonFunctions, &funcIndex, 1))
+        {
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+        }
     }
     
-    // enqueue function declaration to be evaluated after the current one
+    // enqueue function declaration to be evaluated later
     func->Next = NULL;
-    if(build->AnonymousFunctionHead)
+    if (build->AnonymousFunctionHead)
     {
         build->AnonymousFunctionTail->Next = func;
     }
@@ -434,18 +376,8 @@ totemEvalStatus totemBuildPrototype_EvalAnonymousFunction(totemBuildPrototype *b
     
     build->AnonymousFunctionTail = func;
     
-    return totemBuildPrototype_EvalFunctionPointer(build, &ptr, op, hint);
-}
-
-totemEvalStatus totemBuildPrototype_EvalNamedFunctionPointer(totemBuildPrototype *build, totemString *name, totemOperandRegisterPrototype *op, totemOperandRegisterPrototype *hint)
-{
-    
-    
-    totemFunctionPointerPrototype value;
-    memset(&value, 0, sizeof(totemFunctionPointerPrototype));
-    
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionName(build, name, &value));
-    return totemBuildPrototype_EvalFunctionPointer(build, &value, op, hint);
+    build->CurrentAnonFunc++;
+    return totemBuildPrototype_EvalFunctionPointer(build, NULL, &ptr, op, hint);
 }
 
 totemEvalStatus totemBuildPrototype_EvalType(totemBuildPrototype *build, totemPublicDataType type, totemOperandRegisterPrototype *operand, totemOperandRegisterPrototype *hint)
@@ -470,8 +402,8 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     build->LocalRegisters = &build->GlobalRegisters;
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
+    build->Flags = totemBuildPrototypeFlag_None;
     totemRegisterListPrototype_Reset(&build->GlobalRegisters);
-    build->Flags = totemBuildPrototypeFlag_EvalVariables | totemBuildPrototypeFlag_EnforceVariableDefinitions;
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
     
     // eval script function names first, and create pointers for each
@@ -500,8 +432,10 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
                 
                 // setup the function pointer
                 totemOperandRegisterPrototype dummy;
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNamedFunctionPointer(build, block->FuncDec->Identifier, &dummy, NULL));
-                
+                totemFunctionPointerPrototype ptr;
+                ptr.Type = totemFunctionType_Script;
+                ptr.Address = (totemOperandXUnsigned)functionIndex;
+                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionPointer(build, block->FuncDec->Identifier, &ptr, &dummy, NULL));
                 break;
             }
                 
@@ -525,7 +459,6 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     }
     
     // eval global values from functions into global scope
-    build->Flags = totemBuildPrototypeFlag_None;
     for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
     {
         switch(block->Type)
@@ -557,6 +490,8 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
         }
     }
     
+    build->CurrentAnonFunc = 0;
+    
     // eval "global" function instructions first
     totemRegisterListPrototype localRegisters;
     totemRegisterListPrototype_Init(&localRegisters, totemOperandType_LocalRegister);
@@ -564,8 +499,9 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
     build->AnonymousFunctionHead = NULL;
     build->AnonymousFunctionTail = NULL;
-    build->Flags = totemBuildPrototypeFlag_EvalVariables | totemBuildPrototypeFlag_EvalGlobalCaches;
+    build->Flags = totemBuildPrototypeFlag_EvalGlobalCaches;
     globalFunction->InstructionsStart = 0;
+    build->LocalVariableScope = &build->GlobalRegisters;
     
     for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
     {
@@ -584,10 +520,10 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalImplicitReturn(build));
     globalFunction->RegistersNeeded = (uint8_t)totemMemoryBuffer_GetNumObjects(&localRegisters.Registers);
-    build->Flags |= totemBuildPrototypeFlag_EnforceVariableDefinitions;
     
     // now eval all other function instructions
     totemOperandXUnsigned funcIndex = 1;
+    build->LocalVariableScope = build->LocalRegisters;
     for(totemBlockPrototype *block = prototype->FirstBlock; block != NULL; block = block->Next)
     {
         switch(block->Type)
@@ -629,8 +565,6 @@ totemEvalStatus totemBuildPrototype_Eval(totemBuildPrototype *build, totemParseT
 
 totemEvalStatus totemBuildPrototype_AllocFunction(totemBuildPrototype *build, totemScriptFunctionPrototype **functionOut)
 {
-    
-    
     if(totemMemoryBuffer_GetNumObjects(&build->Functions) + 1 >= TOTEM_MAX_SCRIPTFUNCTIONS)
     {
         return totemEvalStatus_Break(totemEvalStatus_TooManyScriptFunctions);
@@ -649,14 +583,14 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
 {
     funcPrototype->InstructionsStart = totemMemoryBuffer_GetNumObjects(&build->Instructions);
     totemRegisterListPrototype_Reset(build->LocalRegisters);
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
     totemMemoryBuffer_Reset(&build->RecycledRegisters);
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
     
     // parameters
     for(totemVariablePrototype *parameter = function->ParametersStart; parameter != NULL; parameter = parameter->Next)
     {
         totemOperandRegisterPrototype dummy;
-        TOTEM_EVAL_CHECKRETURN(totemVariablePrototype_Eval(parameter, build, &dummy, totemEvalVariableFlag_LocalOnly));
+        TOTEM_EVAL_CHECKRETURN(totemVariablePrototype_Eval(parameter, build, &dummy));
     }
     
     // loop through statements & create instructions
@@ -668,6 +602,7 @@ totemEvalStatus totemFunctionDeclarationPrototype_Eval(totemFunctionDeclarationP
     totemEvalStatus status = totemBuildPrototype_EvalImplicitReturn(build);
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_ExitLocalScope(build));
     funcPrototype->RegistersNeeded = (uint8_t)totemMemoryBuffer_GetNumObjects(&build->LocalRegisters->Registers);
+    
     return status;
 }
 
@@ -699,12 +634,12 @@ totemEvalStatus totemStatementPrototype_Eval(totemStatementPrototype *statement,
             break;
             
         case totemStatementType_Simple:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Simple, build, NULL, &result, totemEvalVariableFlag_None, totemEvalExpressionFlag_None));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Simple, build, NULL, &result, totemEvalExpressionFlag_None));
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &result));
             break;
             
         case totemStatementType_Return:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Return, build, NULL, &result, totemEvalVariableFlag_MustBeDefined, totemEvalExpressionFlag_None));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(statement->Return, build, NULL, &result, totemEvalExpressionFlag_None));
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalReturn(build, &result));
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &result));
             break;
@@ -727,24 +662,21 @@ totemEvalStatus totemBuildPrototype_EvalArrayAccessEnd(totemBuildPrototype *buil
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemOperandRegisterPrototype *lValueHint, totemOperandRegisterPrototype *result, totemEvalVariableFlag varFlags, totemEvalExpressionFlag exprFlags)
+totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemOperandRegisterPrototype *lValueHint, totemOperandRegisterPrototype *result, totemEvalExpressionFlag exprFlags)
 {
     totemOperandRegisterPrototype lValueSrc;
-    
     
     // evaluate lvalue result to register
     switch(expression->LValueType)
     {
         case totemLValueType_Argument:
-            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_Eval(expression->LValueArgument, build, lValueHint, &lValueSrc, varFlags));
+            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_Eval(expression->LValueArgument, build, lValueHint, &lValueSrc));
             break;
             
         case totemLValueType_Expression:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->LValueExpression, build, lValueHint, &lValueSrc, varFlags, totemEvalExpressionFlag_None));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->LValueExpression, build, lValueHint, &lValueSrc, totemEvalExpressionFlag_None));
             break;
     }
-    
-    
     
     totemBool mutatedLValueRegisterUnary = totemBool_False;
     totemBool mutatedLValueRegisterBinary = totemBool_False;
@@ -754,8 +686,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     totemRegisterPrototypeFlag lValueSrcFlags = totemRegisterPrototypeFlag_None;
     totemRegisterListPrototype *lValueSrcScope = totemBuildPrototype_GetRegisterList(build, lValueSrc.RegisterScopeType);
     totemRegisterListPrototype_GetRegisterFlags(lValueSrcScope, lValueSrc.RegisterIndex, &lValueSrcFlags);
-    
-    
     
     // check the operators used against this lvalue to see if it gets mutated
     for(totemPreUnaryOperatorPrototype *op = expression->PreUnaryOperators; op != NULL; op = op->Next)
@@ -771,8 +701,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
             break;
         }
     }
-    
-    
     
     for(totemPostUnaryOperatorPrototype *op = expression->PostUnaryOperators; op != NULL; op = op->Next)
     {
@@ -794,8 +722,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         }
     }
     
-    
-    
     switch(expression->BinaryOperator)
     {
         case totemBinaryOperatorType_Assign:
@@ -810,8 +736,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         default:
             break;
     }
-    
-    
     
     if(mutatedLValueRegisterBinary | mutatedLValueRegisterUnary)
     {
@@ -828,16 +752,12 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         }
     }
     
-    
-    
     // when lValue is an array member or invocation, we must retrieve it first and place it in a register before any other op
     totemOperandRegisterPrototype lValue;
     totemOperandRegisterPrototype arrIndex;
     memcpy(&lValue, &lValueSrc, sizeof(totemOperandRegisterPrototype));
     totemRegisterPrototypeFlag lValueFlags = lValueSrcFlags;
     totemRegisterListPrototype *lValueScope = lValueSrcScope;
-    
-    
     
     if(lValueRegisterIsArrayMember || lValueRegisterIsInvocation)
     {
@@ -858,7 +778,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                     lValueSrcFlags = lValueFlags;
                     lValueSrcScope = lValueScope;
                     
-                    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(op->ArrayAccess, build, NULL, &arrIndex, totemEvalVariableFlag_MustBeDefined, totemEvalExpressionFlag_None));
+                    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(op->ArrayAccess, build, NULL, &arrIndex, totemEvalExpressionFlag_None));
                     
                     totemBool performAccess = totemBool_True;
                     totemBool shouldShift = totemBool_False;
@@ -965,13 +885,9 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         }
     }
     
-    
-    
     totemOperandRegisterPrototype preUnaryRegister, preUnaryLValue;
     totemString preUnaryNumber;
     totemString_FromLiteral(&preUnaryNumber, "0");
-    
-    
     
     for(totemPreUnaryOperatorPrototype *op = expression->PreUnaryOperators; op != NULL; op = op->Next)
     {
@@ -1010,8 +926,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
     totemString postUnaryNumber;
     totemString_FromLiteral(&postUnaryNumber, "0");
     
-    
-    
     for(totemPostUnaryOperatorPrototype *op = expression->PostUnaryOperators; op != NULL; op = op->Next)
     {
         switch(op->Type)
@@ -1038,8 +952,6 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         }
     }
     
-    
-    
     totemOperandRegisterPrototype rValue;
     memset(&rValue, 0, sizeof(totemOperandRegisterPrototype));
     
@@ -1056,18 +968,14 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                 rValueEvalFlag = totemEvalExpressionFlag_Shift;
             }
             
-            
-            
             if(expression->BinaryOperator != totemBinaryOperatorType_Shift && TOTEM_HASBITS(lValueFlags, totemRegisterPrototypeFlag_IsTemporary))
             {
                 // result of rValue expression can now be stored directly in lValue
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &lValue));
-                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, NULL, &lValue, totemEvalVariableFlag_MustBeDefined, rValueEvalFlag));
+                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, NULL, &lValue, rValueEvalFlag));
             }
             else
             {
-                
-                
                 // otherwise we need the move op
                 totemOperandRegisterPrototype *lValueToUse = NULL;
                 
@@ -1076,9 +984,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
                     lValueToUse = &lValue;
                 }
                 
-                
-                
-                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, lValueToUse, &rValue, totemEvalVariableFlag_MustBeDefined, rValueEvalFlag));
+                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, lValueToUse, &rValue, rValueEvalFlag));
                 
                 // if expression wasn't eval'd directly to lValue, perform move
                 if(lValueToUse == NULL || memcmp(lValueToUse, &rValue, sizeof(totemOperandRegisterPrototype)) != 0)
@@ -1120,7 +1026,7 @@ totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expressi
         else
         {
             recycleRValue = totemBool_True;
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, NULL, &rValue, totemEvalVariableFlag_MustBeDefined, totemEvalExpressionFlag_None));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(expression->RValue, build, NULL, &rValue, totemEvalExpressionFlag_None));
             
             switch(expression->BinaryOperator)
             {
@@ -1285,15 +1191,13 @@ totemEvalStatus totemArgumentPrototype_EvalHint(totemBuildPrototype *build, tote
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemOperandRegisterPrototype *hint,  totemOperandRegisterPrototype *value, totemEvalVariableFlag flags)
+totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemOperandRegisterPrototype *hint,  totemOperandRegisterPrototype *value)
 {
-    
-    
     // evaluate argument to register
     switch(argument->Type)
     {
         case totemArgumentType_Variable:
-            return totemVariablePrototype_Eval(argument->Variable, build, value, flags);
+            return totemVariablePrototype_Eval(argument->Variable, build, value);
             
         case totemArgumentType_String:
             return totemBuildPrototype_EvalString(build, argument->String, value, hint);
@@ -1313,11 +1217,8 @@ totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, to
         case totemArgumentType_FunctionDeclaration:
             return totemBuildPrototype_EvalAnonymousFunction(build, argument->FunctionDeclaration, value, hint);
             
-        case totemArgumentType_FunctionPointer:
-            return totemBuildPrototype_EvalNamedFunctionPointer(build, argument->FunctionPointer, value, hint);
-            
-        case totemArgumentType_FunctionCall:
-            return totemFunctionCallPrototype_Eval(argument->FunctionCall, build, hint, value);
+        case totemArgumentType_Identifier:
+            return totemBuildPrototype_EvalIdentifier(build, argument->Identifier, value, hint);
             
         case totemArgumentType_NewArray:
             return totemNewArrayPrototype_Eval(argument->NewArray, build, hint, value);
@@ -1349,7 +1250,7 @@ totemEvalStatus totemNewArrayPrototype_Eval(totemNewArrayPrototype *newArray, to
     }
     else
     {
-        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(newArray->Accessor, build, NULL, &arraySize, totemEvalVariableFlag_None, totemEvalExpressionFlag_None));
+        TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(newArray->Accessor, build, NULL, &arraySize, totemEvalExpressionFlag_None));
     }
     
     
@@ -1364,7 +1265,7 @@ totemEvalStatus totemNewArrayPrototype_Eval(totemNewArrayPrototype *newArray, to
         for (totemExpressionPrototype *exp = newArray->Accessor; exp; exp = exp->Next)
         {
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, num, &index, NULL));
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(exp, build, NULL, &member, totemEvalVariableFlag_MustBeDefined, totemEvalExpressionFlag_None));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(exp, build, NULL, &member, totemEvalExpressionFlag_None));
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbcInstruction(build, value, &index, &member, totemOperationType_ComplexSet));
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &index));
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &member));
@@ -1375,55 +1276,18 @@ totemEvalStatus totemNewArrayPrototype_Eval(totemNewArrayPrototype *newArray, to
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemBuildPrototype *build, totemOperandRegisterPrototype *index, totemEvalVariableFlag flags)
+totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemBuildPrototype *build, totemOperandRegisterPrototype *index)
 {
-    totemBool justCreated = totemBool_False;
-    totemBool isDeclaration = TOTEM_HASANYBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration | totemVariablePrototypeFlag_IsConst);
-    totemRegisterListPrototype *localScope = totemBuildPrototype_GetLocalScope(build);
+    totemRegisterListPrototype *localScope = build->LocalVariableScope;
+    totemBool varFound = totemRegisterListPrototype_GetVariable(localScope, &variable->Identifier, index, totemBool_True);
     
-    totemBool varFound = totemRegisterListPrototype_GetVariable(localScope, &variable->Identifier, index, isDeclaration);
-    
-    // check local scope first
-    if(!varFound)
+    if (varFound)
     {
-        varFound = totemBool_False;
-        
-        // check global second
-        if (!isDeclaration || !TOTEM_HASBITS(build->Flags, totemBuildPrototypeFlag_EnforceVariableDefinitions))
-        {
-            varFound = totemRegisterListPrototype_GetVariable(&build->GlobalRegisters, &variable->Identifier, index, totemBool_False);
-            
-            // HAS to be local? eep.
-            if(varFound && TOTEM_GETBITS(flags, totemEvalVariableFlag_LocalOnly))
-            {
-                return totemBuildPrototype_Break(build, totemEvalStatus_VariableAlreadyDefined, &variable->Position);
-            }
-        }
-        
-        // var not found, declare it locally
-        if(!varFound)
-        {
-            // ensure proper definition semantics
-            if (TOTEM_HASBITS(flags, totemEvalVariableFlag_MustBeDefined))
-            {
-                return totemBuildPrototype_Break(build, totemEvalStatus_VariableNotDefined, &variable->Position);
-            }
-            
-            // create local
-            justCreated = totemBool_True;
-            TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddVariable(localScope, &variable->Identifier, index));
-        }
+        return totemBuildPrototype_Break(build, totemEvalStatus_IdentifierAlreadyDefined, &variable->Position);
     }
     
-    if(TOTEM_HASBITS(build->Flags, totemBuildPrototypeFlag_EnforceVariableDefinitions))
-    {
-        // can't redeclare vars
-        if (!justCreated && isDeclaration)
-        {
-            return totemBuildPrototype_Break(build, totemEvalStatus_VariableAlreadyDefined, &variable->Position);
-        }
-    }
-    
+    // create locally
+    TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddVariable(localScope, &variable->Identifier, index));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_GlobalCacheCheck(build, index, NULL));
     
     totemRegisterListPrototype *scope = totemBuildPrototype_GetRegisterList(build, index->RegisterScopeType);
@@ -1474,27 +1338,6 @@ totemEvalStatus totemBuildPrototype_EvalReturn(totemBuildPrototype *build, totem
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemFunctionCallPrototype_Eval(totemFunctionCallPrototype *functionCall, totemBuildPrototype *build, totemOperandRegisterPrototype *hint, totemOperandRegisterPrototype *result)
-{
-    // lookup function
-    totemFunctionPointerPrototype funcInfo;
-    totemOperandRegisterPrototype funcPtrReg;
-    memset(&funcInfo, 0, sizeof(totemFunctionPointerPrototype));
-    memset(&funcPtrReg, 0, sizeof(totemOperandRegisterPrototype));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionName(build, &functionCall->Identifier, &funcInfo));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionPointer(build, &funcInfo, &funcPtrReg, NULL));
-    
-    TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalHint(build, result, hint));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalFunctionCall(build, functionCall->ParametersStart, result, &funcPtrReg));
-    
-    if(!hint)
-    {
-        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, result));
-    }
-    
-    return totemEvalStatus_Success;
-}
-
 const char *totemEvalStatus_Describe(totemEvalStatus status)
 {
     switch(status)
@@ -1507,8 +1350,8 @@ const char *totemEvalStatus_Describe(totemEvalStatus status)
             TOTEM_STRINGIFY_CASE(totemEvalStatus_Success);
             TOTEM_STRINGIFY_CASE(totemEvalStatus_TooManyRegisters);
             TOTEM_STRINGIFY_CASE(totemEvalStatus_InstructionOverflow);
-            TOTEM_STRINGIFY_CASE(totemEvalStatus_VariableAlreadyDefined);
-            TOTEM_STRINGIFY_CASE(totemEvalStatus_VariableNotDefined);
+            TOTEM_STRINGIFY_CASE(totemEvalStatus_IdentifierAlreadyDefined);
+            TOTEM_STRINGIFY_CASE(totemEvalStatus_IdentifierNotDefined);
             TOTEM_STRINGIFY_CASE(totemEvalStatus_AssignmentLValueCannotBeConst);
             TOTEM_STRINGIFY_CASE(totemEvalStatus_AssignmentLValueNotMutable);
             TOTEM_STRINGIFY_CASE(totemEvalStatus_VariableAlreadyAssigned);

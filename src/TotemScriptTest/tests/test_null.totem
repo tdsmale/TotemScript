@@ -1,4 +1,4 @@
-let $g = null;
-assert($g == null);
+let g = null;
+assert(g == null);
 assert(null == null);
-assert(($g as type) == (null as type));
+assert((g as type) == (null as type));

@@ -15,7 +15,6 @@
 
 static totemTokenDesc s_symbolTokenValues[] =
 {
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Variable, "$"),
     TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Plus, "+"),
     TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Minus, "-"),
     TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Multiply, "*"),
@@ -489,7 +488,6 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_Slash);
             TOTEM_STRINGIFY_CASE(totemTokenType_True);
             TOTEM_STRINGIFY_CASE(totemTokenType_Userdata);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Variable);
             TOTEM_STRINGIFY_CASE(totemTokenType_While);
             TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
             TOTEM_STRINGIFY_CASE(totemTokenType_Boolean);

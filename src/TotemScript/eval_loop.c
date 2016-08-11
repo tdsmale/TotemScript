@@ -47,7 +47,7 @@ void totemEvalLoopPrototype_SetStartPosition(totemEvalLoopPrototype *loop, totem
 totemEvalStatus totemEvalLoopPrototype_SetCondition(totemEvalLoopPrototype *loop, totemBuildPrototype *build, totemExpressionPrototype *condition)
 {
     totemOperandRegisterPrototype conditionOp;
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(condition, build, NULL, &conditionOp, totemEvalVariableFlag_None, totemEvalExpressionFlag_None));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(condition, build, NULL, &conditionOp, totemEvalExpressionFlag_None));
     
     loop->ConditionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionSigned(build, &conditionOp, 0, totemOperationType_ConditionalGoto));
@@ -139,7 +139,7 @@ totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totem
     totemOperandRegisterPrototype initialisation, afterThought;
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, NULL, &initialisation, totemEvalVariableFlag_None, totemEvalExpressionFlag_None));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, NULL, &initialisation, totemEvalExpressionFlag_None));
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &initialisation));
     
     totemEvalLoopPrototype loop;
@@ -152,7 +152,7 @@ totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totem
         TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(statement, build));
     }
     
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->AfterThought, build, NULL, &afterThought, totemEvalVariableFlag_None, totemEvalExpressionFlag_None));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->AfterThought, build, NULL, &afterThought, totemEvalExpressionFlag_None));
     TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_Loop(&loop, build));
     totemEvalLoopPrototype_SetConditionFailPosition(&loop, build);
     TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_End(&loop, build));
@@ -297,25 +297,25 @@ totemEvalStatus totemDoWhileLoopPrototype_EvalValues(totemDoWhileLoopPrototype *
         TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_EvalValues(stmt, build));
     }
     
-    return totemExpressionPrototype_EvalValues(loop->Expression, build, totemEvalVariableFlag_None);
+    return totemExpressionPrototype_EvalValues(loop->Expression, build);
 }
 
 totemEvalStatus totemForLoopPrototype_EvalValues(totemForLoopPrototype *loop, totemBuildPrototype *build)
 {
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Initialisation, build, totemEvalVariableFlag_None));
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Condition, build, totemEvalVariableFlag_None));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Initialisation, build));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Condition, build));
     
     for (totemStatementPrototype *stmt = loop->StatementsStart; stmt != NULL; stmt = stmt->Next)
     {
         TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_EvalValues(stmt, build));
     }
     
-    return totemExpressionPrototype_EvalValues(loop->AfterThought, build, totemEvalVariableFlag_None);
+    return totemExpressionPrototype_EvalValues(loop->AfterThought, build);
 }
 
 totemEvalStatus totemIfBlockPrototype_EvalValues(totemIfBlockPrototype *loop, totemBuildPrototype *build)
 {
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Expression, build, totemEvalVariableFlag_None));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Expression, build));
     
     for (totemStatementPrototype *stmt = loop->StatementsStart; stmt != NULL; stmt = stmt->Next)
     {
@@ -341,7 +341,7 @@ totemEvalStatus totemIfBlockPrototype_EvalValues(totemIfBlockPrototype *loop, to
 
 totemEvalStatus totemWhileLoopPrototype_EvalValues(totemWhileLoopPrototype *loop, totemBuildPrototype *build)
 {
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Expression, build, totemEvalVariableFlag_None));
+    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(loop->Expression, build));
     
     for (totemStatementPrototype *stmt = loop->StatementsStart; stmt != NULL; stmt = stmt->Next)
     {

@@ -1,13 +1,13 @@
 function refCycle()
 {
-    var $y = [1];
-    $y[0] = $y;
+    var y = [1];
+    y[0] = y;
 }
 
-var $num = gc_num();
+var num = gc_num();
 
 refCycle();
-assert(gc_num() == ($num + 1));
+assert(gc_num() == (num + 1));
 
 gc_collect(true);
-assert(gc_num() == $num);
+assert(gc_num() == num);

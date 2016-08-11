@@ -1,30 +1,30 @@
-var $r = [10];
-$r[3] = 12;
-$r[0] = 1 * 2 + $r[3] * 4;
-$r[4] = [20];
-$r[4][15] = 12345;
+var r = [10];
+r[3] = 12;
+r[0] = 1 * 2 + r[3] * 4;
+r[4] = [20];
+r[4][15] = 12345;
 
-var $b = $r[3];
-var $a = $r[4][15];
-var $d = $r[0];
+var b = r[3];
+var a = r[4][15];
+var d = r[0];
 
-assert($r[3] == 12);
-assert($r[4][15] == 12345);
+assert(r[3] == 12);
+assert(r[4][15] == 12345);
 
-var $s = [3];
-$s[0] = 1;
-$s[1] = 2;
-$s[2] = 3;
+var s = [3];
+s[0] = 1;
+s[1] = 2;
+s[2] = 3;
 
-var $t = [3];
-$t[0] = 4;
-$t[1] = 5;
-$t[2] = 6;
+var t = [3];
+t[0] = 4;
+t[1] = 5;
+t[2] = 6;
 
-assert((($s + $t) as string) == "123456");
+assert(((s + t) as string) == "123456");
 
-var $what = [123, 456, 789];
-assert(($what as int) == 3);
-assert($what[0] == 123);
-assert($what[1] == 456);
-assert($what[2] == 789);
+var what = [123, 456, 789];
+assert((what as int) == 3);
+assert(what[0] == 123);
+assert(what[1] == 456);
+assert(what[2] == 789);

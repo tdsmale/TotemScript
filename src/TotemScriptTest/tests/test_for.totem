@@ -1,13 +1,13 @@
-let $numLoops = 10;
+let numLoops = 10;
 
-var $c = $numLoops;
-var $d = 0;
+var c = numLoops;
+var d = 0;
 
-for($d = 0; $d < $numLoops; $d++)
+for(d = 0; d < numLoops; d++)
 {
-	assert(($c + $d) == $numLoops);
-	$c--;
+	assert((c + d) == numLoops);
+	c--;
 }
 
-assert($c == 0);
-assert($d == $numLoops);
+assert(c == 0);
+assert(d == numLoops);

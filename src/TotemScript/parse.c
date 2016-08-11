@@ -867,54 +867,38 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
     
     variable->Flags = totemVariablePrototypeFlag_None;
     
-    for(totemBool loop = totemBool_True; loop; )
+    switch(tree->CurrentToken->Type)
     {
-        switch(tree->CurrentToken->Type)
-        {
-            case totemTokenType_Let:
-                if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration))
-                {
-                    return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
-                }
-                
-                TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsConst);
-                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
-                TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-                break;
-                
-            case totemTokenType_Var:
-                if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsConst))
-                {
-                    return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
-                }
-                
-                TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration);
-                TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
-                TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-                break;
-                
-            default:
-                loop = totemBool_False;
-                break;
-        }
+        case totemTokenType_Let:
+            if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration))
+            {
+                return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+            }
+            
+            TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsConst);
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
+            
+        case totemTokenType_Var:
+            if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsConst))
+            {
+                return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
+            }
+            
+            TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration);
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+            break;
+            
+        default:
+            return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &variable->Position);
+            break;
     }
     
-    TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Variable);
-    TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
     TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(&variable->Identifier, tree, totemBool_False));
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
     
-    return totemParseStatus_Success;
-}
-
-totemParseStatus totemFunctionCallPrototype_Parse(totemFunctionCallPrototype *call, totemParseTree *tree)
-{
-    TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-    TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(&call->Identifier, tree, totemBool_True));
-    
-    totemExpressionPrototype *first = NULL, *last = NULL;
-    TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_ParseParameterList(&first, &last, tree, totemTokenType_LBracket, totemTokenType_RBracket, totemTokenType_Comma));
-    call->ParametersStart = first;
     return totemParseStatus_Success;
 }
 
@@ -1004,14 +988,6 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             break;
         }
             
-            // function pointer
-        case totemTokenType_At:
-            argument->Type = totemArgumentType_FunctionPointer;
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
-            TOTEM_PARSE_ALLOC(argument->FunctionPointer, totemString, tree);
-            TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(argument->FunctionPointer, tree, totemBool_True));
-            break;
-            
             // boolean
         case totemTokenType_True:
         case totemTokenType_False:
@@ -1098,7 +1074,6 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             break;
             
             // variable
-        case totemTokenType_Variable:
         case totemTokenType_Let:
         case totemTokenType_Var:
             argument->Type = totemArgumentType_Variable;
@@ -1148,11 +1123,11 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
             break;
             
-            // function call
+            // identifier
         case totemTokenType_Identifier:
-            argument->Type = totemArgumentType_FunctionCall;
-            TOTEM_PARSE_ALLOC(argument->FunctionCall, totemFunctionCallPrototype, tree);
-            TOTEM_PARSE_CHECKRETURN(totemFunctionCallPrototype_Parse(argument->FunctionCall, tree));
+            argument->Type = totemArgumentType_Identifier;
+            TOTEM_PARSE_ALLOC(argument->Identifier, totemString, tree);
+            TOTEM_PARSE_CHECKRETURN(totemString_ParseIdentifier(argument->Identifier, tree, totemBool_True));
             break;
             
         default:

@@ -1,13 +1,13 @@
-let $literalStrTest = "// This is a \"test\"";
-assert($literalStrTest == "// This is a \"test\"");	
+let literalStrTest = "// This is a \"test\"";
+assert(literalStrTest == "// This is a \"test\"");	
 
 /* assert(false); */
 
 /*
-let $g = null;
-$g = 123 + * 4;
+let g = null;
+g = 123 + * 4;
 */
 
-let $g = 123;
-assert($g == 123);
+let g = 123;
+assert(g == 123);
 // assert(false);

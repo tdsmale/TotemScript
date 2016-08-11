@@ -2,12 +2,12 @@ assert(true != false);
 assert(true != null);
 assert(false != null);
 
-var $a = true;
-assert($a != 1);
-assert($a == true);
-assert($a is boolean);
+var a = true;
+assert(a != 1);
+assert(a == true);
+assert(a is boolean);
 
-$a = false;
-assert($a != 0);
-assert($a == false);
-assert($a is boolean);
+a = false;
+assert(a != 0);
+assert(a == false);
+assert(a is boolean);

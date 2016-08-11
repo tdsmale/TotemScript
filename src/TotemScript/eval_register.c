@@ -282,13 +282,13 @@ totemEvalStatus totemRegisterListPrototype_AddStringConstant(totemRegisterListPr
     return totemEvalStatus_Success;
 }
 
-totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand, totemBool currentOnly)
+totemBool totemRegisterListPrototype_GetIdentifier(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand, totemBool currentOnly)
 {
     for (totemRegisterListPrototypeScope *scope = list->Scope;
          scope;
          scope = scope->Prev)
     {
-        totemHashMapEntry *searchResult = totemHashMap_Find(&scope->Variables, name->Value, name->Length);
+        totemHashMapEntry *searchResult = totemHashMap_Find(&scope->Identifiers, name->Value, name->Length);
         
         if (searchResult != NULL)
         {
@@ -309,6 +309,18 @@ totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *lis
     return totemBool_False;
 }
 
+totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *operand, totemBool currentOnly)
+{
+    if (totemRegisterListPrototype_GetIdentifier(list, name, operand, currentOnly))
+    {
+        totemRegisterPrototypeFlag flags;
+        totemRegisterListPrototype_GetRegisterFlags(list, operand->RegisterIndex, &flags);
+        return TOTEM_HASBITS(flags, totemRegisterPrototypeFlag_IsVariable);
+    }
+    
+    return totemBool_False;
+}
+
 totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototype *list, totemString *name, totemOperandRegisterPrototype *prototype)
 {
     totemEvalStatus status = totemRegisterListPrototype_AddRegister(list, prototype);
@@ -318,7 +330,7 @@ totemEvalStatus totemRegisterListPrototype_AddVariable(totemRegisterListPrototyp
         return status;
     }
     
-    if (!totemHashMap_Insert(&list->Scope->Variables, name->Value, name->Length, prototype->RegisterIndex))
+    if (!totemHashMap_Insert(&list->Scope->Identifiers, name->Value, name->Length, prototype->RegisterIndex))
     {
         return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
     }
@@ -430,15 +442,14 @@ totemEvalStatus totemRegisterListPrototype_AddNumberConstant(totemRegisterListPr
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemFunctionPointerPrototype *value, totemOperandRegisterPrototype *operand)
+totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListPrototype *list, totemString *name, totemFunctionPointerPrototype *value, totemOperandRegisterPrototype *operand)
 {
-    totemHashMapEntry *result = totemHashMap_Find(&list->FunctionPointers, value, sizeof(totemFunctionPointerPrototype));
-    if (result)
+    if (name)
     {
-        operand->RegisterIndex = (totemOperandXUnsigned)result->Value;
-        operand->RegisterScopeType = list->ScopeType;
-        totemRegisterListPrototype_IncRegisterRefCount(list, operand->RegisterIndex, NULL);
-        return totemEvalStatus_Success;
+        if (totemRegisterListPrototype_GetIdentifier(list, name, operand, totemBool_False))
+        {
+            return totemEvalStatus_Success;
+        }
     }
     
     totemEvalStatus status = totemRegisterListPrototype_AddRegister(list, operand);
@@ -447,9 +458,12 @@ totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListP
         return status;
     }
     
-    if (!totemHashMap_Insert(&list->FunctionPointers, value, sizeof(totemFunctionPointerPrototype), operand->RegisterIndex))
+    if (name)
     {
-        return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+        if (!totemHashMap_Insert(&list->Scope->Identifiers, name->Value, name->Length, operand->RegisterIndex))
+        {
+            return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
+        }
     }
     
     totemRegisterPrototype *reg = (totemRegisterPrototype*)totemMemoryBuffer_Get(&list->Registers, operand->RegisterIndex);
@@ -465,21 +479,21 @@ totemEvalStatus totemRegisterListPrototype_AddFunctionPointer(totemRegisterListP
 void totemRegisterListPrototypeScope_Init(totemRegisterListPrototypeScope *scope)
 {
     totemHashMap_Init(&scope->MoveToLocalVars);
-    totemHashMap_Init(&scope->Variables);
+    totemHashMap_Init(&scope->Identifiers);
     scope->Prev = NULL;
 }
 
 void totemRegisterListPrototypeScope_Reset(totemRegisterListPrototypeScope *scope)
 {
     totemHashMap_Reset(&scope->MoveToLocalVars);
-    totemHashMap_Reset(&scope->Variables);
+    totemHashMap_Init(&scope->Identifiers);
     scope->Prev = NULL;
 }
 
 void totemRegisterListPrototypeScope_Cleanup(totemRegisterListPrototypeScope *scope)
 {
     totemHashMap_Cleanup(&scope->MoveToLocalVars);
-    totemHashMap_Cleanup(&scope->Variables);
+    totemHashMap_Init(&scope->Identifiers);
     scope->Prev = NULL;
 }
 
@@ -527,9 +541,9 @@ totemEvalStatus totemRegisterListPrototypeScope_FreeGlobalCache(totemRegisterLis
 
 totemEvalStatus totemRegisterListPrototype_ExitScope(totemRegisterListPrototype *list)
 {
-    for (size_t i = 0; i < list->Scope->Variables.NumBuckets; i++)
+    for (size_t i = 0; i < list->Scope->Identifiers.NumBuckets; i++)
     {
-        totemHashMapEntry *bucket = list->Scope->Variables.Buckets[i];
+        totemHashMapEntry *bucket = list->Scope->Identifiers.Buckets[i];
         while (bucket)
         {
             totemOperandRegisterPrototype operand;
@@ -558,7 +572,6 @@ void totemRegisterListPrototype_Init(totemRegisterListPrototype *list, totemOper
     list->Null = 0;
     totemHashMap_Init(&list->Numbers);
     totemHashMap_Init(&list->Strings);
-    totemHashMap_Init(&list->FunctionPointers);
     totemMemoryBuffer_Init(&list->Registers, sizeof(totemRegisterPrototype));
     totemMemoryBuffer_Init(&list->RegisterFreeList, sizeof(totemOperandXUnsigned));
     list->Scope = NULL;
@@ -579,7 +592,6 @@ void totemRegisterListPrototype_Reset(totemRegisterListPrototype *list)
     list->Null = 0;
     totemHashMap_Reset(&list->Numbers);
     totemHashMap_Reset(&list->Strings);
-    totemHashMap_Reset(&list->FunctionPointers);
     totemMemoryBuffer_Reset(&list->Registers);
     totemMemoryBuffer_Reset(&list->RegisterFreeList);
 }
@@ -599,7 +611,6 @@ void totemRegisterListPrototype_Cleanup(totemRegisterListPrototype *list)
     list->Null = 0;
     totemHashMap_Cleanup(&list->Numbers);
     totemHashMap_Cleanup(&list->Strings);
-    totemHashMap_Cleanup(&list->FunctionPointers);
     totemMemoryBuffer_Cleanup(&list->Registers);
     totemMemoryBuffer_Cleanup(&list->RegisterFreeList);
 }

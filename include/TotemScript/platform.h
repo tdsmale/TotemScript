@@ -166,7 +166,7 @@ typedef size_t totemCwdSize_t;
 
 // globals, functions & constants up to TOTEM_MAX_LOCAL_REGISTERS don't need moving to local scope to be accessible
 // all register accesses become slightly more expensive
-// halves maximum number of local registers, but uses less of them
+// halves maximum number of local registers, but uses far less of them
 // lowers total number of instructions
 #define TOTEM_VMOPT_GLOBAL_OPERANDS (1)
 

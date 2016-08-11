@@ -1,30 +1,30 @@
-function test(var $b, var $c)
+function test(var b, var c)
 {
-    return $b + $c;
+    return b + c;
 }
 
-var $a = @test;
-var $b = 123;
-var $c = 456;
-var $d = $a($b, $c);
-var $e = @assert;
-var $f = [10];
-$f[5] = [12];
-$f[5][2] = @assert;
+var a = test;
+var b = 123;
+var c = 456;
+var d = a(b, c);
+var e = assert;
+var f = [10];
+f[5] = [12];
+f[5][2] = assert;
 
-assert($d == ($b + $c));
-assert($a == @test);
-assert($e == @assert);
-assert($f[5][2] == $e);
+assert(d == (b + c));
+assert(a == test);
+assert(e == assert);
+assert(f[5][2] == e);
 
-$e(true);
-$f[5][2](true);
-@assert(true);
+e(true);
+f[5][2](true);
+assert(true);
 
-var $g = function(var $rt, var $as, var $we)
+var g = function(var rt, var aas, var we)
 {
-	return $rt + $as + $we;
+	return rt + aas + we;
 };
 
-assert($g(456, 789, 123) == 456 + 789 + 123);
-assert(function(var $zxc, var $vbn) { return $zxc - $vbn; }(10, 5) == 10 - 5);
+assert(g(456, 789, 123) == 456 + 789 + 123);
+assert(function(var zxc, var vbn) { return zxc - vbn; }(10, 5) == 10 - 5);

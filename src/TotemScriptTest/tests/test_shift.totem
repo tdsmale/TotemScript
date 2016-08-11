@@ -1,24 +1,24 @@
-var $a = {};
-$a["test"] = 123;
+var a = {};
+a["test"] = 123;
 
-var $b << $a["test"];
-assert(($a as int) == 0);
-assert($b == 123);
+var b << a["test"];
+assert((a as int) == 0);
+assert(b == 123);
 
-$a << $b;
-assert($b != $a);
-assert($b == null);
-assert($a == 123);
+a << b;
+assert(b != a);
+assert(b == null);
+assert(a == 123);
 
-$b = [1];
-$b[0] = 456;
-$a << $b[0];
-assert($b is array);
-assert(($b as int) == 1);
-assert($b[0] == null);
-assert($a == 456);
+b = [1];
+b[0] = 456;
+a << b[0];
+assert(b is array);
+assert((b as int) == 1);
+assert(b[0] == null);
+assert(a == 456);
 
-$b[0] << $a;
-assert($b[0] == 456);
-assert($b[0] != $a);
-assert($a == null);
+b[0] << a;
+assert(b[0] == 456);
+assert(b[0] != a);
+assert(a == null);
