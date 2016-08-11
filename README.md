@@ -214,7 +214,6 @@ co = 123;
 
 ```
 ### Feature Creep
-* Remove variable & pointer prefixes
 * Break statement
 * Continue statement
 * Array ranges e.g. var x = [ 0 .. 12 ];
