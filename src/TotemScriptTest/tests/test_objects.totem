@@ -29,3 +29,8 @@ assert(d == "hello!");
 
 obj.invoke = function(var a, var b) { return a + b; };
 assert(obj.invoke(123, 456) == 123 + 456);
+
+var y = { 123:456, "789":"Hello!" };
+assert(y["123"] == 456);
+assert(y[789] == "Hello!");
+assert((y as int) == 2);

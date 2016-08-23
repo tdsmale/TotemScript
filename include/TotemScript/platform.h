@@ -72,6 +72,7 @@
 #define TOTEM_MSC
 #define TOTEM_INLINE __forceinline
 #define TOTEM_CDECL _cdecl
+#define TOTEM_UNREACHABLE() __assume(0)
 #define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
 #define PATH_MAX (_MAX_PATH)
 #define totem_chdir _chdir
@@ -84,6 +85,7 @@
 #define TOTEM_CDECL __attribute__((cdecl))
 #define TOTEM_THREADED_DISPATCH
 #define totem_snprintf snprintf
+#define TOTEM_UNREACHABLE() __builtin_unreachable()
 #define totem_chdir chdir
 #endif
 
@@ -93,6 +95,7 @@
 #define TOTEM_CDECL __attribute__((cdecl))
 #define TOTEM_THREADED_DISPATCH
 #define totem_snprintf snprintf
+#define TOTEM_UNREACHABLE() __builtin_unreachable()
 #define totem_chdir chdir
 #endif
 
@@ -156,22 +159,37 @@ typedef size_t totemCwdSize_t;
 #define totemLock_Release pthread_mutex_unlock
 #endif
 
+// gc options
+
+// ref-counting frees memory quickly and deterministically, but adds more program overhead
+#define TOTEM_GCTYPE_REFCOUNTING (0)
+
+// mark-and-sweep adds less overall program overhead, but makes it more difficult to predict when memory is actually freed
+#define TOTEM_GCTYPE_MARKANDSWEEP (1)
+
+#define TOTEM_GCTYPE (TOTEM_GCTYPE_MARKANDSWEEP)
+#define TOTEM_GCTYPE_ISREFCOUNTING (TOTEM_GCTYPE == TOTEM_GCTYPE_REFCOUNTING)
+#define TOTEM_GCTYPE_ISMARKANDSWEEP (TOTEM_GCTYPE == TOTEM_GCTYPE_MARKANDSWEEP)
+
 // compiliation options
 
-// global values are cached in local scope
-// globals are accessed less often, but synchronization is required when exiting scope
+// global values are cached in local scope when not directly accessible
+// globals are accessed less often, but synchronization is still required when exiting/entering scope
 #define TOTEM_EVALOPT_GLOBAL_CACHE (1)
 
 // vm options
 
 // globals, functions & constants up to TOTEM_MAX_LOCAL_REGISTERS don't need moving to local scope to be accessible
 // all register accesses become slightly more expensive
-// halves maximum number of local registers, but uses far less of them
-// lowers total number of instructions
+// halves maximum number of local registers, but uses less of them
+// lowers total number of instructions since synchronization with global scope is rarely needed
 #define TOTEM_VMOPT_GLOBAL_OPERANDS (1)
 
-// forces bytecode interpreter to use computed gotos instead of a switch statement
+// bytecode interpreter uses computed gotos for instruction dispatch instead of a switch statement
 // theoretically better performance (better branch prediction), but not supported on every platform
 #define TOTEM_VMOPT_THREADED_DISPATCH (defined(TOTEM_THREADED_DISPATCH))
+
+// interpreter attempts to simulate the performance advantage of computed gotos by using a separate switch statement for every dispatch
+#define TOTEM_VMOPT_SIMULATED_THREADED_DISPATCH (0)
 
 #endif

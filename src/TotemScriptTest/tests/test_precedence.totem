@@ -1,0 +1,10 @@
+let a = 1;
+let b = 2;
+let c = 3;
+let d = 4;
+let e = 5;
+
+let f = ( a + b ) + e * c / a + b * c;
+let g = ( a + ( b ) ) + ( ( e * ( c / a ) ) + ( b * ( c ) ) );
+
+assert(f == g);

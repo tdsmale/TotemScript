@@ -10,6 +10,7 @@
 #define TOTEMSCRIPT_BASE_H
 
 #include <TotemScript/platform.h>
+#include <TotemScript/opcodes.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -63,7 +64,7 @@ extern "C" {
 #define TOTEM_ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
 #define TOTEM_STRING_LITERAL_SIZE(x) (TOTEM_ARRAY_SIZE(x) - 1)
 #define TOTEM_STRINGIFY_CASE(x) case x: return #x
-#define TOTEM_STATIC_ASSERT(test, explanation) { char assert[(test) ? 1 : -1]; (void)assert; }
+#define TOTEM_STATIC_ASSERT(test, explanation) { static char _assert[(test) ? 1 : -1]; (void)_assert; }
     
 #define TOTEM_BITMASK(start, length) (((((unsigned)1) << (length)) - 1) << (start))
 #define TOTEM_HASBITS(i, mask) (((i) & (mask)) == (mask))
@@ -74,6 +75,7 @@ extern "C" {
 #define TOTEM_GETBITS_OFFSET(i, mask, offset) (TOTEM_GETBITS((i), (mask)) >> (offset))
 #define TOTEM_SETBITS_OFFSET(i, mask, offset) (TOTEM_SETBITS((i), ((mask) << (offset))))
 #define TOTEM_UNSETBITS_OFFSET(i, mask, offset) (TOTEM_UNSETBITS((i), ((mask) << (offset))))
+#define TOTEM_FORCEBIT(i, oneOrZero, offset) ((TOTEM_UNSETBITS_OFFSET((i), 1, (offset))) | (TOTEM_SETBITS_OFFSET((i), (!!(oneOrZero)), (offset))))
 #define TOTEM_MAXVAL_UNSIGNED(numBits) ((1 << (numBits)) - 1)
 #define TOTEM_MINVAL_UNSIGNED(numBits) (0)
 #define TOTEM_MAXVAL_SIGNED(numBits) ((totemOperandXSigned)TOTEM_MAXVAL_UNSIGNED((numBits) - 1))
@@ -161,35 +163,9 @@ extern "C" {
      */
     enum
     {
-        totemOperationType_Move = 0,                // A = B
-        totemOperationType_Add = 1,                 // A = B + C
-        totemOperationType_Subtract = 2,            // A = B - C
-        totemOperationType_Multiply = 3,            // A = B * C
-        totemOperationType_Divide = 4,              // A = B / C
-        totemOperationType_Equals = 5,              // A = B == C
-        totemOperationType_NotEquals = 6,           // A = B != C
-        totemOperationType_LessThan = 7,            // A = B < C
-        totemOperationType_LessThanEquals = 8,      // A = B <= C
-        totemOperationType_MoreThan = 9,            // A = B > C
-        totemOperationType_MoreThanEquals = 10,     // A = B >= C
-        totemOperationType_LogicalOr = 11,          // A = B || C
-        totemOperationType_LogicalAnd = 12,         // A = B && C
-        totemOperationType_ConditionalGoto = 13,    // if(A is 0) skip Bx instructions (can be negative)
-        totemOperationType_Goto = 14,               // skip Ax instructions (can be negative)
-        totemOperationType_FunctionArg = 15,        // A is register to pass, Bx is number of arguments total
-        totemOperationType_Return = 16,             // return A,
-        totemOperationType_NewArray = 17,           // A = array of size B
-        totemOperationType_ComplexGet = 18,         // A = B[C]
-        totemOperationType_ComplexSet = 19,         // A[B] = C
-        totemOperationType_MoveToLocal = 20,        // A = Bx
-        totemOperationType_MoveToGlobal = 21,       // Bx = A
-        totemOperationType_Is = 22,                 // A = B is C
-        totemOperationType_As = 23,                 // A = B as C
-        totemOperationType_Invoke = 24,				// A = return
-        totemOperationType_NewObject = 25,			// A = new object
-        totemOperationType_ComplexShift = 26,		// A << B[C]
-        totemOperationType_PreInvoke = 27,			// B(C)
-        totemOperationType_LogicalNegate = 28,		// A = !B
+#define TOTEM_OPCODE_FORMAT(x) x,
+        TOTEM_OPCODES
+#undef TOTEM_OPCODE_FORMAT
         totemOperationType_Max = 31
     };
     typedef uint8_t totemOperationType;
@@ -331,7 +307,7 @@ extern "C" {
     void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start);
     totemBool totem_getcwd(char *buffer, size_t size);
     
-    uint32_t totem_Hash(const void *data, size_t len);
+    totemHash totem_Hash(const void *data, size_t len);
     void totem_SetMemoryCallbacks(totemMallocCb malloc, totemFreeCb free);
     void totem_SetHashCallback(totemHashCb hash);
     

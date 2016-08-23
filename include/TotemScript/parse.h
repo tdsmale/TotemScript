@@ -148,6 +148,7 @@ extern "C" {
         totemBinaryOperatorType_Shift,
     }
     totemBinaryOperatorType;
+    const char *totemBinaryOperatorType_Describe(totemBinaryOperatorType type);
     
     typedef enum
     {
@@ -291,10 +292,16 @@ extern "C" {
     totemVariablePrototype;
     
     struct totemExpressionPrototype;
-    struct totemArrayMemberPrototype;
-    struct totemNewArrayPrototype;
     
-    typedef struct totemNewArrayPrototype
+    typedef struct
+    {
+        struct totemExpressionPrototype *Keys;
+        struct totemExpressionPrototype *Values;
+        size_t Num;
+    }
+    totemNewObjectPrototype;
+    
+    typedef struct
     {
         struct totemExpressionPrototype *Accessor;
         totemBool isInitList;
@@ -313,6 +320,7 @@ extern "C" {
             totemString *Identifier;
             struct totemFunctionDeclarationPrototype *FunctionDeclaration;
             totemNewArrayPrototype *NewArray;
+            totemNewObjectPrototype *NewObject;
             totemPublicDataType DataType;
             totemBool Boolean;
         };
@@ -342,8 +350,17 @@ extern "C" {
     }
     totemPostUnaryOperatorPrototype;
     
+    typedef enum
+    {
+        totemExpressionPrototypeFlag_None = 0,
+        totemExpressionPrototypeFlag_ShiftSource = 1
+    }
+    totemExpressionPrototypeFlag;
+    
     typedef struct totemExpressionPrototype
     {
+        totemBufferPositionInfo Position;
+        
         union
         {
             struct totemExpressionPrototype *LValueExpression;
@@ -357,8 +374,7 @@ extern "C" {
         totemPostUnaryOperatorPrototype *PostUnaryOperators;
         totemBinaryOperatorType BinaryOperator;
         totemLValueType LValueType;
-        
-        totemBufferPositionInfo Position;
+        totemExpressionPrototypeFlag Flags;
     }
     totemExpressionPrototype;
     
@@ -524,6 +540,7 @@ extern "C" {
     totemParseStatus totemExpressionPrototype_ParseParameterList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree, totemTokenType start, totemTokenType end, totemTokenType split);
     totemParseStatus totemExpressionPrototype_ParseParameterInList(totemExpressionPrototype **first, totemExpressionPrototype **last, totemParseTree *tree, totemTokenType end, totemTokenType split);
     totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument,  totemParseTree *tree);
+    totemParseStatus totemNewObjectPrototype_Parse(totemNewObjectPrototype *obj, totemParseTree *tree);
     totemParseStatus totemNewArrayPrototype_Parse(totemNewArrayPrototype *arr, totemParseTree *tree);
     totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, totemParseTree *tree);
     totemParseStatus totemVariablePrototype_ParseParameterList(totemVariablePrototype **first, totemVariablePrototype **last, totemParseTree *tree);

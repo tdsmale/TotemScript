@@ -78,8 +78,8 @@ static totemTokenDesc s_reservedWordValues[] =
 
 #define TOTEM_LEX_ISWHITESPACE(c) (*c == '\n' || *c == '\t' || *c == '\r' || *c == ' ')
 #define TOTEM_LEX_ALLOC(dest, list, start, len, cat, type) \
-    dest = totemTokenList_Alloc(list, start, len, list->CurrentLine, list->CurrentChar, cat, type); \
-    if(!dest) return totemLexStatus_OutOfMemory;
+dest = totemTokenList_Alloc(list, start, len, list->CurrentLine, list->CurrentChar, cat, type); \
+if(!dest) return totemLexStatus_OutOfMemory;
 #define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
 
 void totemToken_Print(FILE *target, totemToken *token)

@@ -42,13 +42,6 @@ extern "C" {
     
     typedef enum
     {
-        totemEvalExpressionFlag_None = 0,
-        totemEvalExpressionFlag_Shift = 1
-    }
-    totemEvalExpressionFlag;
-    
-    typedef enum
-    {
         totemRegisterPrototypeFlag_None = 0,
         totemRegisterPrototypeFlag_IsConst = 1,
         totemRegisterPrototypeFlag_IsAssigned = 1 << 1,
@@ -230,7 +223,7 @@ extern "C" {
     totemEvalStatus totemDoWhileLoopPrototype_Eval(totemDoWhileLoopPrototype *doWhileLoop, totemBuildPrototype *build);
     totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totemBuildPrototype *build);
     totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totemBuildPrototype *build);
-    totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemOperandRegisterPrototype *lValueHint, totemOperandRegisterPrototype *value, totemEvalExpressionFlag exprFlags);
+    totemEvalStatus totemExpressionPrototype_Eval(totemExpressionPrototype *expression, totemBuildPrototype *build, totemOperandRegisterPrototype *lValueHint, totemOperandRegisterPrototype *value);
     totemEvalStatus totemArgumentPrototype_Eval(totemArgumentPrototype *argument, totemBuildPrototype *build, totemOperandRegisterPrototype *hint, totemOperandRegisterPrototype *value);
     totemEvalStatus totemNewArrayPrototype_Eval(totemNewArrayPrototype *newArray, totemBuildPrototype *build, totemOperandRegisterPrototype *hint, totemOperandRegisterPrototype *value);
     totemEvalStatus totemVariablePrototype_Eval(totemVariablePrototype *variable, totemBuildPrototype *build, totemOperandRegisterPrototype *index);

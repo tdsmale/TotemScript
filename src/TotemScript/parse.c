@@ -19,6 +19,49 @@
 #define TOTEM_PARSE_ENFORCENOTTOKEN(tree, token, type) if(token->Type == type) return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &token->Position);
 #define TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, token) token++; TOTEM_PARSE_ENFORCENOTTOKEN(tree, token, totemTokenType_EndScript);
 
+// binary operator precedence table
+// higher level = higher priority
+#define TOTEM_PARSE_PRIORITY_LEFT(level, type) [type] = { level, level }
+#define TOTEM_PARSE_PRIORITY_RIGHT(level, type) [type] = { level, level - 1 }
+static const struct
+{
+    int Left, Right;
+}
+s_binaryPriority[] =
+{
+    TOTEM_PARSE_PRIORITY_LEFT(0, totemBinaryOperatorType_None),
+    
+    TOTEM_PARSE_PRIORITY_RIGHT(2, totemBinaryOperatorType_Assign),
+    TOTEM_PARSE_PRIORITY_RIGHT(2, totemBinaryOperatorType_PlusAssign),
+    TOTEM_PARSE_PRIORITY_RIGHT(2, totemBinaryOperatorType_MinusAssign),
+    TOTEM_PARSE_PRIORITY_RIGHT(2, totemBinaryOperatorType_MultiplyAssign),
+    TOTEM_PARSE_PRIORITY_RIGHT(2, totemBinaryOperatorType_DivideAssign),
+    TOTEM_PARSE_PRIORITY_RIGHT(2, totemBinaryOperatorType_Shift),
+    
+    TOTEM_PARSE_PRIORITY_LEFT(3, totemBinaryOperatorType_LogicalOr),
+    
+    TOTEM_PARSE_PRIORITY_LEFT(4, totemBinaryOperatorType_LogicalAnd),
+    
+    TOTEM_PARSE_PRIORITY_LEFT(5, totemBinaryOperatorType_Equals),
+    TOTEM_PARSE_PRIORITY_LEFT(5, totemBinaryOperatorType_NotEquals),
+    TOTEM_PARSE_PRIORITY_LEFT(5, totemBinaryOperatorType_IsType),
+    
+    TOTEM_PARSE_PRIORITY_LEFT(6, totemBinaryOperatorType_MoreThan),
+    TOTEM_PARSE_PRIORITY_LEFT(6, totemBinaryOperatorType_LessThan),
+    TOTEM_PARSE_PRIORITY_LEFT(6, totemBinaryOperatorType_MoreThanEquals),
+    TOTEM_PARSE_PRIORITY_LEFT(6, totemBinaryOperatorType_LessThanEquals),
+    
+    TOTEM_PARSE_PRIORITY_LEFT(7, totemBinaryOperatorType_Plus),
+    TOTEM_PARSE_PRIORITY_LEFT(7, totemBinaryOperatorType_Minus),
+    
+    TOTEM_PARSE_PRIORITY_LEFT(8, totemBinaryOperatorType_Multiply),
+    TOTEM_PARSE_PRIORITY_LEFT(8, totemBinaryOperatorType_Divide),
+    
+    TOTEM_PARSE_PRIORITY_LEFT(9, totemBinaryOperatorType_AsType),
+    
+#undef TOTEM_PARSE_PRIORITY_LEVEL
+};
+
 void *totemParseTree_Alloc(totemParseTree *tree, size_t objectSize)
 {
     return totemMemoryBlock_Alloc(&tree->LastMemBlock, objectSize);
@@ -492,7 +535,7 @@ totemParseStatus totemFunctionDeclarationPrototype_Parse(totemFunctionDeclaratio
     return totemParseStatus_Success;
 }
 
-totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expression, totemParseTree *tree)
+totemParseStatus totemExpressionPrototype_ParseSub(totemExpressionPrototype *expression, totemParseTree *tree, int priority)
 {
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
     TOTEM_PARSE_COPYPOSITION(tree->CurrentToken, expression);
@@ -546,15 +589,45 @@ totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expres
         }
     }
     
-    TOTEM_PARSE_CHECKRETURN(totemBinaryOperatorType_Parse(&expression->BinaryOperator, tree));
+    totemExpressionPrototype *lValue = expression;
+    totemToken *restore = tree->CurrentToken;
+    TOTEM_PARSE_CHECKRETURN(totemBinaryOperatorType_Parse(&lValue->BinaryOperator, tree));
+    totem_assert(lValue->BinaryOperator < TOTEM_ARRAY_SIZE(s_binaryPriority));
     
-    if(expression->BinaryOperator != totemBinaryOperatorType_None)
+    totemBinaryOperatorType lastOp = lValue->BinaryOperator;
+    while (lValue->BinaryOperator != totemBinaryOperatorType_None && priority < s_binaryPriority[lValue->BinaryOperator].Left)
     {
-        TOTEM_PARSE_ALLOC(expression->RValue, totemExpressionPrototype, tree);
-        TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(expression->RValue, tree));
+        TOTEM_PARSE_ALLOC(lValue->RValue, totemExpressionPrototype, tree);
+        TOTEM_PARSE_ALLOC(lValue->RValue->LValueExpression, totemExpressionPrototype, tree);
+        lValue->RValue->LValueType = totemLValueType_Expression;
+        lValue->RValue->Flags = totemExpressionPrototypeFlag_None;
+        lValue->RValue->LValueExpression->Flags = totemExpressionPrototypeFlag_None;
+        TOTEM_PARSE_COPYPOSITION(tree->CurrentToken, lValue->RValue);
+        
+        if (lastOp == totemBinaryOperatorType_Shift)
+        {
+            TOTEM_SETBITS(lValue->RValue->LValueExpression->Flags, totemExpressionPrototypeFlag_ShiftSource);
+        }
+        
+        TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_ParseSub(lValue->RValue->LValueExpression, tree, s_binaryPriority[lValue->BinaryOperator].Right));
+        lValue = lValue->RValue;
+        
+        restore = tree->CurrentToken;
+        TOTEM_PARSE_CHECKRETURN(totemBinaryOperatorType_Parse(&lValue->BinaryOperator, tree));
+        totem_assert(lValue->BinaryOperator < TOTEM_ARRAY_SIZE(s_binaryPriority));
+        lastOp = lValue->BinaryOperator;
     }
     
+    lValue->BinaryOperator = totemBinaryOperatorType_None;
+    tree->CurrentToken = restore;
+    
     return totemParseStatus_Success;
+}
+
+totemParseStatus totemExpressionPrototype_Parse(totemExpressionPrototype *expression, totemParseTree *tree)
+{
+    expression->Flags = totemExpressionPrototypeFlag_None;
+    return totemExpressionPrototype_ParseSub(expression, tree, 0);
 }
 
 totemParseStatus totemPreUnaryOperatorPrototype_Parse(totemPreUnaryOperatorPrototype **type, totemParseTree *tree)
@@ -870,22 +943,12 @@ totemParseStatus totemVariablePrototype_Parse(totemVariablePrototype *variable, 
     switch(tree->CurrentToken->Type)
     {
         case totemTokenType_Let:
-            if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration))
-            {
-                return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
-            }
-            
             TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsConst);
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
             TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
             break;
             
         case totemTokenType_Var:
-            if (TOTEM_HASBITS(variable->Flags, totemVariablePrototypeFlag_IsConst))
-            {
-                return totemParseTree_Break(tree, totemParseStatus_UnexpectedToken, &tree->CurrentToken->Position);
-            }
-            
             TOTEM_SETBITS(variable->Flags, totemVariablePrototypeFlag_IsDeclaration);
             TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
             TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
@@ -1059,11 +1122,9 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
             
             // new object
         case totemTokenType_LCBracket:
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
-            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-            TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_RCBracket);
-            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
             argument->Type = totemArgumentType_NewObject;
+            TOTEM_PARSE_ALLOC(argument->NewObject, totemNewObjectPrototype, tree);
+            TOTEM_PARSE_CHECKRETURN(totemNewObjectPrototype_Parse(argument->NewObject, tree));
             break;
             
             // new array
@@ -1136,6 +1197,65 @@ totemParseStatus totemArgumentPrototype_Parse(totemArgumentPrototype *argument, 
     
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
     
+    return totemParseStatus_Success;
+}
+
+totemParseStatus totemNewObjectPrototype_Parse(totemNewObjectPrototype *obj, totemParseTree *tree)
+{
+    TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_LCBracket);
+    TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+    TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+    
+    totemExpressionPrototype *keys = NULL;
+    totemExpressionPrototype *values = NULL;
+    obj->Num = 0;
+    
+    while (tree->CurrentToken->Type != totemTokenType_RCBracket)
+    {
+        if (obj->Keys)
+        {
+            TOTEM_PARSE_ALLOC(obj->Keys->Next, totemExpressionPrototype, tree);
+            obj->Keys = obj->Keys->Next;
+        }
+        else
+        {
+            TOTEM_PARSE_ALLOC(keys, totemExpressionPrototype, tree);
+            obj->Keys = keys;
+        }
+        
+        TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(obj->Keys, tree));
+        TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+        TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Colon);
+        TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+        TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+        
+        if (obj->Values)
+        {
+            TOTEM_PARSE_ALLOC(obj->Values->Next, totemExpressionPrototype, tree);
+            obj->Values = obj->Values->Next;
+        }
+        else
+        {
+            TOTEM_PARSE_ALLOC(values, totemExpressionPrototype, tree);
+            obj->Values = values;
+        }
+        
+        TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(obj->Values, tree));
+        TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+        
+        if (tree->CurrentToken->Type == totemTokenType_Comma)
+        {
+            TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+            TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+        }
+        
+        obj->Num++;
+    }
+    
+    obj->Keys = keys;
+    obj->Values = values;
+    
+    TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
     return totemParseStatus_Success;
 }
 
@@ -1218,6 +1338,36 @@ const char *totemParseStatus_Describe(totemParseStatus status)
             TOTEM_STRINGIFY_CASE(totemParseStatus_Success);
             TOTEM_STRINGIFY_CASE(totemParseStatus_UnexpectedToken);
             TOTEM_STRINGIFY_CASE(totemParseStatus_ValueTooLarge);
+    }
+    
+    return "UNKNOWN";
+}
+
+const char *totemBinaryOperatorType_Describe(totemBinaryOperatorType type)
+{
+    switch (type)
+    {
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_Assign);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_AsType);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_Divide);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_DivideAssign);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_Equals);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_IsType);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_LessThan);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_LessThanEquals);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_LogicalAnd);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_LogicalOr);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_Minus);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_MinusAssign);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_MoreThan);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_MoreThanEquals);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_Multiply);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_MultiplyAssign);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_None);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_NotEquals);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_Plus);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_PlusAssign);
+            TOTEM_STRINGIFY_CASE(totemBinaryOperatorType_Shift);
     }
     
     return "UNKNOWN";

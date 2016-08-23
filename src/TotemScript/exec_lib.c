@@ -11,16 +11,30 @@
 
 totemExecStatus totemArgV(totemExecState *state)
 {
-    if (state->ArgV)
+    if (!state->CallStack->NumArguments)
     {
-        totemExecState_AssignNewArray(state, state->CallStack->ReturnRegister, state->ArgV);
+        printf("no arguments argv\n");
+        return totemExecStatus_Break(totemExecStatus_Stop);
+    }
+    
+    totemRegister *arg = &state->LocalRegisters[0];
+    
+    if (arg->DataType != totemPrivateDataType_Int)
+    {
+        printf("expected int argv\n");
+        return totemExecStatus_Break(totemExecStatus_Stop);
+    }
+    
+    if (!state->ArgV || arg->Value.Int >= state->ArgC)
+    {
+        totemExecState_AssignNull(state, state->CallStack->ReturnRegister);
+        return totemExecStatus_Continue;
     }
     else
     {
-        totemExecState_AssignNull(state, state->CallStack->ReturnRegister);
+        totemString str = TOTEM_STRING_VAL(state->ArgV[arg->Value.Int]);
+        return totemExecState_InternString(state, &str, state->CallStack->ReturnRegister);
     }
-    
-    return totemExecStatus_Continue;
 }
 
 totemExecStatus totemPrint(totemExecState *state)
@@ -38,18 +52,28 @@ totemExecStatus totemAssert(totemExecState *state)
 {
     if (!state->CallStack->NumArguments)
     {
-        return totemExecStatus_Stop;
+        printf("no arguments assert\n");
+        return totemExecStatus_Break(totemExecStatus_Stop);
     }
     
     totemRegister *reg = &state->LocalRegisters[0];
-    return reg->Value.Data ? totemExecStatus_Continue : totemExecStatus_Stop;
+    if (reg->Value.Data)
+    {
+        return totemExecStatus_Continue;
+    }
+    else
+    {
+        printf("assertion failed\n");
+        return totemExecStatus_Stop;
+    }
 }
 
 totemExecStatus totemSqrt(totemExecState *state)
 {
     if (!state->CallStack->NumArguments)
     {
-        return totemExecStatus_Stop;
+        printf("no arguments sqrt\n");
+        return totemExecStatus_Break(totemExecStatus_Stop);
     }
     
     totemRegister *reg = &state->LocalRegisters[0];
@@ -67,17 +91,17 @@ totemExecStatus totemSqrt(totemExecState *state)
     return totemExecStatus_Continue;
 }
 
-void totemFileDestructor(totemExecState *state, totemUserdata *data)
+void totemFileDestructor(totemExecState *state, void *data)
 {
-    FILE *f = (FILE*)data->Data;
-    fclose(f);
+    fclose((FILE*)data);
 }
 
 totemExecStatus totemFOpen(totemExecState *state)
 {
     if (state->CallStack->NumArguments < 2)
     {
-        return totemExecStatus_Stop;
+        printf("no arguments fopen\n");
+        return totemExecStatus_Break(totemExecStatus_Stop);
     }
     
     totemRegister *srcReg = &state->LocalRegisters[0];
@@ -89,11 +113,12 @@ totemExecStatus totemFOpen(totemExecState *state)
     FILE *f = totem_fopen(src, mode);
     if (!f)
     {
-        return totemExecStatus_Stop;
+        printf("could not open file\n");
+        return totemExecStatus_Break(totemExecStatus_Stop);
     }
     
     totemGCObject *gc = NULL;
-    totemExecStatus status = totemExecState_CreateUserdata(state, f, totemFileDestructor, &gc);
+    totemExecStatus status = totemExecState_CreateUserdata(state, (void*)f, totemFileDestructor, &gc);
     if (status != totemExecStatus_Continue)
     {
         fclose(f);
@@ -112,7 +137,7 @@ totemExecStatus totemGCCollect(totemExecState *state)
 
 totemExecStatus totemGCNum(totemExecState *state)
 {
-    totemExecState_AssignNewInt(state, state->CallStack->ReturnRegister, state->NumGC);
+    totemExecState_AssignNewInt(state, state->CallStack->ReturnRegister, state->GCNum);
     return totemExecStatus_Continue;
 }
 

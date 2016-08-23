@@ -22,7 +22,7 @@ void totem_SetGlobalCallbacks(totemHashCb newHashCb)
     hashCb = newHashCb;
 }
 
-uint32_t totem_Hash(const void *data, size_t len)
+totemHash totem_Hash(const void *data, size_t len)
 {
     if(hashCb)
     {
@@ -31,7 +31,7 @@ uint32_t totem_Hash(const void *data, size_t len)
     
     const char *ptr = data;
     
-    uint32_t hash = 5831;
+    totemHash hash = 5831;
     for(uint32_t i = 0; i < len; ++i)
     {
         hash = 33 * hash + ptr[i];
@@ -284,17 +284,38 @@ void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction)
     fprintf(file, "\n");
 }
 
-size_t totemMiniString_GetLength(char *c)
+size_t totemMiniString_GetLength(totemRuntimeMiniString *c)
 {
     for(size_t i = 0; i < TOTEM_MINISTRING_MAXLENGTH; i++)
     {
-        if(!c[i])
+        if(!c->Value[i])
         {
             return i;
         }
     }
     
     return TOTEM_MINISTRING_MAXLENGTH;
+}
+
+totemBool totemRegister_GetString(totemRegister *reg, const char **str, totemStringLength *len, totemHash *hash)
+{
+    switch (reg->DataType)
+    {
+        case totemPrivateDataType_InternedString:
+            *str = reg->Value.InternedString->Data;
+            *len = reg->Value.InternedString->Length;
+            *hash = reg->Value.InternedString->Hash;
+            return totemBool_True;
+            
+        case totemPrivateDataType_MiniString:
+            *str = reg->Value.MiniString.Value;
+            *len = totemMiniString_GetLength(&reg->Value.MiniString);
+            *hash = totem_Hash(*str, *len);
+            return totemBool_True;
+            
+        default:
+            return totemBool_False;
+    }
 }
 
 totemStringLength totemRegister_GetStringLength(totemRegister *reg)
@@ -305,7 +326,7 @@ totemStringLength totemRegister_GetStringLength(totemRegister *reg)
             return reg->Value.InternedString->Length;
             
         case totemPrivateDataType_MiniString:
-            return totemMiniString_GetLength(reg->Value.MiniString.Value);
+            return totemMiniString_GetLength(&reg->Value.MiniString);
             
         default:
             return 0;
@@ -320,7 +341,7 @@ totemHash totemRegister_GetStringHash(totemRegister *reg)
             return reg->Value.InternedString->Hash;
             
         case totemPrivateDataType_MiniString:
-            return totem_Hash(reg->Value.MiniString.Value, totemMiniString_GetLength(reg->Value.MiniString.Value));
+            return totem_Hash(reg->Value.MiniString.Value, totemMiniString_GetLength(&reg->Value.MiniString));
             
         default:
             return 0;
@@ -340,6 +361,16 @@ const char *totemRegister_GetStringValue(totemRegister *reg)
         default:
             return NULL;
     }
+}
+
+totemBool totemRegister_IsString(totemRegister *reg)
+{
+    return reg->DataType == totemPrivateDataType_InternedString || reg->DataType == totemPrivateDataType_MiniString;
+}
+
+totemBool totemRegister_IsGarbageCollected(totemRegister *reg)
+{
+    return reg->DataType >= totemPrivateDataType_Array && reg->DataType <= totemPrivateDataType_Userdata;
 }
 
 void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, totemRegister *reg, size_t indent)
@@ -364,7 +395,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
         case totemPrivateDataType_InstanceFunction:
         {
             totemRegister val;
-            if (totemScript_GetFunctionName(reg->Value.InstanceFunction->Instance->Script, reg->Value.InstanceFunction->Function->Address, &val.Value, &val.DataType))
+            if (totemScript_GetFunctionName(reg->Value.InstanceFunction->Instance->Instance->Script, reg->Value.InstanceFunction->Function->Address, &val.Value, &val.DataType))
             {
                 fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
             }
@@ -375,7 +406,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
         {
             totemFunctionCall *cr = reg->Value.GCObject->Coroutine;
             totemRegister val;
-            if (totemScript_GetFunctionName(cr->InstanceFunction->Instance->Script, cr->InstanceFunction->Function->Address, &val.Value, &val.DataType))
+            if (totemScript_GetFunctionName(cr->InstanceFunction->Instance->Instance->Script, cr->InstanceFunction->Function->Address, &val.Value, &val.DataType))
             {
                 fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
             }
@@ -398,13 +429,13 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
         case totemPrivateDataType_Object:
         {
             indent += 5;
-            totemObject *obj = reg->Value.GCObject->Object;
+            totemHashMap *obj = reg->Value.GCObject->Object;
             
             fprintf(file, "object {\n");
             
-            for (size_t i = 0; i < obj->Lookup.NumBuckets; i++)
+            for (size_t i = 0; i < obj->NumBuckets; i++)
             {
-                totemHashMapEntry *entry = obj->Lookup.Buckets[i];
+                totemHashMapEntry *entry = obj->Buckets[i];
                 
                 while (entry)
                 {
@@ -414,11 +445,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
                     }
                     
                     fprintf(file, "\"%.*s\": ", (int)entry->KeyLen, entry->Key);
-                    totemRegister *val = totemMemoryBuffer_Get(&obj->Registers, entry->Value);
-                    if (val)
-                    {
-                        totemExecState_PrintRegisterRecursive(state, file, val, indent);
-                    }
+                    totemExecState_PrintRegisterRecursive(state, file, reg->Value.GCObject->Registers + entry->Value, indent);
                     
                     entry = entry->Next;
                 }
@@ -439,20 +466,19 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
         case totemPrivateDataType_Array:
         {
             indent += 5;
-            totemArray *arr = reg->Value.GCObject->Array;
             
-            fprintf(file, "array[%u] {\n", arr->NumRegisters);
+            fprintf(file, "array[%u] {\n", reg->Value.GCObject->NumRegisters);
             
-            for(totemInt i = 0; i < arr->NumRegisters; ++i)
+            for(size_t i = 0; i < reg->Value.GCObject->NumRegisters; ++i)
             {
-                for(size_t i = 0; i < indent; i++)
+                for (size_t j = 0; j < indent; j++)
                 {
                     fprintf(file, " ");
                 }
                 
                 fprintf(file, "%lld: ", i);
                 
-                totemRegister *val = &arr->Registers[i];
+                totemRegister *val = &reg->Value.GCObject->Registers[i];
                 totemExecState_PrintRegisterRecursive(state, file, val, indent);
             }
             
@@ -545,15 +571,10 @@ void totem_Init()
     TOTEM_STATIC_ASSERT(sizeof(totemPublicDataType) == sizeof(totemRegisterValue), "Value-size mismatch");
     TOTEM_STATIC_ASSERT(sizeof(uint64_t) == sizeof(totemRegisterValue), "Value-size mismatch");
     
-    TOTEM_STATIC_ASSERT(&((totemGCObject*)0)->Header.NextHdr == &((totemGCHeader*)0)->NextHdr, "totemGCObject* must be able to masquerade as a totemGCHeader*");
-    
-#ifdef TOTEM_X86
-    TOTEM_STATIC_ASSERT(sizeof(void*) == 4, "Expected pointer size to be 4 bytes");
-#endif
-    
-#ifdef TOTEM_X64
-    TOTEM_STATIC_ASSERT(sizeof(void*) == 8, "Expected pointer size to be 8 bytes");
-#endif
+    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.NextHdr) == offsetof(totemGCHeader, NextHdr), "totemGCObject* must be able to masquerade as a totemGCHeader*");
+    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.PrevHdr) == offsetof(totemGCHeader, PrevHdr), "totemGCObject* must be able to masquerade as a totemGCHeader*");
+    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.NextObj) == offsetof(totemGCHeader, NextObj), "totemGCObject* must be able to masquerade as a totemGCHeader*");
+    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.PrevObj) == offsetof(totemGCHeader, PrevObj), "totemGCObject* must be able to masquerade as a totemGCHeader*");
     
     totem_InitMemory();
 }

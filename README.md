@@ -22,33 +22,33 @@ Variables are dynamically-typed, supporting the following types:
 * null
 ```php
 // variables are declared thusly:
-var va = 123;
+var a = 123;
 
 // variables can hold values of any type
-va = "This is now a string.";
+a = "This is now a string.";
 
 function test()
 {
     // this will reference the variable in global-scope
-    va = 456;
+    a = 456;
 
     // variables can also be declared as read-only
     let x = "This variable cannot be modified";
 
     // values can be typecast
-    va = 123 as string;
+    a = 123 as string;
 
     // can check type at runtime
-    if(va is string)
+    if(a is string)
     {
-        // va is a string!
+        // a is a string!
     }
 
     // can also retrieve type as value
-    type = va as type;
+    var t = a as type;
 
     // values can also be "shifted" from one location to another
-    a << type;
+    a << t;
 }
 ```
 #### Variable Scope
@@ -156,8 +156,8 @@ var val = obj.test;
 
 obj["test"] = 456; // objects can use either bracket-notation or dot-notation
 
-// Objects can store any sort of value, but can only use strings as keys
-obj["test2"] = function(x, y)
+// Objects can store any sort of value
+obj["test2"] = function(var x, var y)
 {
     return x * y;
 };
@@ -172,6 +172,13 @@ for(var i = 0; i < 20; i++)
 {
     obj[key][i] = i;
 }
+
+// non-string keys are implicitly cast to strings
+obj[123] = 456;
+assert(obj[123] == obj[(123 as string)]);
+
+// objects can be initialized with values just like arrays
+var y = { 123:456, "789":"Hello!" };
 
 // values can be removed by shifting them out
 key << obj[key];
@@ -214,20 +221,26 @@ co = 123;
 
 ```
 ### Feature Creep
-* Break statement
-* Continue statement
-* Array ranges e.g. var x = [ 0 .. 12 ];
-* Object init lists e.g. var x = { "a":123, b:c };
-* Object/Array keys - anything not valid is implicitly cast to the correct type
+* Break statement (e.g. break 2;)
+* Continue statement (e.g. continue 2;)
+* Switch statement
 * Strict compile-time type-hinting e.g. var x:int = 4;
 * Investigate NaN-boxing for representing register values more efficiently
 * Investigate equalizing the size of all operands (including opcodes) to a single byte
  * Will expand total number of possible opcodes, making room for more specialised operations
  * Won't waste operands on certain opcodes
-* Operator precedence
+ * Won't need to do any bitshifting during interpretation
 * #import statement 
- * same as #include, but stored in a local variable  e.g. #import math.totem as math; math.abs(a);
+ * same as #include, but stored in a local variable e.g. #import math.totem as math; math.abs(a);
  * global variables are inaccessible
- * modules get stored in execState and are ran once when loaded
+ * modules get cached locally to execState and are ran once when linked
 * make #include & #import part of the parser
 * bytecode serialization
+* erlang-style records that eval to arrays
+ * public / private
+ * inheritance / protected
+ * compile-time duck-typing
+ * requires type-hinted variables
+ * "as" is disallowed by default
+ * "is" is determined at compile-time
+ * operator overloading

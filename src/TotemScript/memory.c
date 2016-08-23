@@ -79,7 +79,9 @@ void totem_InitMemory()
     memset(&s_FreeLists, 0, sizeof(s_FreeLists));
     for (size_t i = 0; i < TOTEM_MEM_NUM_FREELISTS; i++)
     {
-        totemLock_Init(&s_FreeLists[i].Lock);
+        totemMemoryFreeList *freeList = &s_FreeLists[i];
+        totemLock_Init(&freeList->Lock);
+        freeList->ObjectSize = (i + 1) * sizeof(totemMemoryPageObject);
     }
     
     mallocCb = NULL;
@@ -121,18 +123,15 @@ totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount)
     }
     
     size_t index = amount / TOTEM_MEM_FREELIST_DIVISOR;
-    if(amount % TOTEM_MEM_FREELIST_DIVISOR != 0)
-    {
-        index++;
-    }
-    
-    size_t actualAmount = index * TOTEM_MEM_FREELIST_DIVISOR;
-    index -= (sizeof(totemMemoryPageObject) / TOTEM_MEM_FREELIST_DIVISOR);
+    index += (amount % TOTEM_MEM_FREELIST_DIVISOR != 0);
+    index--;
     
     totemMemoryFreeList *list = &s_FreeLists[index];
     
-    list->ObjectSize = actualAmount;
-    return &s_FreeLists[index];
+    totem_assert(amount <= list->ObjectSize);
+    totem_assert(list == &s_FreeLists[0] ? 1 : amount > (list - 1)->ObjectSize);
+    
+    return list;
 }
 
 void *totem_CacheMalloc(size_t amount)

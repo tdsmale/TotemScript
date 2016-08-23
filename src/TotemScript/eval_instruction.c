@@ -12,10 +12,10 @@
 #include <string.h>
 
 #define TOTEM_EVAL_SETINSTRUCTIONBITS(ins, val, min, max, start) \
-if ((val) > (max) || (val) < (min)) \
-{ \
-    return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow); \
-} \
+    if ((val) > (max) || (val) < (min)) \
+    { \
+        return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow); \
+    } \
 TOTEM_SETBITS_OFFSET(ins, val, start);
 
 totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope, uint32_t start)

@@ -20,20 +20,17 @@ totemLinkStatus totemLinkStatus_Break(totemLinkStatus status)
 
 void totemInstance_Init(totemInstance *instance)
 {
-    totemMemoryBuffer_Init(&instance->GlobalRegisters, sizeof(totemRegister));
     totemMemoryBuffer_Init(&instance->LocalFunctions, sizeof(totemInstanceFunction));
     instance->Script = NULL;
 }
 
 void totemInstance_Reset(totemInstance *instance)
 {
-    totemMemoryBuffer_Reset(&instance->GlobalRegisters);
     totemMemoryBuffer_Reset(&instance->LocalFunctions);
 }
 
 void totemInstance_Cleanup(totemInstance *instance)
 {
-    totemMemoryBuffer_Cleanup(&instance->GlobalRegisters);
     totemMemoryBuffer_Cleanup(&instance->LocalFunctions);
 }
 
@@ -80,48 +77,6 @@ totemBool totemScript_GetFunctionName(totemScript *script, totemOperandXUnsigned
     *dataTypeOut = name->DataType;
     memcpy(valOut, &name->Value, sizeof(totemRegisterValue));
     return totemBool_True;
-}
-
-totemLinkStatus totemScript_LinkInstance(totemScript *script, totemInstance *instance)
-{
-    totemInstance_Reset(instance);
-    
-    instance->Script = script;
-    
-    // copy initial global register state
-    if (!totemMemoryBuffer_TakeFrom(&instance->GlobalRegisters, &script->GlobalRegisters))
-    {
-        return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
-    }
-    
-    // setup instance functions
-    size_t numFunctions = totemMemoryBuffer_GetNumObjects(&script->Functions);
-    if (!totemMemoryBuffer_Secure(&instance->LocalFunctions, numFunctions))
-    {
-        return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
-    }
-    
-    for (size_t i = 0; i < numFunctions; i++)
-    {
-        totemInstanceFunction *instanceFunc = totemMemoryBuffer_Get(&instance->LocalFunctions, i);
-        totemScriptFunction *scriptFunc = totemMemoryBuffer_Get(&script->Functions, i);
-        
-        instanceFunc->Function = scriptFunc;
-        instanceFunc->Instance = instance;
-    }
-    
-    // fix instance function pointers
-    size_t numGlobalRegisters = totemMemoryBuffer_GetNumObjects(&instance->GlobalRegisters);
-    for (size_t i = 0; i < numGlobalRegisters; i++)
-    {
-        totemRegister *reg = totemMemoryBuffer_Get(&instance->GlobalRegisters, i);
-        if (reg->DataType == totemPrivateDataType_InstanceFunction)
-        {
-            reg->Value.InstanceFunction = totemMemoryBuffer_Get(&instance->LocalFunctions, (size_t)reg->Value.Data);
-        }
-    }
-    
-    return totemLinkStatus_Success;
 }
 
 void totemRuntime_Init(totemRuntime *runtime)
@@ -566,65 +521,35 @@ totemExecStatus totemExecState_InternString(totemExecState *state, totemString *
     return totemExecStatus_Continue;
 }
 
-void totemExecState_CleanupRegisterList(totemExecState *state, totemRegister *regs, uint32_t num)
+void totemExecState_CleanupRegisterList(totemExecState *state, totemRegister *regs, size_t num)
 {
     for (size_t i = 0; i < num; i++)
     {
         totemRegister *reg = &regs[i];
-        
-        if (TOTEM_REGISTER_ISGC(reg))
-        {
-            totemExecState_DecRefCount(state, reg->Value.GCObject);
-        }
+        totemExecState_DecRefCount(state, reg);
     }
 }
 
 void totemExecState_Init(totemExecState *state)
 {
     memset(state, 0, sizeof(*state));
-    
-    totemGCHeader_Init(&state->GC);
-    totemGCHeader_Init(&state->GC2);
+    totemExecState_InitGC(state);
+    state->GCByteThreshold = 1024 * 1024;
 }
 
-totemExecStatus totemExecState_SetArgV(totemExecState *state, const char **argv, uint32_t num)
+void totemExecState_SetArgV(totemExecState *state, const char **argv, int num)
 {
-    if (state->ArgV)
-    {
-        totemExecState_DecRefCount(state, state->ArgV);
-    }
-    
-    totemGCObject *arr;
-    TOTEM_EXEC_CHECKRETURN(totemExecState_CreateArray(state, num, &arr));
-    totemExecState_IncRefCount(state, arr);
-    
-    totemRegister *regs = arr->Array->Registers;
-    
-    for (uint32_t i = 0; i < num; i++)
-    {
-        totemRegister *dst = &regs[i];
-        totemString str = TOTEM_STRING_VAL(argv[i]);
-        
-        totemExecStatus status = totemExecState_InternString(state, &str, dst);
-        if (status != totemExecStatus_Continue)
-        {
-            totemExecState_DestroyGCObject(state, arr);
-            return status;
-        }
-    }
-    
-    state->ArgV = arr;
-    return totemExecStatus_Continue;
+    state->ArgV = argv;
+    state->ArgC = num;
 }
 
 void totemExecState_Cleanup(totemExecState *state)
 {
     // clean up remaining registers
-    totemExecState_CleanupRegisterList(state, state->LocalRegisters, (uint32_t)state->UsedLocalRegisters);
+    totemExecState_CleanupRegisterList(state, state->LocalRegisters, state->UsedLocalRegisters);
     
     // cleanup remaining gc objects
-    totemExecState_CleanupGCList(state, &state->GC);
-    totemExecState_CleanupGCList(state, &state->GC2);
+    totemExecState_CleanupGC(state);
     
     // function call free-list
     for (totemFunctionCall *call = state->CallStackFreeList; call; )
@@ -651,7 +576,7 @@ void totemExecState_Cleanup(totemExecState *state)
     state->LocalRegisters = NULL;
 }
 
-totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, uint8_t numRegisters, totemInstance *instance, totemRegister *returnReg, totemFunctionType funcType, void *function, totemFunctionCall **callOut)
+totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, uint8_t numRegisters, totemGCObject *instance, totemRegister *returnReg, totemFunctionType funcType, void *function, totemFunctionCall **callOut)
 {
     totemFunctionCall *call = totemExecState_SecureFunctionCall(state);
     if (call == NULL)
@@ -680,7 +605,7 @@ totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, uint8_t n
     // reset registers to be used
     memset(call->FrameStart, 0, numRegisters * sizeof(totemRegister));
     
-    call->CurrentInstance = instance;
+    call->Instance = instance;
     call->ReturnRegister = returnReg;
     call->Type = funcType;
     call->Function = function;
@@ -700,9 +625,9 @@ void totemExecState_PushRoutine(totemExecState *state, totemFunctionCall *call, 
     
     state->LocalRegisters = call->FrameStart;
     
-    if (call->CurrentInstance)
+    if (call->Instance)
     {
-        state->GlobalRegisters = (totemRegister*)call->CurrentInstance->GlobalRegisters.Data;
+        state->GlobalRegisters = call->Instance->Registers;
     }
     
     if (state->CallStack)
@@ -724,7 +649,7 @@ void totemExecState_PopRoutine(totemExecState *state)
     
     if (call->Type == totemFunctionType_Script)
     {
-        state->GlobalRegisters = (totemRegister*)call->CurrentInstance->GlobalRegisters.Data;
+        state->GlobalRegisters = call->Instance->Registers;
     }
     
     if (TOTEM_HASBITS(call->Flags, totemFunctionCallFlag_IsCoroutine))
@@ -768,19 +693,7 @@ void totemExecState_PopRoutine(totemExecState *state)
     state->CallStack = prev;
 }
 
-totemExecStatus totemExecState_UnsafeExec(totemExecState *state, totemInstanceFunction *function, totemRegister *returnRegister)
-{
-    totemFunctionCall *call = NULL;
-    TOTEM_EXEC_CHECKRETURN(totemExecState_CreateSubroutine(state, function->Function->RegistersNeeded, function->Instance, returnRegister, totemFunctionType_Script, function, &call));
-    totemExecState_PushRoutine(state, call, function->Function->InstructionsStart);
-    
-    totemExecState_ExecuteInstructions(state);
-    totemExecState_PopRoutine(state);
-    
-    return totemExecStatus_Continue;
-}
-
-totemExecStatus totemExecState_ProtectedExec(totemExecState *state, totemInstanceFunction *function, totemRegister *returnRegister)
+totemExecStatus totemExecState_Exec(totemExecState *state, totemInstanceFunction *function)
 {
     totemFunctionCall *retain = state->CallStack;
     
@@ -791,10 +704,19 @@ totemExecStatus totemExecState_ProtectedExec(totemExecState *state, totemInstanc
     
     TOTEM_JMP_TRY(node.Buffer)
     {
-        node.Status = totemExecState_UnsafeExec(state, function, returnRegister);
+        totemFunctionCall *call = NULL;
+        node.Status = totemExecState_CreateSubroutine(state, function->Function->RegistersNeeded, function->Instance, NULL, totemFunctionType_Script, function, &call);
+        if (node.Status == totemExecStatus_Continue)
+        {
+            totemExecState_PushRoutine(state, call, function->Function->InstructionsStart);
+            totemExecState_ExecuteInstructions(state);
+            totemExecState_PopRoutine(state);
+        }
     }
     TOTEM_JMP_CATCH(node.Buffer)
     {
+        totemExecState_CollectGarbage(state, totemBool_True);
+        
         // rollback calls
         while (state->CallStack != retain)
         {

@@ -44,10 +44,26 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, num, &dummy, NULL));
                 num++;
             }
+            
+            break;
         }
             
         case totemArgumentType_NewObject:
+        {
+            totemExpressionPrototype *values = arg->NewObject->Values;
+            totemExpressionPrototype *keys = arg->NewObject->Keys;
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, arg->NewObject->Num, &dummy, NULL));
+            
+            while (values)
+            {
+                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(keys, build));
+                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(values, build));
+                values = values->Next;
+                keys = keys->Next;
+            }
+            
             break;
+        }
             
         default:
             break;
@@ -182,11 +198,13 @@ totemEvalStatus totemStatementPrototype_EvalValues(totemStatementPrototype *stat
             break;
             
         case totemStatementType_Simple:
-            return totemExpressionPrototype_EvalValues(statement->Simple, build);
+            status = totemExpressionPrototype_EvalValues(statement->Simple, build);
+            break;
             
         case totemStatementType_Return:
-            return totemExpressionPrototype_EvalValues(statement->Return, build);
+            status = totemExpressionPrototype_EvalValues(statement->Return, build);
+            break;
     }
     
-    return totemEvalStatus_Success;
+    return status;
 }

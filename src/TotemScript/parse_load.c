@@ -9,8 +9,6 @@
 #include <TotemScript/parse.h>
 #include <string.h>
 
-#define TOTEM_LOADSCRIPT_SKIPWHITESPACE(str) while(str[0] == ' ' || str[0] == '\n' || str[0] == '\t' || str[0] == '\r') str++;
-
 void totemScriptFile_Init(totemScriptFile *script)
 {
     totemMemoryBuffer_Init(&script->Buffer, 1);
