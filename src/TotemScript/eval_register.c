@@ -15,7 +15,7 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
 {
     totemOperandXUnsigned index = 0;
     totemRegisterPrototype *reg = NULL;
-    totemBool fromFreeList = totemBool_False;
+    //totemBool fromFreeList = totemBool_False;
     size_t freelistSize = totemMemoryBuffer_GetNumObjects(&list->RegisterFreeList);
     size_t numRegisters = totemMemoryBuffer_GetNumObjects(&list->Registers);
     
@@ -25,7 +25,7 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
         index = *indexPtr;
         totemMemoryBuffer_Pop(&list->RegisterFreeList, 1);
         reg = totemMemoryBuffer_Get(&list->Registers, index);
-        fromFreeList = totemBool_True;
+        //fromFreeList = totemBool_True;
     }
     else
     {
@@ -54,8 +54,6 @@ totemEvalStatus totemRegisterListPrototype_AddRegister(totemRegisterListPrototyp
     operand->RegisterIndex = index;
     operand->RegisterScopeType = list->ScopeType;
     
-    //printf("add %p %i %i %i %i %i %i %i\n", list, freelistSize, numRegisters, list->ScopeType, a, fromFreeList, operand->RegisterIndex, operand->RegisterScopeType);
-    
     return totemEvalStatus_Success;
 }
 
@@ -71,8 +69,6 @@ totemEvalStatus totemRegisterListPrototype_FreeRegister(totemRegisterListPrototy
         {
             return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
         }
-        
-        //printf("free %i %i\n", operand->RegisterIndex, operand->RegisterScopeType);
         
         reg->Flags = totemRegisterPrototypeFlag_None;
     }
@@ -313,7 +309,7 @@ totemBool totemRegisterListPrototype_GetVariable(totemRegisterListPrototype *lis
 {
     if (totemRegisterListPrototype_GetIdentifier(list, name, operand, currentOnly))
     {
-        totemRegisterPrototypeFlag flags;
+        totemRegisterPrototypeFlag flags = totemRegisterPrototypeFlag_None;
         totemRegisterListPrototype_GetRegisterFlags(list, operand->RegisterIndex, &flags);
         return TOTEM_HASBITS(flags, totemRegisterPrototypeFlag_IsVariable);
     }

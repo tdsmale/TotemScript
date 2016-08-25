@@ -91,12 +91,7 @@ void internalError(char *buffer, size_t bufferLen, const char *desc)
 
 void scriptError(char *buffer, size_t bufferLen, const char *desc, const char *src, const char *start, size_t len, size_t line, size_t cha)
 {
-#ifdef TOTEM_WIN
-    totem_snprintf(buffer, bufferLen, "Script error: %s in file %s on line %i:%i: \"...%.*s...\"\n", desc, src, line, cha, (int)15, start);
-#else
-    totem_snprintf(buffer, bufferLen, "Script error: %s in file %s on line %zu:%zu: \"...%.*s...\"\n", desc, src, line, cha, (int)15, start);
-#endif
-    
+    totem_snprintf(buffer, bufferLen, "Script error: %s in file %s on line %"PRId64":%"PRId64" : \"...%.*s...\"\n", desc, src, line, cha, (int)15, start);
 }
 
 void outOfMemoryError(char *buffer, size_t bufferLen)

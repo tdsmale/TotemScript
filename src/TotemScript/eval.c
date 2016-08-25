@@ -255,7 +255,7 @@ totemEvalStatus totemBuildPrototype_EvalNull(totemBuildPrototype *build, totemOp
 totemEvalStatus totemBuildPrototype_EvalInt(totemBuildPrototype *build, totemInt number, totemOperandRegisterPrototype *operand, totemOperandRegisterPrototype *hint)
 {
     char buffer[256];
-    int result = totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), "%llu", number);
+    int result = totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), "%"PRIi64, number);
     
     if (result < 0 || result >= TOTEM_ARRAY_SIZE(buffer))
     {

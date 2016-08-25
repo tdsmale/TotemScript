@@ -58,8 +58,6 @@ s_binaryPriority[] =
     TOTEM_PARSE_PRIORITY_LEFT(8, totemBinaryOperatorType_Divide),
     
     TOTEM_PARSE_PRIORITY_LEFT(9, totemBinaryOperatorType_AsType),
-    
-#undef TOTEM_PARSE_PRIORITY_LEVEL
 };
 
 void *totemParseTree_Alloc(totemParseTree *tree, size_t objectSize)
@@ -411,7 +409,51 @@ totemParseStatus totemDoWhileLoopPrototype_Parse(totemDoWhileLoopPrototype *loop
     tree->CurrentToken++;
     return totemParseStatus_Success;
 }
-
+/*
+ totemParseStatus totemSwitchBlockPrototype_Parse(totemIfBlockPrototype *block, totemParseTree *tree)
+ {
+	TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+	TOTEM_PARSE_COPYPOSITION(tree->CurrentToken, block);
+	block->ElseType = totemIfElseBlockType_None;
+ 
+	TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Switch);
+	TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+ 
+	// lValue expression
+	totemExpressionPrototype *lValue;
+	TOTEM_PARSE_ALLOC(lValue, totemExpressionPrototype, tree);
+	TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(lValue, tree));
+ 
+	TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_LCBracket);
+	TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+	TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+ 
+	// create a string of if-else blocks, evaluating the initial lValue against rValues for equality
+	while (tree->CurrentToken->Type == totemTokenType_Case || tree->CurrentToken->Type == totemTokenType_Default)
+	{
+ if (tree->CurrentToken->Type == totemTokenType_Case)
+ {
+ TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
+ TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
+ 
+ totemExpressionPrototype *rValue;
+ TOTEM_PARSE_ALLOC(rValue, totemExpressionPrototype, tree);
+ TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(rValue, tree));
+ 
+ if (!block->Expression)
+ {
+ // if
+ }
+ else
+ {
+ // else if
+ 
+ // replace parent if block
+ }
+ }
+	}
+ }
+ */
 totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totemParseTree *tree)
 {
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);

@@ -419,11 +419,11 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             
         case totemPrivateDataType_InternedString:
         case totemPrivateDataType_MiniString:
-            fprintf(file, "%s \"%.*s\" (%i) \n",
+            fprintf(file, "%s \"%.*s\" %"PRId64" \n",
                     totemPrivateDataType_Describe(reg->DataType),
                     (int)totemRegister_GetStringLength(reg),
                     totemRegister_GetStringValue(reg),
-                    (int)totemRegister_GetStringLength(reg));
+                    totemRegister_GetStringLength(reg));
             break;
             
         case totemPrivateDataType_Object:
@@ -444,7 +444,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
                         fprintf(file, " ");
                     }
                     
-                    fprintf(file, "\"%.*s\": ", (int)entry->KeyLen, entry->Key);
+                    fprintf(file, "\"%.*s\": ", (int)entry->KeyLen, (char*)entry->Key);
                     totemExecState_PrintRegisterRecursive(state, file, reg->Value.GCObject->Registers + entry->Value, indent);
                     
                     entry = entry->Next;
@@ -467,7 +467,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
         {
             indent += 5;
             
-            fprintf(file, "array[%u] {\n", reg->Value.GCObject->NumRegisters);
+            fprintf(file, "array[%"PRId64"] {\n", reg->Value.GCObject->NumRegisters);
             
             for(size_t i = 0; i < reg->Value.GCObject->NumRegisters; ++i)
             {
@@ -476,7 +476,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
                     fprintf(file, " ");
                 }
                 
-                fprintf(file, "%lld: ", i);
+                fprintf(file, "%"PRId64": ", i);
                 
                 totemRegister *val = &reg->Value.GCObject->Registers[i];
                 totemExecState_PrintRegisterRecursive(state, file, val, indent);
@@ -498,7 +498,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             break;
             
         case totemPrivateDataType_Int:
-            fprintf(file, "%s %lli\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Int);
+            fprintf(file, "%s %"PRIi64"\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Int);
             break;
             
         case totemPrivateDataType_Boolean:
@@ -511,7 +511,7 @@ void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, to
             break;
             
         default:
-            fprintf(file, "%s %d %f %lli %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.GCObject);
+            fprintf(file, "%s %d %f %"PRIi64" %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.GCObject);
             break;
     }
 }
@@ -558,6 +558,10 @@ totemBool totem_getcwd(char *buffer, size_t size)
 
 void totem_Init()
 {
+#define TOTEM_OPCODE_FORMAT(x) 0,
+    TOTEM_STATIC_ASSERT(TOTEM_ARRAY_SIZE((int[]){TOTEM_EMIT_OPCODES()}) < TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Op), "Too many opcodes defined!");
+#undef TOTEM_OPCODE_FORMAT
+    
     TOTEM_STATIC_ASSERT(TOTEM_STRING_LITERAL_SIZE("test") == 4, "String length test");
     
     TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values must be 8 bytes");

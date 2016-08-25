@@ -84,11 +84,12 @@ if(!dest) return totemLexStatus_OutOfMemory;
 
 void totemToken_Print(FILE *target, totemToken *token)
 {
-#ifdef TOTEM_WIN
-    fprintf(target, "%s %.*s at %Iu:%Iu\n", totemTokenType_Describe(token->Type), (int)token->Position.Length, token->Position.Start, token->Position.LineNumber, token->Position.CharNumber);
-#else
-    fprintf(target, "%s %.*s at %zu:%zu\n", totemTokenType_Describe(token->Type), (int)token->Position.Length, token->Position.Start, token->Position.LineNumber, token->Position.CharNumber);
-#endif
+    fprintf(target, "%s %.*s at %"PRId64":%"PRId64"\n",
+            totemTokenType_Describe(token->Type),
+            (int)token->Position.Length,
+            token->Position.Start,
+            token->Position.LineNumber,
+            token->Position.CharNumber);
 }
 
 void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)

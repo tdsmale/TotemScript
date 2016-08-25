@@ -189,7 +189,8 @@ typedef size_t totemCwdSize_t;
 // theoretically better performance (better branch prediction), but not supported on every platform
 #define TOTEM_VMOPT_THREADED_DISPATCH (defined(TOTEM_THREADED_DISPATCH))
 
-// interpreter attempts to simulate the performance advantage of computed gotos by using a separate switch statement for every dispatch
-#define TOTEM_VMOPT_SIMULATED_THREADED_DISPATCH (0)
+// bytecode interpreter attempts to simulate the performance advantage of computed gotos when not available
+// uses a separate switch statement for every dispatch
+#define TOTEM_VMOPT_SIMULATED_THREADED_DISPATCH (1)
 
 #endif

@@ -9,7 +9,7 @@
 #ifndef TOTEMSCRIPT_OPCODES_H
 #define TOTEMSCRIPT_OPCODES_H
 
-#define TOTEM_OPCODES \
+#define TOTEM_EMIT_OPCODES() \
 TOTEM_OPCODE_FORMAT(totemOperationType_Move)                 \
 TOTEM_OPCODE_FORMAT(totemOperationType_Add)                 \
 TOTEM_OPCODE_FORMAT(totemOperationType_Subtract)            \

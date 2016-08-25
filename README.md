@@ -54,25 +54,25 @@ function test()
 #### Variable Scope
 ```php
 // Variables declared outside of functions are in global scope, and can be accessed by any function.
-var global = "This can be accessed by any function.";
+var a = "This can be accessed by any function.";
 
 function test()
 {
-    return global + " See?";
+    return a + " See?";
 }
 
 // Variables declared inside of functions are in local scope, and can only be accessed by that function.
 function localTest()
 {
-    var a = 123;
+    var c = 123;
 
     var b = function()
     {
-        return a; // "variable undefined" error
+        return c; // "variable undefined" error
     }
 
     // variable names can be reused within a new scope by just redefining them
-    var global = 123;
+    var a = 123;
 	
 	if(true)
 	{

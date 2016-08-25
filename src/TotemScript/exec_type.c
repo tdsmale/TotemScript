@@ -383,8 +383,10 @@ totemExecStatus totemExecState_ArrayShift(totemExecState *state, totemRegister *
         return totemExecStatus_Break(totemExecStatus_IndexOutOfBounds);
     }
     
-    totemExecState_Assign(state, dst, &arr[index]);
-    totemExecState_AssignNull(state, &arr[index]);
+    totemRegister *src = &arr[index];
+    
+    totemExecState_Assign(state, dst, src);
+    totemExecState_AssignNull(state, src);
     return totemExecStatus_Continue;
 }
 
@@ -864,7 +866,6 @@ totemExecStatus totemExecState_ToString(totemExecState *state, totemRegister *sr
         case totemPrivateDataType_InstanceFunction:
             return totemExecState_InstanceFunctionToString(state, src->Value.InstanceFunction, dst);
             
-        case totemPrivateDataType_Userdata:
         default:
             return totemExecState_EmptyString(state, dst);
     }
@@ -882,7 +883,7 @@ totemExecStatus totemExecState_EmptyString(totemExecState *state, totemRegister 
 totemExecStatus totemExecState_IntToString(totemExecState *state, totemInt val, totemRegister *strOut)
 {
     char buffer[256];
-    int result = totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), "%llu", val);
+    int result = totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), "%"PRIi64, val);
     
     if (result < 0 || result >= TOTEM_ARRAY_SIZE(buffer))
     {
