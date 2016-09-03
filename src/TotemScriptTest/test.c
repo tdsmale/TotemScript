@@ -12,7 +12,7 @@
 
 #ifdef TOTEM_WIN
 #include <TotemScriptTest/dirent.h>
-#define TOTEMSCRIPTCMD "TotemScriptCmd.exe"
+#define TOTEMSCRIPTCMD ".\\TotemScriptCmd.exe"
 #else
 #define TOTEMSCRIPTCMD "time ./TotemScriptCmd"
 #endif

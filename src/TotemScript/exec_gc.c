@@ -8,7 +8,7 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 
-#if 0
+#if TOTEM_DEBUGOPT_ASSERT_GC
 #define TOTEM_GC_LOG(e) e
 #define totemGCHeader_Assert totemGCHeader_AssertList
 #define totemGCObject_Assert totemGCObject_AssertLiveliness
@@ -17,8 +17,6 @@
 #define totemGCHeader_Assert(x, y)
 #define totemGCObject_Assert(x)
 #endif
-
-#define TOTEM_GC_MAYBE_UNREACHABLE (~((totemRefCount)0))
 
 void totemGCHeader_AssertList(totemGCHeader *head, totemGCHeader *no)
 {
@@ -165,6 +163,8 @@ void totemExecState_CleanupGCList(totemExecState *state, totemGCHeader *hdr)
 
 #if TOTEM_GCTYPE_ISREFCOUNTING
 
+const static totemRefCount c_objectMaybeUnreachable = (~((totemRefCount)0));
+
 void totemExecState_InitGC(totemExecState *state)
 {
     totemGCHeader_Reset(&state->GC);
@@ -183,11 +183,6 @@ void totemExecState_AppendNewGCObject(totemExecState *state, totemGCObject *gc)
     hdr->CycleDetectCount = 0;
     totemGCHeader_Push(&hdr->Header, &state->GC);
     state->GCNum++;
-}
-
-void totemExecState_WriteBarrier(totemExecState *state, totemGCObject *gc)
-{
-    // nada
 }
 
 void totemExecState_IncRefCount(totemExecState *state, totemRegister *gc)
@@ -228,7 +223,7 @@ void totemExecState_CycleDoubleCheck(totemExecState *state, totemGCObject *gc, t
             {
                 totemGCObject *childGC = reg->Value.GCObject;
                 
-                if (childGC->CycleDetectCount == TOTEM_GC_MAYBE_UNREACHABLE)
+                if (childGC->CycleDetectCount == c_objectMaybeUnreachable)
                 {
                     // this is reachable but was prematurely marked as unreachable, ensure it isn't collected
                     totemGCHeader_Move(&childGC->Header, reachable);
@@ -307,7 +302,7 @@ void totemExecState_CollectReferenceCycles(totemExecState *state, totemGCHeader 
         else
         {
             // assume this is unreachable
-            obj->CycleDetectCount = TOTEM_GC_MAYBE_UNREACHABLE;
+            obj->CycleDetectCount = c_objectMaybeUnreachable;
             totemGCHeader_Move(&obj->Header, &unreachable);
             totemGCHeader_Assert(listHead, NULL);
             totemGCHeader_Assert(obj, NULL);
@@ -424,14 +419,14 @@ void totemExecState_MoveBlack(totemExecState *state, totemGCObject *gc)
 void totemExecState_SetMark(totemExecState *state, totemGCObject *gc)
 {
     totem_assert(state->GCCurrentBit == 1 || state->GCCurrentBit == 0);
-    TOTEM_FORCEBIT(gc->MarkFlags, state->GCCurrentBit, totemGCObjectMarkSweepFlag_Mark >> 1);
+    TOTEM_FORCEBITS(gc->MarkFlags, state->GCCurrentBit, totemGCObjectMarkSweepFlag_Mark >> 1);
     TOTEM_GC_LOG(printf("Marking object %p %i %i\n", gc, state->GCCurrentBit, TOTEM_GETBITS(gc->MarkFlags, totemGCObjectMarkSweepFlag_Mark)));
 }
 
 void totemExecState_UnsetMark(totemExecState *state, totemGCObject *gc)
 {
     totem_assert(state->GCCurrentBit == 1 || state->GCCurrentBit == 0);
-    TOTEM_FORCEBIT(gc->MarkFlags, !state->GCCurrentBit, totemGCObjectMarkSweepFlag_Mark >> 1);
+    TOTEM_FORCEBITS(gc->MarkFlags, !state->GCCurrentBit, totemGCObjectMarkSweepFlag_Mark >> 1);
     TOTEM_GC_LOG(printf("Unmarking object %p %i %i\n", gc, state->GCCurrentBit, TOTEM_GETBITS(gc->MarkFlags, totemGCObjectMarkSweepFlag_Mark)));
 }
 
@@ -486,16 +481,6 @@ void totemExecState_WriteBarrier(totemExecState *state, totemGCObject *gc)
     }
 }
 
-void totemExecState_IncRefCount(totemExecState *state, totemRegister *gc)
-{
-    // nada
-}
-
-void totemExecState_DecRefCount(totemExecState *state, totemRegister *gc)
-{
-    // nada
-}
-
 void totemExecState_TraverseRegisterList(totemExecState *state, totemRegister *regs, size_t num)
 {
     totemGCObject *obj;
@@ -505,7 +490,7 @@ void totemExecState_TraverseRegisterList(totemExecState *state, totemRegister *r
         totemRegister *reg = &regs[i];
         if (totemRegister_IsGarbageCollected(reg))
         {
-            obj = reg->Value.GCObject;
+            obj = totemRegister_GetGCObject(reg);
             totemGCObject_Assert(obj);
             if (!totemExecState_HasMark(state, obj))
             {
@@ -741,7 +726,7 @@ totemGCObject *totemExecState_CreateGCObject(totemExecState *state, totemGCObjec
             return NULL;
         }
         
-        memset(hdr->Registers, 0, sizeof(totemRegister) * numRegisters);
+        totemRegister_InitList(hdr->Registers, numRegisters);
     }
     else
     {
@@ -776,7 +761,7 @@ totemBool totemExecState_ExpandGCObject(totemExecState *state, totemGCObject *ob
     }
     
     memcpy(newRegs, obj->Registers, sizeof(totemRegister) * obj->NumRegisters);
-    memset(newRegs + obj->NumRegisters, 0, sizeof(totemRegister) * obj->NumRegisters);
+    totemRegister_InitList(newRegs + obj->NumRegisters, newNumRegisters - obj->NumRegisters);
     
     totem_CacheFree(obj->Registers, sizeof(totemRegister) * obj->NumRegisters);
     
@@ -992,9 +977,10 @@ totemExecStatus totemExecState_CreateInstance(totemExecState *state, totemScript
         totemRegister *from = totemMemoryBuffer_Get(&script->GlobalRegisters, i);
         memcpy(reg, from, sizeof(totemRegister));
         
-        if (reg->DataType == totemPrivateDataType_InstanceFunction)
+        if (totemRegister_IsInstanceFunction(reg))
         {
-            reg->Value.InstanceFunction = totemMemoryBuffer_Get(&instance->LocalFunctions, (size_t)reg->Value.Data);
+            totemInstanceFunction *func = totemMemoryBuffer_Get(&instance->LocalFunctions, (size_t)totemRegister_GetInstanceFunction(reg));
+            totemRegister_SetInstanceFunction(reg, func);
         }
     }
     

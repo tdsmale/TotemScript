@@ -18,6 +18,25 @@ totemLinkStatus totemLinkStatus_Break(totemLinkStatus status)
     return status;
 }
 
+totemLinkStatus totemRuntimeStringValue_LinkToRegister(totemRuntimeStringValue *val, totemRegister *dst)
+{
+    switch (val->Type)
+    {
+        case totemPrivateDataType_InternedString:
+            totemRegister_SetInternedString(dst, val->InternedString);
+            break;
+            
+        case totemPrivateDataType_MiniString:
+            totemRegister_SetMiniString(dst, val->MiniString);
+            break;
+            
+        default:
+            return totemLinkStatus_Break(totemLinkStatus_UnexpectedValueType);
+    }
+    
+    return totemLinkStatus_Success;
+}
+
 void totemInstance_Init(totemInstance *instance)
 {
     totemMemoryBuffer_Init(&instance->LocalFunctions, sizeof(totemInstanceFunction));
@@ -66,7 +85,7 @@ void totemScript_Cleanup(totemScript *script)
     totemHashMap_Cleanup(&script->FunctionNameLookup);
 }
 
-totemBool totemScript_GetFunctionName(totemScript *script, totemOperandXUnsigned addr, totemRegisterValue *valOut, totemPrivateDataType *dataTypeOut)
+totemBool totemScript_GetFunctionName(totemScript *script, totemOperandXUnsigned addr, totemRuntimeStringValue *valOut)
 {
     totemRegister *name = totemMemoryBuffer_Get(&script->FunctionNames, addr);
     if (!name)
@@ -74,8 +93,7 @@ totemBool totemScript_GetFunctionName(totemScript *script, totemOperandXUnsigned
         return totemBool_False;
     }
     
-    *dataTypeOut = name->DataType;
-    memcpy(valOut, &name->Value, sizeof(totemRegisterValue));
+    totemRegister_GetStringValue(name, valOut);
     return totemBool_True;
 }
 
@@ -120,13 +138,13 @@ void totemRuntime_Cleanup(totemRuntime *runtime)
     totemLock_Cleanup(&runtime->InternedStringsLock);
 }
 
-totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegisterValue *valOut, totemPrivateDataType *typeOut)
+totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRuntimeStringValue *valOut)
 {
     if(str->Length <= TOTEM_MINISTRING_MAXLENGTH)
     {
-        *typeOut = totemPrivateDataType_MiniString;
-        memset(valOut->MiniString.Value, 0, sizeof(valOut->MiniString.Value));
-        memcpy(valOut->MiniString.Value, str->Value, str->Length);
+        valOut->Type = totemPrivateDataType_MiniString;
+        memset(valOut->MiniString, 0, sizeof(valOut->MiniString));
+        memcpy(valOut->MiniString, str->Value, str->Length);
         
         return totemLinkStatus_Success;
     }
@@ -137,7 +155,7 @@ totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *st
     totemHashMapEntry *result = totemHashMap_Find(&runtime->InternedStrings, str->Value, str->Length);
     if(result)
     {
-        *typeOut = totemPrivateDataType_InternedString;
+        valOut->Type = totemPrivateDataType_InternedString;
         valOut->InternedString = (totemInternedStringHeader*)result->Value;
     }
     else
@@ -164,7 +182,7 @@ totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *st
             }
             else
             {
-                *typeOut = totemPrivateDataType_InternedString;
+                valOut->Type = totemPrivateDataType_InternedString;
                 valOut->InternedString = newStr;
             }
         }
@@ -212,9 +230,16 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
         func->InstructionsStart = instructions + (funcProt->InstructionsStart);
         func->RegistersNeeded = funcProt->RegistersNeeded;
         
-        if (totemRuntime_InternString(runtime, &funcProt->Name, &str->Value, &str->DataType) != totemLinkStatus_Success)
+        totemRuntimeStringValue newVal;
+        if (totemRuntime_InternString(runtime, &funcProt->Name, &newVal) != totemLinkStatus_Success)
         {
             return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
+        }
+        
+        totemLinkStatus status = totemRuntimeStringValue_LinkToRegister(&newVal, str);
+        if (status != totemLinkStatus_Success)
+        {
+            return status;
         }
     }
     
@@ -257,10 +282,18 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
                 // intern string values
             case totemPublicDataType_String:
             {
-                if(totemRuntime_InternString(runtime, prototype->String, &reg->Value, &reg->DataType) != totemLinkStatus_Success)
+                totemRuntimeStringValue newVal;
+                if(totemRuntime_InternString(runtime, prototype->String, &newVal) != totemLinkStatus_Success)
                 {
                     return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
                 }
+                
+                totemLinkStatus status = totemRuntimeStringValue_LinkToRegister(&newVal, reg);
+                if (status != totemLinkStatus_Success)
+                {
+                    return status;
+                }
+                
                 break;
             }
                 
@@ -269,8 +302,6 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
             {
                 if(prototype->FunctionPointer.Type == totemFunctionType_Native)
                 {
-                    reg->DataType = totemPrivateDataType_NativeFunction;
-                    
                     totemString *funcName = totemMemoryBuffer_Get(&build->NativeFunctionNames, prototype->FunctionPointer.Address);
                     if(!funcName)
                     {
@@ -289,39 +320,33 @@ totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototyp
                         return totemLinkStatus_Break(totemLinkStatus_FunctionNotDeclared);
                     }
                     
-                    reg->Value.NativeFunction = func;
+                    totemRegister_SetNativeFunction(reg, func);
                 }
                 else
                 {
-                    reg->DataType = totemPrivateDataType_InstanceFunction;
-                    reg->Value.Data = prototype->FunctionPointer.Address;
+                    totemRegister_SetInstanceFunction(reg, (totemInstanceFunction*)prototype->FunctionPointer.Address);
                 }
                 break;
             }
                 
             case totemPublicDataType_Int:
-                reg->DataType = totemPrivateDataType_Int;
-                reg->Value.Int = prototype->Int;
+                totemRegister_SetInt(reg, prototype->Int);
                 break;
                 
             case totemPublicDataType_Float:
-                reg->DataType = totemPrivateDataType_Float;
-                reg->Value.Float = prototype->Float;
+                totemRegister_SetFloat(reg, prototype->Float);
                 break;
                 
             case totemPublicDataType_Type:
-                reg->DataType = totemPrivateDataType_Type;
-                reg->Value.DataType = prototype->TypeValue;
+                totemRegister_SetTypeValue(reg, prototype->TypeValue);
                 break;
                 
             case totemPublicDataType_Boolean:
-                reg->DataType = totemPrivateDataType_Boolean;
-                reg->Value.Data = prototype->Boolean != 0;
+                totemRegister_SetBoolean(reg, prototype->Boolean);
                 break;
                 
             case totemPublicDataType_Null:
-                reg->DataType = totemPrivateDataType_Null;
-                reg->Value.Data = 0;
+                totemRegister_SetNull(reg);
                 break;
                 
             default:
@@ -382,8 +407,9 @@ totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNati
         
         totemRegister value;
         memset(&value, 0, sizeof(totemRegister));
+        totemRuntimeStringValue newStr;
         
-        if(totemRuntime_InternString(runtime, name, &value.Value, &value.DataType) != totemLinkStatus_Success)
+        if(totemRuntime_InternString(runtime, name, &newStr) != totemLinkStatus_Success)
         {
             return totemLinkStatus_Break(totemLinkStatus_OutOfMemory);
         }
@@ -415,13 +441,12 @@ totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemStri
     return totemBool_False;
 }
 
-totemBool totemRuntime_GetNativeFunctionName(totemRuntime *runtime, totemOperandXUnsigned addr, totemRegisterValue *valOut, totemPrivateDataType *typeOut)
+totemBool totemRuntime_GetNativeFunctionName(totemRuntime *runtime, totemOperandXUnsigned addr, totemRuntimeStringValue *val)
 {
     totemRegister *reg = totemMemoryBuffer_Get(&runtime->NativeFunctionNames, addr);
     if (reg)
     {
-        memcpy(valOut, &reg->Value, sizeof(totemRegisterValue));
-        *typeOut = reg->DataType;
+        totemRegister_GetStringValue(reg, val);
         return totemBool_True;
     }
     
@@ -446,7 +471,6 @@ totemLinkStatus totemRuntime_LinkExecState(totemRuntime *runtime, totemExecState
             return totemLinkStatus_OutOfMemory;
         }
         
-        memset(regs, 0, sizeof(totemRegister) * numRegisters);
         state->LocalRegisters = regs;
         state->NextFreeRegister = regs;
     }
@@ -509,15 +533,14 @@ void totemExecState_FreeFunctionCall(totemExecState *state, totemFunctionCall *c
 
 totemExecStatus totemExecState_InternString(totemExecState *state, totemString *str, totemRegister *strOut)
 {
-    totemRegister newStr;
-    memset(&newStr, 0, sizeof(totemRegister));
+    totemRuntimeStringValue newStr;
     
-    if (totemRuntime_InternString(state->Runtime, str, &newStr.Value, &newStr.DataType) != totemLinkStatus_Success)
+    if (totemRuntime_InternString(state->Runtime, str, &newStr) != totemLinkStatus_Success)
     {
         return totemExecStatus_Break(totemExecStatus_OutOfMemory);
     }
     
-    totemExecState_Assign(state, strOut, &newStr);
+    totemExecState_AssignNewString(state, strOut, &newStr);
     return totemExecStatus_Continue;
 }
 
@@ -525,8 +548,7 @@ void totemExecState_CleanupRegisterList(totemExecState *state, totemRegister *re
 {
     for (size_t i = 0; i < num; i++)
     {
-        totemRegister *reg = &regs[i];
-        totemExecState_DecRefCount(state, reg);
+        totemExecState_DecRefCount(state, &regs[i]);
     }
 }
 
@@ -603,7 +625,7 @@ totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, uint8_t n
     }
     
     // reset registers to be used
-    memset(call->FrameStart, 0, numRegisters * sizeof(totemRegister));
+    totemRegister_InitList(call->FrameStart, numRegisters);
     
     call->Instance = instance;
     call->ReturnRegister = returnReg;

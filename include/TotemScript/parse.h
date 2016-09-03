@@ -74,7 +74,8 @@ extern "C" {
         totemParseStatus_Success,
         totemParseStatus_UnexpectedToken,
         totemParseStatus_ValueTooLarge,
-        totemParseStatus_OutOfMemory
+        totemParseStatus_OutOfMemory,
+        totemParseStatus_TooManyItems
     }
     totemParseStatus;
     
@@ -297,7 +298,7 @@ extern "C" {
     {
         struct totemExpressionPrototype *Keys;
         struct totemExpressionPrototype *Values;
-        size_t Num;
+        totemInt Num;
     }
     totemNewObjectPrototype;
     
@@ -472,6 +473,7 @@ extern "C" {
         totemMemoryBuffer Tokens;
         size_t CurrentChar;
         size_t CurrentLine;
+        const char *Current;
     }
     totemTokenList;
     

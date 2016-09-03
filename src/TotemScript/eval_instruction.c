@@ -11,13 +11,6 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 
-#define TOTEM_EVAL_SETINSTRUCTIONBITS(ins, val, min, max, start) \
-    if ((val) > (max) || (val) < (min)) \
-    { \
-        return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow); \
-    } \
-TOTEM_SETBITS_OFFSET(ins, val, start);
-
 totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope, uint32_t start)
 {
     if (index > TOTEM_MAX_LOCAL_REGISTERS)
@@ -41,8 +34,24 @@ totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, tote
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_SetSignedValue(totemInstruction *instruction, int32_t value, uint32_t start, uint32_t numBits)
+totemEvalStatus totemInstruction_SetUnsignedValue(totemInstruction *ins, uint32_t val, uint32_t min, uint32_t max, uint32_t start)
 {
+    if (val > max || val < min)
+    {
+        return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow);
+    }
+    
+    TOTEM_SETBITS_OFFSET(*ins, val, start);
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemInstruction_SetSignedValue(totemInstruction *instruction, int32_t value, int32_t min, int32_t max, uint32_t start, uint32_t numBits)
+{
+    if (value < min || value > max)
+    {
+        return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow);
+    }
+    
     uint32_t mask = 0;
     uint32_t isNegative = value < 0;
     uint32_t unsignedValue = *((uint32_t*)(&value));
@@ -54,7 +63,7 @@ totemEvalStatus totemInstruction_SetSignedValue(totemInstruction *instruction, i
     }
     
     // value
-    TOTEM_SETBITS(mask, (unsignedValue & TOTEM_BITMASK(0, numBits - 1)));
+    TOTEM_SETBITS(mask, (unsignedValue & TOTEM_BITMASK(uint32_t, 0, numBits - 1)));
     
     // signed bit
     TOTEM_SETBITS_OFFSET(mask, isNegative, numBits - 1);
@@ -85,52 +94,82 @@ totemEvalStatus totemInstruction_SetRegisterC(totemInstruction *instruction, tot
 
 totemEvalStatus totemInstruction_SetOp(totemInstruction *instruction, totemOperationType op)
 {
-    TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, op, TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Op), TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Op), totemInstructionStart_Op);
-    return totemEvalStatus_Success;
+    totemEvalStatus status = totemInstruction_SetUnsignedValue(
+                                                               instruction,
+                                                               op,
+                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_Op),
+                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_Op),
+                                                               totemInstructionStart_Op);
+    
+    totem_assert(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_OP(*instruction) == op);
+    return status;
 }
 
 totemEvalStatus totemInstruction_SetBxUnsigned(totemInstruction *instruction, totemOperandXUnsigned bx)
 {
-    TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, bx, TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Bx), TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Bx), totemInstructionStart_B);
-    return totemEvalStatus_Success;
+    totemEvalStatus status = totemInstruction_SetUnsignedValue(
+                                                               instruction,
+                                                               bx,
+                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_Bx),
+                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_Bx),
+                                                               totemInstructionStart_B);
+    
+    totem_assert(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_BX_UNSIGNED(*instruction) == bx);
+    return status;
 }
 
 totemEvalStatus totemInstruction_SetBxSigned(totemInstruction *instruction, totemOperandXSigned bx)
 {
-    totemOperandXSigned min = TOTEM_MINVAL_SIGNED(totemInstructionSize_Bx);
-    totemOperandXSigned max = TOTEM_MAXVAL_SIGNED(totemInstructionSize_Bx);
+    totemEvalStatus status = totemInstruction_SetSignedValue(
+                                                             instruction,
+                                                             bx,
+                                                             TOTEM_MINVAL_SIGNED(int32_t, totemInstructionSize_Bx),
+                                                             TOTEM_MAXVAL_SIGNED(int32_t, totemInstructionSize_Bx),
+                                                             totemInstructionStart_B,
+                                                             totemInstructionSize_Bx);
     
-    if (bx < min || bx > max)
-    {
-        return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow);
-    }
-    
-    return totemInstruction_SetSignedValue(instruction, bx, totemInstructionStart_B, totemInstructionSize_Bx);
+    totem_assert(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_BX_SIGNED(*instruction) == bx);
+    return status;
 }
 
 totemEvalStatus totemInstruction_SetAxSigned(totemInstruction *instruction, totemOperandXSigned ax)
 {
-    totemOperandXSigned min = TOTEM_MINVAL_SIGNED(totemInstructionSize_Ax);
-    totemOperandXSigned max = TOTEM_MAXVAL_SIGNED(totemInstructionSize_Ax);
+    totemEvalStatus status = totemInstruction_SetSignedValue(
+                                                             instruction,
+                                                             ax,
+                                                             TOTEM_MINVAL_SIGNED(int32_t, totemInstructionSize_Ax),
+                                                             TOTEM_MAXVAL_SIGNED(int32_t, totemInstructionSize_Ax),
+                                                             totemInstructionStart_A,
+                                                             totemInstructionSize_Ax);
     
-    if (ax < min || ax > max)
-    {
-        return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow);
-    }
-    
-    return totemInstruction_SetSignedValue(instruction, ax, totemInstructionStart_A, totemInstructionSize_Ax);
+    totem_assert(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_AX_SIGNED(*instruction) == ax);
+    return status;
 }
 
 totemEvalStatus totemInstruction_SetAxUnsigned(totemInstruction *instruction, totemOperandXUnsigned ax)
 {
-    TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, ax, TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Ax), TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Ax), totemInstructionStart_A);
-    return totemEvalStatus_Success;
+    totemEvalStatus status = totemInstruction_SetUnsignedValue(
+                                                               instruction,
+                                                               ax,
+                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_Ax),
+                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_Ax),
+                                                               totemInstructionStart_A);
+    
+    totem_assert(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_AX_UNSIGNED(*instruction) == ax);
+    return status;
 }
 
 totemEvalStatus totemInstruction_SetCxUnsigned(totemInstruction *instruction, totemOperandXUnsigned cx)
 {
-    TOTEM_EVAL_SETINSTRUCTIONBITS(*instruction, cx, TOTEM_MINVAL_UNSIGNED(totemInstructionSize_Cx), TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Cx), totemInstructionStart_C);
-    return totemEvalStatus_Success;
+    totemEvalStatus status = totemInstruction_SetUnsignedValue(
+                                                               instruction,
+                                                               cx,
+                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_Cx),
+                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_Cx),
+                                                               totemInstructionStart_C);
+    
+    totem_assert(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_CX_UNSIGNED(*instruction) == cx);
+    return status;
 }
 
 totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build, totemInstruction **instructionOut)

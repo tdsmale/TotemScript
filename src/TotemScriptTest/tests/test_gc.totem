@@ -7,7 +7,5 @@ function refCycle()
 var num = gc_num();
 
 refCycle();
-assert(gc_num() == (num + 1));
-
 gc_collect(true);
 assert(gc_num() == num);

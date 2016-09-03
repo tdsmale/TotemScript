@@ -225,7 +225,6 @@ co = 123;
 * Continue statement (e.g. continue 2;)
 * Switch statement
 * Strict compile-time type-hinting e.g. var x:int = 4;
-* Investigate NaN-boxing for representing register values more efficiently
 * Investigate equalizing the size of all operands (including opcodes) to a single byte
  * Will expand total number of possible opcodes, making room for more specialised operations
  * Won't waste operands on certain opcodes

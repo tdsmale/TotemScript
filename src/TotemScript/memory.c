@@ -8,12 +8,13 @@
 
 #include <TotemScript/base.h>
 #include <string.h>
+#include <TotemScript/exec.h>
 
 #define TOTEM_MEM_FREELIST_DIVISOR (sizeof(totemMemoryPageObject))
 #define TOTEM_MEM_PAGESIZE (TOTEM_MEM_FREELIST_DIVISOR * 512)
 #define TOTEM_MEM_NUM_FREELISTS (TOTEM_MEM_PAGESIZE / TOTEM_MEM_FREELIST_DIVISOR)
 
-#if 0
+#if TOTEM_DEBUGOPT_ASSERT_HASHMAP_LISTS
 #define totemHashMap_Assert(x) totemHashMap_AssertList(x)
 #else
 #define totemHashMap_Assert(x)
@@ -755,7 +756,8 @@ totemHashMapEntry *totemHashMap_FindPrecomputed(totemHashMap *hashmap, const voi
         for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
         {
             totemHashMap_Assert(hashmap);
-            if(entry->Hash == hash && memcmp(entry->Key, key, entry->KeyLen) == 0)
+            
+            if(entry->Hash == hash && entry->KeyLen == keyLen && memcmp(entry->Key, key, entry->KeyLen) == 0)
             {
                 totemHashMap_Assert(hashmap);
                 return entry;

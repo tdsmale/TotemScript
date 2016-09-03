@@ -25,7 +25,7 @@
 #define TOTEM_PARSE_PRIORITY_RIGHT(level, type) [type] = { level, level - 1 }
 static const struct
 {
-    int Left, Right;
+    uint8_t Left, Right;
 }
 s_binaryPriority[] =
 {
@@ -409,51 +409,7 @@ totemParseStatus totemDoWhileLoopPrototype_Parse(totemDoWhileLoopPrototype *loop
     tree->CurrentToken++;
     return totemParseStatus_Success;
 }
-/*
- totemParseStatus totemSwitchBlockPrototype_Parse(totemIfBlockPrototype *block, totemParseTree *tree)
- {
-	TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
-	TOTEM_PARSE_COPYPOSITION(tree->CurrentToken, block);
-	block->ElseType = totemIfElseBlockType_None;
- 
-	TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_Switch);
-	TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
- 
-	// lValue expression
-	totemExpressionPrototype *lValue;
-	TOTEM_PARSE_ALLOC(lValue, totemExpressionPrototype, tree);
-	TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(lValue, tree));
- 
-	TOTEM_PARSE_ENFORCETOKEN(tree, tree->CurrentToken, totemTokenType_LCBracket);
-	TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
-	TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
- 
-	// create a string of if-else blocks, evaluating the initial lValue against rValues for equality
-	while (tree->CurrentToken->Type == totemTokenType_Case || tree->CurrentToken->Type == totemTokenType_Default)
-	{
- if (tree->CurrentToken->Type == totemTokenType_Case)
- {
- TOTEM_PARSE_INC_NOT_ENDSCRIPT(tree, tree->CurrentToken);
- TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
- 
- totemExpressionPrototype *rValue;
- TOTEM_PARSE_ALLOC(rValue, totemExpressionPrototype, tree);
- TOTEM_PARSE_CHECKRETURN(totemExpressionPrototype_Parse(rValue, tree));
- 
- if (!block->Expression)
- {
- // if
- }
- else
- {
- // else if
- 
- // replace parent if block
- }
- }
-	}
- }
- */
+
 totemParseStatus totemIfBlockPrototype_Parse(totemIfBlockPrototype *block, totemParseTree *tree)
 {
     TOTEM_PARSE_SKIPWHITESPACE(tree->CurrentToken);
@@ -1254,6 +1210,11 @@ totemParseStatus totemNewObjectPrototype_Parse(totemNewObjectPrototype *obj, tot
     
     while (tree->CurrentToken->Type != totemTokenType_RCBracket)
     {
+        if (obj->Num + 1 == TOTEM_INT_MAX)
+        {
+            return totemParseTree_Break(tree, totemParseStatus_TooManyItems, &tree->CurrentToken->Position);
+        }
+        
         if (obj->Keys)
         {
             TOTEM_PARSE_ALLOC(obj->Keys->Next, totemExpressionPrototype, tree);
@@ -1380,6 +1341,7 @@ const char *totemParseStatus_Describe(totemParseStatus status)
             TOTEM_STRINGIFY_CASE(totemParseStatus_Success);
             TOTEM_STRINGIFY_CASE(totemParseStatus_UnexpectedToken);
             TOTEM_STRINGIFY_CASE(totemParseStatus_ValueTooLarge);
+            TOTEM_STRINGIFY_CASE(totemParseStatus_TooManyItems);
     }
     
     return "UNKNOWN";

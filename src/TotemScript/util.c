@@ -13,8 +13,6 @@
 #include <errno.h>
 #include <stdio.h>
 
-#define TOTEM_SCOPE_CHAR(x) ((x) == totemOperandType_GlobalRegister ? 'g' : 'l')
-
 static totemHashCb hashCb = NULL;
 
 void totem_SetGlobalCallbacks(totemHashCb newHashCb)
@@ -188,14 +186,19 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
     }
 }
 
+char totemOperandType_GetChar(totemOperandType type)
+{
+    return type == totemOperandType_GlobalRegister ? 'g' : 'l';
+}
+
 void totemInstruction_PrintAbcxInstruction(FILE *file, totemInstruction instruction)
 {
     fprintf(file, "%08x %s a:%c%d b:%c%d c:%08x\n",
             instruction,
             totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
-            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+            totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
-            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
+            totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction),
             TOTEM_INSTRUCTION_GET_CX_UNSIGNED(instruction));
 }
@@ -206,11 +209,11 @@ void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instructi
     fprintf(file, "%08x %s a:%c%d b:%c%d c:%c%d\n",
             instruction,
             totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
-            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+            totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
-            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
+            totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction),
-            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)),
+            totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction));
 }
 
@@ -219,7 +222,7 @@ void totemInstruction_PrintAbxInstruction(FILE *file, totemInstruction instructi
     fprintf(file, "%08x %s a:%c%d bx:%08x\n",
             instruction,
             totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
-            TOTEM_SCOPE_CHAR(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+            totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
             TOTEM_INSTRUCTION_GET_BX_UNSIGNED(instruction));
 }
@@ -284,11 +287,11 @@ void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction)
     fprintf(file, "\n");
 }
 
-size_t totemMiniString_GetLength(totemRuntimeMiniString *c)
+totemStringLength totemMiniString_GetLength(char *c)
 {
     for(size_t i = 0; i < TOTEM_MINISTRING_MAXLENGTH; i++)
     {
-        if(!c->Value[i])
+        if(!c[i])
         {
             return i;
         }
@@ -297,252 +300,20 @@ size_t totemMiniString_GetLength(totemRuntimeMiniString *c)
     return TOTEM_MINISTRING_MAXLENGTH;
 }
 
-totemBool totemRegister_GetString(totemRegister *reg, const char **str, totemStringLength *len, totemHash *hash)
+void totem_printBits(FILE *file, uint64_t data, uint64_t numBits, uint64_t start)
 {
-    switch (reg->DataType)
+    uint64_t end = start + numBits;
+    for(uint64_t i = end; i > start; i--)
     {
-        case totemPrivateDataType_InternedString:
-            *str = reg->Value.InternedString->Data;
-            *len = reg->Value.InternedString->Length;
-            *hash = reg->Value.InternedString->Hash;
-            return totemBool_True;
-            
-        case totemPrivateDataType_MiniString:
-            *str = reg->Value.MiniString.Value;
-            *len = totemMiniString_GetLength(&reg->Value.MiniString);
-            *hash = totem_Hash(*str, *len);
-            return totemBool_True;
-            
-        default:
-            return totemBool_False;
+        fprintf(file, "%"PRIu64, TOTEM_GETBITS_OFFSET(data, TOTEM_BITMASK(uint64_t, i - 1, 1), i - 1));
     }
 }
 
-totemStringLength totemRegister_GetStringLength(totemRegister *reg)
+totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t signedMask, uint32_t valueMask)
 {
-    switch(reg->DataType)
+    if (TOTEM_GETBITS(val, signedMask))
     {
-        case totemPrivateDataType_InternedString:
-            return reg->Value.InternedString->Length;
-            
-        case totemPrivateDataType_MiniString:
-            return totemMiniString_GetLength(&reg->Value.MiniString);
-            
-        default:
-            return 0;
-    }
-}
-
-totemHash totemRegister_GetStringHash(totemRegister *reg)
-{
-    switch (reg->DataType)
-    {
-        case totemPrivateDataType_InternedString:
-            return reg->Value.InternedString->Hash;
-            
-        case totemPrivateDataType_MiniString:
-            return totem_Hash(reg->Value.MiniString.Value, totemMiniString_GetLength(&reg->Value.MiniString));
-            
-        default:
-            return 0;
-    }
-}
-
-const char *totemRegister_GetStringValue(totemRegister *reg)
-{
-    switch(reg->DataType)
-    {
-        case totemPrivateDataType_InternedString:
-            return reg->Value.InternedString->Data;
-            
-        case totemPrivateDataType_MiniString:
-            return reg->Value.MiniString.Value;
-            
-        default:
-            return NULL;
-    }
-}
-
-totemBool totemRegister_IsString(totemRegister *reg)
-{
-    return reg->DataType == totemPrivateDataType_InternedString || reg->DataType == totemPrivateDataType_MiniString;
-}
-
-totemBool totemRegister_IsGarbageCollected(totemRegister *reg)
-{
-    return reg->DataType >= totemPrivateDataType_Array && reg->DataType <= totemPrivateDataType_Userdata;
-}
-
-void totemExecState_PrintRegisterRecursive(totemExecState *state, FILE *file, totemRegister *reg, size_t indent)
-{
-    if (indent > 50)
-    {
-        return;
-    }
-    
-    switch(reg->DataType)
-    {
-        case totemPrivateDataType_NativeFunction:
-        {
-            totemRegister val;
-            if (totemRuntime_GetNativeFunctionName(state->Runtime, reg->Value.NativeFunction->Address, &val.Value, &val.DataType))
-            {
-                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
-            }
-            break;
-        }
-            
-        case totemPrivateDataType_InstanceFunction:
-        {
-            totemRegister val;
-            if (totemScript_GetFunctionName(reg->Value.InstanceFunction->Instance->Instance->Script, reg->Value.InstanceFunction->Function->Address, &val.Value, &val.DataType))
-            {
-                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
-            }
-            break;
-        }
-            
-        case totemPrivateDataType_Coroutine:
-        {
-            totemFunctionCall *cr = reg->Value.GCObject->Coroutine;
-            totemRegister val;
-            if (totemScript_GetFunctionName(cr->InstanceFunction->Instance->Instance->Script, cr->InstanceFunction->Function->Address, &val.Value, &val.DataType))
-            {
-                fprintf(file, "%s: %.*s\n", totemPrivateDataType_Describe(reg->DataType), (int)totemRegister_GetStringLength(&val), totemRegister_GetStringValue(&val));
-            }
-            break;
-        }
-            
-        case totemPrivateDataType_Type:
-            fprintf(file, "%s: %s\n", totemPrivateDataType_Describe(reg->DataType), totemPublicDataType_Describe(reg->Value.DataType));
-            break;
-            
-        case totemPrivateDataType_InternedString:
-        case totemPrivateDataType_MiniString:
-            fprintf(file, "%s \"%.*s\" %"PRId64" \n",
-                    totemPrivateDataType_Describe(reg->DataType),
-                    (int)totemRegister_GetStringLength(reg),
-                    totemRegister_GetStringValue(reg),
-                    totemRegister_GetStringLength(reg));
-            break;
-            
-        case totemPrivateDataType_Object:
-        {
-            indent += 5;
-            totemHashMap *obj = reg->Value.GCObject->Object;
-            
-            fprintf(file, "object {\n");
-            
-            for (size_t i = 0; i < obj->NumBuckets; i++)
-            {
-                totemHashMapEntry *entry = obj->Buckets[i];
-                
-                while (entry)
-                {
-                    for (size_t i = 0; i < indent; i++)
-                    {
-                        fprintf(file, " ");
-                    }
-                    
-                    fprintf(file, "\"%.*s\": ", (int)entry->KeyLen, (char*)entry->Key);
-                    totemExecState_PrintRegisterRecursive(state, file, reg->Value.GCObject->Registers + entry->Value, indent);
-                    
-                    entry = entry->Next;
-                }
-            }
-            
-            indent -= 5;
-            
-            for (size_t i = 0; i < indent; i++)
-            {
-                fprintf(file, " ");
-            }
-            
-            fprintf(file, "}\n");
-            
-            break;
-        }
-            
-        case totemPrivateDataType_Array:
-        {
-            indent += 5;
-            
-            fprintf(file, "array[%"PRId64"] {\n", reg->Value.GCObject->NumRegisters);
-            
-            for(size_t i = 0; i < reg->Value.GCObject->NumRegisters; ++i)
-            {
-                for (size_t j = 0; j < indent; j++)
-                {
-                    fprintf(file, " ");
-                }
-                
-                fprintf(file, "%"PRId64": ", i);
-                
-                totemRegister *val = &reg->Value.GCObject->Registers[i];
-                totemExecState_PrintRegisterRecursive(state, file, val, indent);
-            }
-            
-            indent -= 5;
-            
-            for(size_t i = 0; i < indent; i++)
-            {
-                fprintf(file, " ");
-            }
-            
-            fprintf(file, "}\n");
-            break;
-        }
-            
-        case totemPrivateDataType_Float:
-            fprintf(file, "%s %f\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Float);
-            break;
-            
-        case totemPrivateDataType_Int:
-            fprintf(file, "%s %"PRIi64"\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Int);
-            break;
-            
-        case totemPrivateDataType_Boolean:
-            fprintf(file, "%s %s\n", totemPrivateDataType_Describe(reg->DataType), reg->Value.Data ? "true" : "false");
-            break;
-            
-        case totemPrivateDataType_Null:
-        case totemPrivateDataType_Userdata:
-            fprintf(file, "%s\n", totemPrivateDataType_Describe(reg->DataType));
-            break;
-            
-        default:
-            fprintf(file, "%s %d %f %"PRIi64" %p\n", totemPrivateDataType_Describe(reg->DataType), reg->DataType, reg->Value.Float, reg->Value.Int, reg->Value.GCObject);
-            break;
-    }
-}
-
-void totemExecState_PrintRegister(totemExecState *state, FILE *file, totemRegister *reg)
-{
-    totemExecState_PrintRegisterRecursive(state, file, reg, 0);
-}
-
-void totemExecState_PrintRegisterList(totemExecState *state, FILE *file, totemRegister *regs, size_t numRegisters)
-{
-    for (size_t i = 0; i < numRegisters; i++)
-    {
-        totemExecState_PrintRegister(state, file, &regs[i]);
-    }
-}
-
-void totem_printBits(FILE *file, uint32_t data, uint32_t numBits, uint32_t start)
-{
-    uint32_t end = start + numBits;
-    for(uint32_t i = start; i < end; i++)
-    {
-        fprintf(file, "%i", TOTEM_GETBITS_OFFSET(data, TOTEM_BITMASK(i, 1), i));
-    }
-}
-
-totemOperandXSigned totemOperandXSigned_FromUnsigned(totemOperandXUnsigned val, uint32_t numBits)
-{
-    if(TOTEM_GETBITS_OFFSET(val, TOTEM_BITMASK(numBits - 1, 1), numBits - 1))
-    {
-        uint32_t actualVal = TOTEM_GETBITS(val, TOTEM_BITMASK(0, numBits - 1));
+        uint32_t actualVal = TOTEM_GETBITS(val, valueMask);
         actualVal = ~actualVal;
         actualVal++;
         return *((totemOperandXSigned*)(&actualVal));
@@ -559,21 +330,26 @@ totemBool totem_getcwd(char *buffer, size_t size)
 void totem_Init()
 {
 #define TOTEM_OPCODE_FORMAT(x) 0,
-    TOTEM_STATIC_ASSERT(TOTEM_ARRAY_SIZE((int[]){TOTEM_EMIT_OPCODES()}) < TOTEM_MAXVAL_UNSIGNED(totemInstructionSize_Op), "Too many opcodes defined!");
+    TOTEM_STATIC_ASSERT(TOTEM_ARRAY_SIZE((int[]){TOTEM_EMIT_OPCODES()}) < TOTEM_MAXVAL_UNSIGNED(size_t, totemInstructionSize_Op), "Too many opcodes defined!");
 #undef TOTEM_OPCODE_FORMAT
     
     TOTEM_STATIC_ASSERT(TOTEM_STRING_LITERAL_SIZE("test") == 4, "String length test");
     
-    TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values must be 8 bytes");
     TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction must be 4 bytes");
     TOTEM_STATIC_ASSERT(sizeof(size_t) == sizeof(void*), "size_t must be able to hold any memory address");
     
+#if !TOTEM_VMOPT_NANBOXING
+    TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values must be 8 bytes");
     TOTEM_STATIC_ASSERT(sizeof(totemFloat) == sizeof(totemRegisterValue), "Value-size mismatch");
     TOTEM_STATIC_ASSERT(sizeof(totemInt) == sizeof(totemRegisterValue), "Value-size mismatch");
     TOTEM_STATIC_ASSERT(sizeof(void*) == sizeof(totemRegisterValue), "Value-size mismatch");
-    TOTEM_STATIC_ASSERT(sizeof(totemRuntimeMiniString) == sizeof(totemRegisterValue), "Value-size mismatch");
     TOTEM_STATIC_ASSERT(sizeof(totemPublicDataType) == sizeof(totemRegisterValue), "Value-size mismatch");
     TOTEM_STATIC_ASSERT(sizeof(uint64_t) == sizeof(totemRegisterValue), "Value-size mismatch");
+    TOTEM_STATIC_ASSERT((sizeof(char) * (TOTEM_MINISTRING_MAXLENGTH + 1)) <= sizeof(uint64_t), "Value-size mismatch");
+#else
+    TOTEM_STATIC_ASSERT(sizeof(totemFloat) == sizeof(totemRegister), "Value-size mismatch");
+    TOTEM_STATIC_ASSERT(sizeof(uint64_t) == sizeof(totemRegister), "Value-size mismatch");
+#endif
     
     TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.NextHdr) == offsetof(totemGCHeader, NextHdr), "totemGCObject* must be able to masquerade as a totemGCHeader*");
     TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.PrevHdr) == offsetof(totemGCHeader, PrevHdr), "totemGCObject* must be able to masquerade as a totemGCHeader*");

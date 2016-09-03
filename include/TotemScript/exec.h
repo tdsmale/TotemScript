@@ -119,6 +119,14 @@ extern "C" {
     }
     totemNativeFunction;
     
+    typedef struct
+    {
+        totemHash Hash;
+        totemStringLength Length;
+        char Data[1];
+    }
+    totemInternedStringHeader;
+    
     typedef enum
     {
         totemFunctionCallFlag_None = 0,
@@ -127,6 +135,109 @@ extern "C" {
     }
     totemFunctionCallFlag;
     
+#if TOTEM_VMOPT_NANBOXING
+    
+    /*
+     NaN-Boxing
+     
+     assumptions:
+     - the IEEE-754 floating point standard is being used
+     - x86-64 only deals in pointers up to 48-bits in width
+     
+     IEEE 754 format:
+     
+     1-bit Sign
+     |
+     | 11-bit Exponent (if all bits are set, this is NaN)
+     | |
+     | |           52-bit Mantissa (if the most-significant bit is 1, then this is a "quiet" NaN and we can use it to store values)
+     | |           |
+     | |           |
+     |S|NNNNNNNNNNN|MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+     |                                                                 |
+     |Most Significant                                                 | Least Significant
+     
+     -------------------------------------------------------------------
+     
+     The format used for non-floating point values is:
+     
+     16-bit tag that specifies type (A is always 1, L is the most-sigificant type bit, R is the remaining 3 type bits)
+     |
+     |                48-bit value
+     |                |
+     |                |
+     |LAAAAAAAAAAAARRR|VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+     |                                                                |
+     |Most Significant                                                | Least Significant
+     
+     The only two types that lose out are:
+     - ints, which are reduced to 32-bits
+     - mini-strings, which are reduced to 5 chars or less
+     */
+    
+#define TOTEM_DATATYPE(x) ((uint16_t)( \
+TOTEM_BITMASK(uint16_t, 3, 12) |  /* all exponent bits + quiet NaN flag are set */ \
+((TOTEM_GETBITS((uint16_t)(x), TOTEM_BITMASK(uint16_t, 3, 1))) << 12) | /* the most significant bit becomes the "sign" bit*/ \
+((TOTEM_GETBITS((uint16_t)(x), TOTEM_BITMASK(uint16_t, 0, 3)))) )) /* the rest become the least-significant bits */
+    
+#define totemPrivateDataType_Float (0)
+#define totemPrivateDataType_Int TOTEM_DATATYPE(1)
+#define totemPrivateDataType_InternedString TOTEM_DATATYPE(2)
+#define totemPrivateDataType_Type TOTEM_DATATYPE(3)
+#define totemPrivateDataType_NativeFunction TOTEM_DATATYPE(4)
+#define totemPrivateDataType_InstanceFunction TOTEM_DATATYPE(5)
+#define totemPrivateDataType_MiniString TOTEM_DATATYPE(6)
+#define totemPrivateDataType_Boolean TOTEM_DATATYPE(7)
+#define totemPrivateDataType_Null TOTEM_DATATYPE(8)
+    
+    // these should all be GC'd objects
+#define totemPrivateDataType_Array TOTEM_DATATYPE(9)
+#define totemPrivateDataType_Coroutine TOTEM_DATATYPE(10)
+#define totemPrivateDataType_Object TOTEM_DATATYPE(11)
+#define totemPrivateDataType_Userdata TOTEM_DATATYPE(12)
+#define totemPrivateDataType_Unused1 TOTEM_DATATYPE(13)
+#define totemPrivateDataType_Unused2 TOTEM_DATATYPE(14)
+#define totemPrivateDataType_Unused3 TOTEM_DATATYPE(15)
+    
+#define TOTEM_TYPEPAIR(a, b) ((((uint32_t)(a)) << 16) | ((uint32_t)(b)))
+#define TOTEM_MINISTRING_MAXLENGTH (5)
+    
+    typedef uint16_t totemPrivateDataType;
+    
+    typedef union
+    {
+        totemFloat AsFloat;
+        uint64_t AsBits;
+        struct
+        {
+            uint16_t ValA;
+            uint16_t ValB;
+            uint16_t ValC;
+            uint16_t Tag;
+        }
+        AsTagVal;
+        struct
+        {
+            char MiniString[TOTEM_MINISTRING_MAXLENGTH + 1];
+            char TagA;
+            char TagB;
+        }
+        AsMiniString;
+        struct
+        {
+            totemInt LSW;
+            totemInt MSW;
+        }
+        AsInt;
+        struct
+        {
+            char A, B, C, D, E, F, G, H;
+        }
+        AsChar;
+    }
+    totemRegister;
+    
+#else
     enum
     {
         totemPrivateDataType_Null = 0,
@@ -142,21 +253,20 @@ extern "C" {
         totemPrivateDataType_Object = 10,
         totemPrivateDataType_Userdata = 11,
         totemPrivateDataType_Boolean = 12,
-        totemPrivateDataType_Max = 13
+        totemPrivateDataType_Unused1 = 13,
+        totemPrivateDataType_Unused2 = 14,
+        totemPrivateDataType_Unused3 = 15
     };
     typedef uint8_t totemPrivateDataType;
-    
-    const char *totemPrivateDataType_Describe(totemPrivateDataType type);
+#define TOTEM_MINISTRING_MAXLENGTH (7)
 #define TOTEM_TYPEPAIR(a, b) ((a << 8) | (b))
-    
-    totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type);
     
     typedef union
     {
         totemFloat Float;
         totemInt Int;
         totemInternedStringHeader *InternedString;
-        totemRuntimeMiniString MiniString;
+        char MiniString[TOTEM_MINISTRING_MAXLENGTH + 1];
         struct totemGCObject *GCObject;
         uint64_t Data;
         totemNativeFunction *NativeFunction;
@@ -171,13 +281,69 @@ extern "C" {
         totemPrivateDataType DataType;
     }
     totemRegister;
+#endif
     
-    const char *totemRegister_GetStringValue(totemRegister *reg);
+    const char *totemPrivateDataType_Describe(totemPrivateDataType type);
+    totemPublicDataType totemPrivateDataType_ToPublic(totemPrivateDataType type);
+    
+    typedef struct
+    {
+        union
+        {
+            totemInternedStringHeader *InternedString;
+            char MiniString[TOTEM_MINISTRING_MAXLENGTH + 1];
+        };
+        
+        const char *Value;
+        totemPrivateDataType Type;
+    }
+    totemRuntimeStringValue;
+    
+    totemStringLength totemMiniString_GetLength(char *c);
+    
+    void totemRegister_InitList(totemRegister *reg, size_t num);
+    void totemRegister_GetStringValue(totemRegister *reg, totemRuntimeStringValue *val);
     totemStringLength totemRegister_GetStringLength(totemRegister *reg);
     totemHash totemRegister_GetStringHash(totemRegister *reg);
-    totemBool totemRegister_GetString(totemRegister *reg, const char **str, totemStringLength *len, totemHash *hash);
+    totemPrivateDataType totemRegister_GetType(totemRegister *reg);
+    totemBool totemRegister_IsType(totemRegister *reg, totemPrivateDataType type);
+    totemBool totemRegister_IsNull(totemRegister *reg);
+    totemBool totemRegister_IsBoolean(totemRegister *reg);
+    totemBool totemRegister_IsUserdata(totemRegister *reg);
     totemBool totemRegister_IsGarbageCollected(totemRegister *reg);
     totemBool totemRegister_IsString(totemRegister *reg);
+    totemBool totemRegister_IsInternedString(totemRegister *reg);
+    totemBool totemRegister_IsMiniString(totemRegister *reg);
+    totemBool totemRegister_IsInt(totemRegister *reg);
+    totemBool totemRegister_IsFloat(totemRegister *reg);
+    totemBool totemRegister_IsArray(totemRegister *reg);
+    totemBool totemRegister_IsObject(totemRegister *reg);
+    totemBool totemRegister_IsNativeFunction(totemRegister *reg);
+    totemBool totemRegister_IsInstanceFunction(totemRegister *reg);
+    totemBool totemRegister_IsCoroutine(totemRegister *reg);
+    totemBool totemRegister_IsTypeValue(totemRegister *reg);
+    totemBool totemRegister_IsZero(totemRegister *reg);
+    totemBool totemRegister_IsNotZero(totemRegister *reg);
+    totemBool totemRegister_Equals(totemRegister *a, totemRegister *b);
+    
+    struct totemGCObject *totemRegister_GetGCObject(totemRegister *reg);
+    totemInstanceFunction *totemRegister_GetInstanceFunction(totemRegister *reg);
+    totemNativeFunction *totemRegister_GetNativeFunction(totemRegister *reg);
+    totemPublicDataType totemRegister_GetTypeValue(totemRegister *reg);
+    totemInt totemRegister_GetInt(totemRegister *reg);
+    totemFloat totemRegister_GetFloat(totemRegister *reg);
+    totemInternedStringHeader *totemRegister_GetInternedString(totemRegister *reg);
+    void totemRegister_GetMiniString(totemRegister *reg, char *strOut);
+    
+    void totemRegister_SetInt(totemRegister *reg, totemInt val);
+    void totemRegister_SetFloat(totemRegister *reg, totemFloat val);
+    void totemRegister_SetTypeValue(totemRegister *reg, totemPublicDataType type);
+    void totemRegister_SetBoolean(totemRegister *reg, totemBool val);
+    void totemRegister_SetNull(totemRegister *reg);
+    void totemRegister_SetNativeFunction(totemRegister *reg, totemNativeFunction *func);
+    void totemRegister_SetInstanceFunction(totemRegister *reg, totemInstanceFunction *func);
+    void totemRegister_SetInternedString(totemRegister *reg, totemInternedStringHeader *str);
+    void totemRegister_SetMiniString(totemRegister *reg, char *str);
     
     typedef struct totemFunctionCall
     {
@@ -392,7 +558,7 @@ extern "C" {
     void totemScript_Init(totemScript *script);
     void totemScript_Reset(totemScript *script);
     void totemScript_Cleanup(totemScript *script);
-    totemBool totemScript_GetFunctionName(totemScript *script, totemOperandXUnsigned addr, totemRegisterValue *valOut, totemPrivateDataType *dataTypeOut);
+    totemBool totemScript_GetFunctionName(totemScript *script, totemOperandXUnsigned addr, totemRuntimeStringValue *valOut);
     
     void totemRuntime_Init(totemRuntime *runtime);
     void totemRuntime_Reset(totemRuntime *runtime);
@@ -402,9 +568,9 @@ extern "C" {
     totemLinkStatus totemRuntime_LinkBuild(totemRuntime *runtime, totemBuildPrototype *build, totemScript *scriptOut);
     totemLinkStatus totemRuntime_LinkNativeFunction(totemRuntime *runtime, totemNativeFunctionCb func, totemString *name, totemOperandXUnsigned *addressOut);
     totemLinkStatus totemRuntime_LinkNativeFunctions(totemRuntime *runtime, totemNativeFunctionPrototype *funcs, totemOperandXUnsigned num);
-    totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRegisterValue *valOut, totemPrivateDataType *typeOut);
+    totemLinkStatus totemRuntime_InternString(totemRuntime *runtime, totemString *str, totemRuntimeStringValue * valOut);
     totemBool totemRuntime_GetNativeFunctionAddress(totemRuntime *runtime, totemString *name, totemOperandXUnsigned *addressOut);
-    totemBool totemRuntime_GetNativeFunctionName(totemRuntime *runtime, totemOperandXUnsigned addr, totemRegisterValue *valOut, totemPrivateDataType *typeOut);
+    totemBool totemRuntime_GetNativeFunctionName(totemRuntime *runtime, totemOperandXUnsigned addr, totemRuntimeStringValue *val);
     
     void totemExecState_Init(totemExecState *state);
     void totemExecState_Cleanup(totemExecState *state);
@@ -425,13 +591,21 @@ extern "C" {
     totemExecStatus totemExecState_CreateArray(totemExecState *state, totemInt numRegisters, totemGCObject **objOut);
     totemExecStatus totemExecState_CreateUserdata(totemExecState *state, void *data, totemUserdataDestructor destructor, totemGCObject **gcOut);
     totemExecStatus totemExecState_CreateArrayFromExisting(totemExecState *state, totemRegister *registers, size_t numRegisters, totemGCObject **objOut);
-    void totemExecState_IncRefCount(totemExecState *state, totemRegister *gc);
-    void totemExecState_DecRefCount(totemExecState *state, totemRegister *gc);
-    void totemExecState_WriteBarrier(totemExecState *state, totemGCObject *gc);
+    
     void totemExecState_DestroyCoroutine(totemExecState *state, totemFunctionCall *co);
     void totemExecState_DestroyObject(totemExecState *state, totemHashMap *obj);
     void totemExecState_DestroyInstance(totemExecState *state, totemInstance *obj);
     void totemExecState_CollectGarbage(totemExecState *state, totemBool full);
+    
+#if TOTEM_GCTYPE_ISREFCOUNTING
+    void totemExecState_IncRefCount(totemExecState *state, totemRegister *gc);
+    void totemExecState_DecRefCount(totemExecState *state, totemRegister *gc);
+#define totemExecState_WriteBarrier(x, y)
+#elif TOTEM_GCTYPE_ISMARKANDSWEEP
+#define totemExecState_IncRefCount(x, y)
+#define totemExecState_DecRefCount(x, y)
+    void totemExecState_WriteBarrier(totemExecState *state, totemGCObject *gc);
+#endif
     
     totemExecStatus totemExecState_CreateSubroutine(totemExecState *state, uint8_t numRegisters, totemGCObject *instance, totemRegister *returnReg, totemFunctionType funcType, void *function, totemFunctionCall **callOut);
     void totemExecState_PushRoutine(totemExecState *state, totemFunctionCall *call, totemInstruction *startAt);
@@ -474,7 +648,7 @@ extern "C" {
     void totemExecState_AssignNewInternedString(totemExecState *state, totemRegister *dst, totemInternedStringHeader *newVal);
     void totemExecState_AssignNewNativeFunction(totemExecState *state, totemRegister *dst, totemNativeFunction *func);
     void totemExecState_AssignNewInstanceFunction(totemExecState *state, totemRegister *dst, totemInstanceFunction *func);
-    void totemExecState_AssignNewString(totemExecState *state, totemRegister *dst, totemRegister *src);
+    void totemExecState_AssignNewString(totemExecState *state, totemRegister *dst, totemRuntimeStringValue *src);
     void totemExecState_AssignNewArray(totemExecState *state, totemRegister *dst, totemGCObject *newVal);
     void totemExecState_AssignNewCoroutine(totemExecState *state, totemRegister *dst, totemGCObject *newVal);
     void totemExecState_AssignNewObject(totemExecState *state, totemRegister *dst, totemGCObject *newVal);

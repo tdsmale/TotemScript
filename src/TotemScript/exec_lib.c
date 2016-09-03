@@ -19,20 +19,22 @@ totemExecStatus totemArgV(totemExecState *state)
     
     totemRegister *arg = &state->LocalRegisters[0];
     
-    if (arg->DataType != totemPrivateDataType_Int)
+    if (!totemRegister_IsInt(arg))
     {
         printf("expected int argv\n");
         return totemExecStatus_Break(totemExecStatus_Stop);
     }
     
-    if (!state->ArgV || arg->Value.Int >= state->ArgC)
+    totemInt val = totemRegister_GetInt(arg);
+    
+    if (!state->ArgV || val >= state->ArgC)
     {
         totemExecState_AssignNull(state, state->CallStack->ReturnRegister);
         return totemExecStatus_Continue;
     }
     else
     {
-        totemString str = TOTEM_STRING_VAL(state->ArgV[arg->Value.Int]);
+        totemString str = TOTEM_STRING_VAL(state->ArgV[val]);
         return totemExecState_InternString(state, &str, state->CallStack->ReturnRegister);
     }
 }
@@ -57,14 +59,14 @@ totemExecStatus totemAssert(totemExecState *state)
     }
     
     totemRegister *reg = &state->LocalRegisters[0];
-    if (reg->Value.Data)
-    {
-        return totemExecStatus_Continue;
-    }
-    else
+    if (totemRegister_IsZero(reg))
     {
         printf("assertion failed\n");
         return totemExecStatus_Stop;
+    }
+    else
+    {
+        return totemExecStatus_Continue;
     }
 }
 
@@ -77,15 +79,18 @@ totemExecStatus totemSqrt(totemExecState *state)
     }
     
     totemRegister *reg = &state->LocalRegisters[0];
-    switch (reg->DataType)
+    
+    if (totemRegister_IsFloat(reg))
     {
-        case totemPrivateDataType_Int:
-            totemExecState_AssignNewFloat(state, state->CallStack->ReturnRegister, sqrt((totemFloat)reg->Value.Int));
-            break;
-            
-        case totemPrivateDataType_Float:
-            totemExecState_AssignNewFloat(state, state->CallStack->ReturnRegister, sqrt(reg->Value.Float));
-            break;
+        totemExecState_AssignNewFloat(state, state->CallStack->ReturnRegister, sqrt(totemRegister_GetFloat(reg)));
+    }
+    else if (totemRegister_IsInt(reg))
+    {
+        totemExecState_AssignNewFloat(state, state->CallStack->ReturnRegister, sqrt((totemFloat)totemRegister_GetInt(reg)));
+    }
+    else
+    {
+        return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
     }
     
     return totemExecStatus_Continue;
@@ -107,8 +112,19 @@ totemExecStatus totemFOpen(totemExecState *state)
     totemRegister *srcReg = &state->LocalRegisters[0];
     totemRegister *modeReg = &state->LocalRegisters[1];
     
-    const char *src = totemRegister_GetStringValue(srcReg);
-    const char *mode = totemRegister_GetStringValue(modeReg);
+    if (!totemRegister_IsString(srcReg) || !totemRegister_IsString(modeReg))
+    {
+        printf("not string\n");
+        return totemExecStatus_Break(totemExecStatus_UnexpectedDataType);
+    }
+    
+    totemRuntimeStringValue srcVal;
+    totemRuntimeStringValue modeVal;
+    totemRegister_GetStringValue(srcReg, &srcVal);
+    totemRegister_GetStringValue(modeReg, &modeVal);
+    
+    const char *src = srcVal.Value;
+    const char *mode = modeVal.Value;
     
     FILE *f = totem_fopen(src, mode);
     if (!f)
@@ -131,7 +147,7 @@ totemExecStatus totemFOpen(totemExecState *state)
 
 totemExecStatus totemGCCollect(totemExecState *state)
 {
-    totemExecState_CollectGarbage(state, state->CallStack->NumArguments ? state->LocalRegisters[0].Value.Data != 0 : totemBool_False);
+    totemExecState_CollectGarbage(state, state->CallStack->NumArguments ? !totemRegister_IsZero(&state->LocalRegisters[0]) : totemBool_False);
     return totemExecStatus_Continue;
 }
 

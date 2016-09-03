@@ -74,8 +74,9 @@
 #define TOTEM_CDECL _cdecl
 #define TOTEM_UNREACHABLE() __assume(0)
 #define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
-#define PATH_MAX (_MAX_PATH)
-#define totem_chdir _chdir
+
+#define PRISize "lu"
+
 #endif
 
 // clang
@@ -84,9 +85,11 @@
 #define TOTEM_INLINE __attribute__((always_inline))
 #define TOTEM_CDECL __attribute__((cdecl))
 #define TOTEM_THREADED_DISPATCH
-#define totem_snprintf snprintf
 #define TOTEM_UNREACHABLE() __builtin_unreachable()
-#define totem_chdir chdir
+#define totem_snprintf snprintf
+
+#define PRISize "zu"
+
 #endif
 
 #if defined(__GNUC__)
@@ -94,9 +97,11 @@
 #define TOTEM_INLINE __attribute__((always_inline))
 #define TOTEM_CDECL __attribute__((cdecl))
 #define TOTEM_THREADED_DISPATCH
-#define totem_snprintf snprintf
 #define TOTEM_UNREACHABLE() __builtin_unreachable()
-#define totem_chdir chdir
+#define totem_snprintf snprintf
+
+#define PRISize "zu"
+
 #endif
 
 // winlib
@@ -104,7 +109,6 @@
 
 #ifdef TOTEM_MINGW
 #define _WIN32_WINNT 0x0601 // target win7
-#define PATH_MAX (260)
 #define VOLUME_NAME_DOS (0x0)
 #define FILE_NAME_NORMALIZED (0x0)
 #endif
@@ -115,7 +119,6 @@
 #include <Shlwapi.h>
 
 typedef int totemCwdSize_t;
-#define getcwd _getcwd
 
 #define totemLock CRITICAL_SECTION
 #define totemLock_Init InitializeCriticalSection
@@ -131,6 +134,13 @@ typedef int totemCwdSize_t;
 #define totem_longjmp(jmp) longjmp((int*)jmp, 1)
 #endif
 
+#ifndef PATH_MAX
+#define PATH_MAX (_MAX_PATH)
+#endif
+
+#define totem_chdir _chdir
+#define getcwd _getcwd
+
 #endif
 
 // apple
@@ -145,6 +155,10 @@ typedef size_t totemCwdSize_t;
 
 #define totem_setjmp(jmp) setjmp((int*)jmp)
 #define totem_longjmp(jmp) longjmp((int*)jmp, 1)
+
+#define totem_snprintf snprintf
+#define totem_chdir chdir
+
 #endif
 
 // posix
@@ -187,10 +201,32 @@ typedef size_t totemCwdSize_t;
 
 // bytecode interpreter uses computed gotos for instruction dispatch instead of a switch statement
 // theoretically better performance (better branch prediction), but not supported on every platform
-#define TOTEM_VMOPT_THREADED_DISPATCH (defined(TOTEM_THREADED_DISPATCH))
+#ifdef TOTEM_THREADED_DISPATCH
+#define TOTEM_VMOPT_THREADED_DISPATCH (1)
+#else
+#define TOTEM_VMOPT_THREADED_DISPATCH (0)
+#endif
 
 // bytecode interpreter attempts to simulate the performance advantage of computed gotos when not available
 // uses a separate switch statement for every dispatch
 #define TOTEM_VMOPT_SIMULATED_THREADED_DISPATCH (1)
+
+// register values are represented using NaN-boxing
+// all possible values are encoded as a single 8-byte IEEE-754 double
+// more work is needed to encode/decode values
+// integers can only be 32-bits in width
+// mini-strings are smaller
+#if defined(TOTEM_X64)
+#define TOTEM_VMOPT_NANBOXING (1)
+#else
+#define TOTEM_VMOPT_NANBOXING (0)
+#endif
+
+// debug options
+
+#define TOTEM_DEBUGOPT_ASSERT_REGISTER_VALUES (0)
+#define TOTEM_DEBUGOPT_ASSERT_GC (0)
+#define TOTEM_DEBUGOPT_PRINT_VM_ACTIVITY (0)
+#define TOTEM_DEBUGOPT_ASSERT_HASHMAP_LISTS (0)
 
 #endif
