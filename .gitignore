@@ -1,2 +1,4 @@
 *.o
-totem-cli
+*.d
+TotemScriptCmd
+src/TotemScriptTest/TotemScriptTest

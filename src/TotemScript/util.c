@@ -8,6 +8,7 @@
 
 #include <TotemScript/base.h>
 #include <TotemScript/parse.h>
+#include <TotemScript/platform.h>
 #include <TotemScript/exec.h>
 #include <string.h>
 #include <errno.h>
@@ -444,6 +445,30 @@ totemBool totem_fchdir(FILE *file)
         }
     }
     
+    return totemBool_False;
+#endif
+#ifdef TOTEM_LINUX
+    int fd = fileno(file);
+    
+    char procfs[PATH_MAX];
+    char path[PATH_MAX];
+    sprintf(procfs, "/proc/self/fd/%d", fd);
+    if (readlink(procfs, path, PATH_MAX) != -1)
+    {
+        size_t len = strnlen(path, PATH_MAX);
+        for(char *c = path + len - 1; c >= path; --c)
+        {
+            if(*c=='/' || *c == '\\')
+            {
+                *c = '\0';
+                break;
+            }
+        }
+        if(chdir(path) == 0)
+        {
+            return totemBool_True;
+        }
+    }
     return totemBool_False;
 #endif
 }

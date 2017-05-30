@@ -162,8 +162,11 @@ typedef size_t totemCwdSize_t;
 #endif
 
 #ifdef TOTEM_LINUX
+#define _POSIX_C_SOURCE 200809L
+
 #include <stddef.h>
 #include <linux/limits.h>
+#include <unistd.h>
 
 typedef size_t totemCwdSize_t;
 
