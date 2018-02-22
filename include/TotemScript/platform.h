@@ -161,6 +161,23 @@ typedef size_t totemCwdSize_t;
 
 #endif
 
+#ifdef TOTEM_LINUX
+#define _POSIX_C_SOURCE 200809L
+
+#include <stddef.h>
+#include <linux/limits.h>
+#include <unistd.h>
+
+typedef size_t totemCwdSize_t;
+
+#define totem_setjmp(jmp) setjmp(jmp)
+#define totem_longjmp(jmp) longjmp(jmp, 1)
+
+#define totem_snprintf snprintf
+#define totem_chdir chdir
+
+#endif
+
 // posix
 #ifdef TOTEM_POSIX
 #include <pthread.h>
