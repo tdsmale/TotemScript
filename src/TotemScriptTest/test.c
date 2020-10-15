@@ -14,6 +14,7 @@
 #include <TotemScriptTest/dirent.h>
 #define TOTEMSCRIPTCMD ".\\TotemScriptCmd.exe"
 #else
+#include <dirent.h>
 #define TOTEMSCRIPTCMD "time ./TotemScriptCmd"
 #endif
 
