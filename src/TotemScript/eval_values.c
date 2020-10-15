@@ -13,7 +13,7 @@
 
 totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, totemBuildPrototype *build)
 {
-    totemOperandRegisterPrototype dummy;
+    totemOperandPrototype dummy;
     
     switch (arg->Type)
     {
@@ -21,24 +21,24 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
             return totemBuildPrototype_EvalNull(build, &dummy, NULL);
             
         case totemArgumentType_Boolean:
-            return totemBuildPrototype_EvalBoolean(build, arg->Boolean, &dummy, NULL);
+			return totemBuildPrototype_EvalBoolean(build, arg->Value.Boolean, &dummy, NULL);
             
         case totemArgumentType_Number:
-            return totemBuildPrototype_EvalNumber(build, arg->Number, &dummy, NULL);
+			return totemBuildPrototype_EvalNumber(build, arg->Value.Number, &dummy, NULL);
             
         case totemArgumentType_String:
-            return totemBuildPrototype_EvalString(build, arg->String, &dummy, NULL);
+			return totemBuildPrototype_EvalString(build, arg->Value.String, &dummy, NULL);
             
         case totemArgumentType_FunctionDeclaration:
-            return totemBuildPrototype_EvalAnonymousFunction(build, arg->FunctionDeclaration, &dummy, NULL);
+			return totemBuildPrototype_EvalAnonymousFunction(build, arg->Value.FunctionDeclaration, &dummy, NULL);
             
         case totemArgumentType_Type:
-            return totemBuildPrototype_EvalType(build, arg->DataType, &dummy, NULL);
+			return totemBuildPrototype_EvalType(build, arg->Value.DataType, &dummy, NULL);
             
         case totemArgumentType_NewArray:
         {
             totemInt num = 0;
-            for (totemExpressionPrototype *exp = arg->NewArray->Accessor; exp; exp = exp->Next)
+			for (totemExpressionPrototype *exp = arg->Value.NewArray->Accessor; exp; exp = exp->Next)
             {
                 TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(exp, build));
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, num, &dummy, NULL));
@@ -50,9 +50,9 @@ totemEvalStatus totemArgumentPrototype_EvalValues(totemArgumentPrototype *arg, t
             
         case totemArgumentType_NewObject:
         {
-            totemExpressionPrototype *values = arg->NewObject->Values;
-            totemExpressionPrototype *keys = arg->NewObject->Keys;
-            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, arg->NewObject->Num, &dummy, NULL));
+			totemExpressionPrototype *values = arg->Value.NewObject->Values;
+			totemExpressionPrototype *keys = arg->Value.NewObject->Keys;
+			TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalInt(build, arg->Value.NewObject->Num, &dummy, NULL));
             
             while (values)
             {
@@ -77,21 +77,21 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
     switch (expression->LValueType)
     {
         case totemLValueType_Argument:
-            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalValues(expression->LValueArgument, build));
+            TOTEM_EVAL_CHECKRETURN(totemArgumentPrototype_EvalValues(expression->LValue.Argument, build));
             break;
             
         case totemLValueType_Expression:
-            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(expression->LValueExpression, build));
+            TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(expression->LValue.Expression, build));
             break;
     }
     
     for (totemPreUnaryOperatorPrototype *op = expression->PreUnaryOperators; op != NULL; op = op->Next)
     {
         totemString preUnaryNumber;
-        memset(&preUnaryNumber, 0, sizeof(totemString));
+		TOTEM_ZERO(&preUnaryNumber);
         
-        totemOperandRegisterPrototype preUnaryRegister;
-        memset(&preUnaryNumber, 0, sizeof(totemOperandRegisterPrototype));
+        totemOperandPrototype preUnaryRegister;
+		TOTEM_ZERO(&preUnaryNumber);
         
         switch (op->Type)
         {
@@ -108,13 +108,11 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
             case totemPreUnaryOperatorType_LogicalNegate:
                 totemString_FromLiteral(&preUnaryNumber, "0");
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister, NULL));
-                // A = B == C(0)
                 break;
                 
-            case totemPreUnaryOperatorType_Negative:
+            case totemPreUnaryOperatorType_Negate:
                 totemString_FromLiteral(&preUnaryNumber, "-1");
                 TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalNumber(build, &preUnaryNumber, &preUnaryRegister, NULL));
-                // A = B * -1
                 break;
                 
             case totemPreUnaryOperatorType_None:
@@ -125,10 +123,10 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
     for (totemPostUnaryOperatorPrototype *op = expression->PostUnaryOperators; op != NULL; op = op->Next)
     {
         totemString postUnaryNumber;
-        memset(&postUnaryNumber, 0, sizeof(totemString));
+		TOTEM_ZERO(&postUnaryNumber);
         
-        totemOperandRegisterPrototype postUnaryRegister;
-        memset(&postUnaryNumber, 0, sizeof(totemOperandRegisterPrototype));
+        totemOperandPrototype postUnaryRegister;
+		TOTEM_ZERO(&postUnaryNumber);
         
         switch (op->Type)
         {
@@ -143,11 +141,11 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
                 break;
                 
             case totemPostUnaryOperatorType_ArrayAccess:
-                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(op->ArrayAccess, build));
+                TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(op->Parameters, build));
                 break;
                 
             case totemPostUnaryOperatorType_Invocation:
-                for (totemExpressionPrototype *parameter = op->InvocationParametersStart; parameter != NULL; parameter = parameter->Next)
+                for (totemExpressionPrototype *parameter = op->Parameters; parameter != NULL; parameter = parameter->Next)
                 {
                     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_EvalValues(parameter, build));
                 }
@@ -168,41 +166,32 @@ totemEvalStatus totemExpressionPrototype_EvalValues(totemExpressionPrototype *ex
 
 totemEvalStatus totemStatementPrototype_EvalValues(totemStatementPrototype *statement, totemBuildPrototype *build)
 {
-    //totemBuildPrototypeFlag prevFlags = build->Flags;
     totemEvalStatus status = totemEvalStatus_Success;
     
     switch (statement->Type)
     {
         case totemStatementType_DoWhileLoop:
-            //TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
-            status = totemDoWhileLoopPrototype_EvalValues(statement->DoWhileLoop, build);
-            //build->Flags = prevFlags;
+			status = totemDoWhileLoopPrototype_EvalValues(statement->Ptr.DoWhileLoop, build);
             break;
             
         case totemStatementType_ForLoop:
-            //TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
-            status = totemForLoopPrototype_EvalValues(statement->ForLoop, build);
-            //build->Flags = prevFlags;
+            status = totemForLoopPrototype_EvalValues(statement->Ptr.ForLoop, build);
             break;
             
         case totemStatementType_IfBlock:
-            //TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
-            status = totemIfBlockPrototype_EvalValues(statement->IfBlock, build);
-            //build->Flags = prevFlags;
+			status = totemIfBlockPrototype_EvalValues(statement->Ptr.IfBlock, build);
             break;
             
         case totemStatementType_WhileLoop:
-            //TOTEM_UNSETBITS(build->Flags, totemBuildPrototypeFlag_EvalVariables);
-            status = totemWhileLoopPrototype_EvalValues(statement->WhileLoop, build);
-            //build->Flags = prevFlags;
+			status = totemWhileLoopPrototype_EvalValues(statement->Ptr.WhileLoop, build);
             break;
             
         case totemStatementType_Simple:
-            status = totemExpressionPrototype_EvalValues(statement->Simple, build);
+			status = totemExpressionPrototype_EvalValues(statement->Ptr.Simple, build);
             break;
             
         case totemStatementType_Return:
-            status = totemExpressionPrototype_EvalValues(statement->Return, build);
+			status = totemExpressionPrototype_EvalValues(statement->Ptr.Return, build);
             break;
     }
     

@@ -10,75 +10,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#define TOTEM_DESC_TOKEN_SYMBOL(type, value) { type, totemTokenCategory_Symbol, value, TOTEM_STRING_LITERAL_SIZE(value) }
-#define TOTEM_DESC_TOKEN_WORD(type, value) { type, totemTokenCategory_ReservedWord, value, TOTEM_STRING_LITERAL_SIZE(value) }
-
-static totemTokenDesc s_symbolTokenValues[] =
-{
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Plus, "+"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Minus, "-"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Multiply, "*"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Divide, "/"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Not, "!"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_And, "&"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Or, "|"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Assign, "="),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_LBracket, "("),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_RBracket, ")"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_LessThan, "<"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_MoreThan, ">"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_LCBracket, "{"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_RCBracket, "}"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Dot, "."),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_PowerTo, "^"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Semicolon, ";"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_SingleQuote, "'"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_DoubleQuote, "\""),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_LSBracket, "["),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_RSBracket, "]"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Comma, ","),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Colon, ":"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Backslash, "\\"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_Slash, "/"),
-    TOTEM_DESC_TOKEN_SYMBOL(totemTokenType_At, "@")
-};
-
-static totemTokenDesc s_reservedWordValues[] =
-{
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_If, "if"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Do, "do"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_While, "while"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_For, "for"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Return, "return"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Case, "case"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Break, "break"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Function, "function"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Default, "default"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Else, "else"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_True, "true"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_False, "false"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Boolean, "boolean"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Null, "null"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Let, "let"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Is, "is"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Float, "float"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Int, "int"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Array, "array"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_String, "string"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Type, "type"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_As, "as"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Coroutine, "coroutine"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Object, "object"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Userdata, "userdata"),
-    TOTEM_DESC_TOKEN_WORD(totemTokenType_Var, "var")
-};
-
-#define TOTEM_LEX_ALLOC(dest, list, start, len, cat, type) \
-dest = totemTokenList_Alloc(list, start, len, list->CurrentLine, list->CurrentChar, cat, type); \
-if(!dest) return totemLexStatus_OutOfMemory;
-
-#define TOTEM_LEX_CHECKRETURN(status, exp) status = exp; if(status == totemLexStatus_OutOfMemory) return totemLexStatus_Break(status);
-
 void totemToken_Print(FILE *target, totemToken *token)
 {
     fprintf(target, "%s %.*s at %"PRISize":%"PRISize"\n",
@@ -98,336 +29,310 @@ void totemToken_PrintList(FILE *target, totemToken *tokens, size_t num)
     }
 }
 
-void totemTokenList_Init(totemTokenList *list)
+void totemTokenizer_Init(totemTokenizer *worker)
 {
-    memset(list, 0, sizeof(totemTokenList));
-    totemMemoryBuffer_Init(&list->Tokens, sizeof(totemToken));
+	TOTEM_ZERO(worker);
 }
 
-void totemTokenList_Reset(totemTokenList *list)
+void totemTokenizer_Reset(totemTokenizer *worker)
 {
-    totemMemoryBuffer_Reset(&list->Tokens);
+	TOTEM_ZERO(worker);
 }
 
-void totemTokenList_Cleanup(totemTokenList *list)
+void totemTokenizer_Cleanup(totemTokenizer *worker)
 {
-    totemMemoryBuffer_Cleanup(&list->Tokens);
+	TOTEM_ZERO(worker);
 }
 
-totemLexStatus totemLexStatus_Break(totemLexStatus status)
+void totemTokenizer_Begin(totemTokenizer *worker, const char *buffer, size_t length)
+{
+	worker->Current = buffer;
+	worker->InsideStringLiteral = totemBool_False;
+	worker->CEnd = buffer + length;
+	worker->CurrentChar = 1;
+	worker->CurrentLine = 1;
+	TOTEM_ZERO(&worker->CurrentToken);
+	TOTEM_ZERO(&worker->LastToken);
+}
+
+static totemLexStatus totemLexStatus_Break(totemLexStatus status)
 {
     return status;
 }
 
-totemToken *totemTokenList_Alloc(totemTokenList *list, const char *start, size_t length, size_t lineNumber, size_t charNumber, totemTokenCategory category, totemTokenType type)
+static void totemTokenizer_Set(totemTokenizer *worker, size_t length, totemTokenCategory category, totemTokenType type, totemToken *output)
 {
-    totemToken *currentToken = totemMemoryBuffer_Secure(&list->Tokens, 1);
-    if (currentToken != NULL)
-    {
-        currentToken->Category = category;
-        currentToken->Type = type;
-        
-        currentToken->Position.Start = start;
-        currentToken->Position.LineNumber = lineNumber;
-        currentToken->Position.CharNumber = charNumber;
-        currentToken->Position.Length = length;
-    }
-    
-    return currentToken;
+    output->Category = category;
+	output->Type = type;
+	output->Position.Start = worker->Current;
+	output->Position.LineNumber = worker->CurrentLine;
+	output->Position.CharNumber = worker->CurrentChar;
+	output->Position.Length = length;
 }
 
-totemLexStatus totemTokenList_LexNumberAndIdentifierTokens(totemTokenList *list, const char *toCheck, size_t length)
+static void totemTokenizer_FinishToken(totemTokenizer *worker, totemToken *output)
 {
-    totemToken *currentToken = NULL;
-    TOTEM_LEX_ALLOC(currentToken, list, toCheck, 0, totemTokenCategory_Other, isdigit(toCheck[0]) ? totemTokenType_Number : totemTokenType_Identifier);
-    
-    char *c = (char*)toCheck;
-    char *cend = (char*)toCheck + length;
-    while (c != cend)
-    {
-        if (!isdigit(*c))
-        {
-            if (currentToken->Type != totemTokenType_Identifier)
-            {
-                TOTEM_LEX_ALLOC(currentToken, list, c, 0, totemTokenCategory_Other, totemTokenType_Identifier);
-            }
-        }
-        else
-        {
-            if (currentToken->Type != totemTokenType_Number)
-            {
-                TOTEM_LEX_ALLOC(currentToken, list, c, 0, totemTokenCategory_Other, totemTokenType_Number);
-            }
-        }
-        
-        currentToken->Position.Length++;
-        c++;
-    }
-    
-    //totemToken_Print(stdout, currentToken);
-    
-    return totemLexStatus_Success;
+	output->Position.Length = (size_t)(worker->Current - output->Position.Start);
 }
 
-totemLexStatus totemTokenList_LexReservedWordToken(totemTokenList *list, const char *buffer, size_t length)
+static totemBool IsSymbol(char c)
 {
-    for (size_t i = 0; i < TOTEM_ARRAY_SIZE(s_reservedWordValues); ++i)
-    {
-        totemTokenDesc *desc = &s_reservedWordValues[i];
-        
-        if (length == desc->Length && strncmp(buffer, desc->Value, length) == 0)
-        {
-            totemToken *token = NULL;
-            TOTEM_LEX_ALLOC(token, list, buffer, desc->Length, totemTokenCategory_ReservedWord, desc->Type);
-            
-            return totemLexStatus_Success;
-        }
-    }
-    
-    return totemLexStatus_Failure;
+	switch (c)
+	{
+#define TOTEM_EMIT_SYMBOL_CASE(name, symbol) case symbol:
+		TOTEM_EMIT_SYMBOLS(TOTEM_EMIT_SYMBOL_CASE)
+#undef TOTEM_EMIT_SYMBOL_CASE
+			return totemBool_True;
+
+		default:
+			return totemBool_False;
+	}
 }
 
-totemLexStatus totemTokenList_LexSymbolToken(totemTokenList *list, const char *toCheck, totemBool *insideStringLiteral)
+static void totemTokenizer_Inc(totemTokenizer *worker)
 {
-    char c = *toCheck;
+    worker->Current++;
     
-    for (size_t i = 0; i < TOTEM_ARRAY_SIZE(s_symbolTokenValues); ++i)
+    if (*worker->Current == '\n' || *worker->Current == '\r')
     {
-        totemTokenDesc *desc = &s_symbolTokenValues[i];
-        if (c == desc->Value[0])
-        {
-            totemToken *token = NULL;
-            TOTEM_LEX_ALLOC(token, list, toCheck, 1, totemTokenCategory_Symbol, desc->Type);
-            
-            size_t numTokens = totemMemoryBuffer_GetNumObjects(&list->Tokens);
-            if (numTokens > 0)
-            {
-                totemToken *lastToken = token - 1;
-                *insideStringLiteral ^= token->Type == totemTokenType_DoubleQuote && lastToken->Type != totemTokenType_Slash;
-            }
-            
-            return totemLexStatus_Success;
-        }
-    }
-    
-    return totemLexStatus_Failure;
-}
-
-totemLexStatus totemTokenList_LexString(totemTokenList *list, const char *toCheck, size_t length)
-{
-    totemLexStatus status = totemLexStatus_Success;
-    
-    TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexReservedWordToken(list, toCheck, length));
-    if (status != totemLexStatus_Success)
-    {
-        TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexNumberAndIdentifierTokens(list, toCheck, length));
-    }
-    
-    return status;
-}
-
-totemLexStatus totemTokenList_Resolve(totemTokenList *list, const char *toCheck, size_t len, totemBool *insideStringLiteral)
-{
-    totemLexStatus status = totemLexStatus_Success;
-    
-    if (len == 1)
-    {
-        TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexSymbolToken(list, toCheck, insideStringLiteral));
-        if (status != totemLexStatus_Success)
-        {
-            TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexString(list, toCheck, len));
-        }
-    }
-    else if (len > 0)
-    {
-        TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexString(list, toCheck, len));
-    }
-    
-    return status;
-}
-
-void totemTokenList_Inc(totemTokenList *list)
-{
-    list->Current++;
-    
-    if (*list->Current == '\n')
-    {
-        list->CurrentLine++;
-        list->CurrentChar = 1;
+        worker->CurrentLine++;
+        worker->CurrentChar = 1;
     }
     else
     {
-        list->CurrentChar++;
+        worker->CurrentChar++;
     }
 }
 
-/**
- * Lex buffer into token list
- */
-totemLexStatus totemTokenList_Lex(totemTokenList *list, const char *buffer, size_t length)
+void totemTokenizer_Rewind(totemTokenizer *list)
 {
-    if (!length)
-    {
-        return totemLexStatus_Success;
-    }
-    
-    totemLexStatus status = totemLexStatus_Success;
-    totemBool insideStringLiteral = totemBool_False;
-    const char *toCheck = buffer;
-    const char *cend = toCheck + length;
-    list->Current = toCheck;
-    list->CurrentChar = 1;
-    list->CurrentLine = 1;
-    
-    while (1)
-    {
-        size_t len = list->Current - toCheck;
-        
-        // end
-        if (list->Current >= cend)
-        {
-            TOTEM_LEX_CHECKRETURN(status, totemTokenList_Resolve(list, toCheck, len, &insideStringLiteral));
-            
-            totemToken *endToken;
-            TOTEM_LEX_ALLOC(endToken, list, NULL, 0, totemTokenCategory_Other, totemTokenType_EndScript);
-            /*
-             FILE *f = fopen("lex.txt", "w");
-             totemToken_PrintList(f, list->Tokens.Data, totemMemoryBuffer_GetNumObjects(&list->Tokens));
-             fclose(f);
-             */
-            return totemLexStatus_Success;
-        }
-        
-        // whitespace
-        if (isspace(*list->Current))
-        {
-            TOTEM_LEX_CHECKRETURN(status, totemTokenList_Resolve(list, toCheck, len, &insideStringLiteral));
-            
-            totemToken *endToken;
-            TOTEM_LEX_ALLOC(endToken, list, list->Current, 1, totemTokenCategory_Other, totemTokenType_Whitespace);
-            
-            while (isspace(*list->Current))
-            {
-                totemTokenList_Inc(list);
-            }
-            
-            endToken->Position.Length = (size_t)(list->Current - endToken->Position.Start);
-            toCheck = list->Current;
-            continue;
-        }
-        
-        // start of comment
-        if ((list->Current[0] == '/' && list->Current < cend - 1 && (list->Current[1] == '/' || list->Current[1] == '*')) && !insideStringLiteral)
-        {
-            TOTEM_LEX_CHECKRETURN(status, totemTokenList_Resolve(list, toCheck, len, &insideStringLiteral));
-            
-            if (!insideStringLiteral)
-            {
-                switch (list->Current[1])
-                {
-                    case '/':
-                        totemTokenList_Inc(list);
-                        totemTokenList_Inc(list);
-                        
-                        while (1)
-                        {
-                            if (list->Current >= cend)
-                            {
-                                break;
-                            }
-                            
-                            if (list->Current[0] == '\n')
-                            {
-                                totemTokenList_Inc(list);
-                                break;
-                            }
-                            
-                            totemTokenList_Inc(list);
-                        }
-                        break;
-                        
-                    case '*':
-                        totemTokenList_Inc(list);
-                        totemTokenList_Inc(list);
-                        
-                        while (1)
-                        {
-                            if (list->Current == cend - 1)
-                            {
-                                totemTokenList_Inc(list);
-                                break;
-                            }
-                            
-                            if (list->Current >= cend)
-                            {
-                                break;
-                            }
-                            
-                            if (list->Current[0] == '*' && list->Current[1] == '/')
-                            {
-                                totemTokenList_Inc(list);
-                                totemTokenList_Inc(list);
-                                break;
-                            }
-                            
-                            totemTokenList_Inc(list);
-                        }
-                        break;
-                }
-            }
-            
-            toCheck = list->Current;
-            continue;
-        }
-        
-        if (len == 0)
-        {
-            totemTokenList_Inc(list);
-            continue;
-        }
-        
-        if (len == 1)
-        {
-            TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexSymbolToken(list, toCheck, &insideStringLiteral));
-            if (status == totemLexStatus_Success)
-            {
-                toCheck = list->Current;
-                continue;
-            }
-        }
-        
-        TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexSymbolToken(list, list->Current, &insideStringLiteral));
-        if (status == totemLexStatus_Success)
-        {
-            size_t symbolIndex = totemMemoryBuffer_GetNumObjects(&list->Tokens) - 1;
-            TOTEM_LEX_CHECKRETURN(status, totemTokenList_LexString(list, toCheck, len));
-            
-            // shift symbol to be in front
-            totemToken *symbol = totemMemoryBuffer_Get(&list->Tokens, symbolIndex);
-            totemToken *last = totemMemoryBuffer_Top(&list->Tokens);
-            if (symbol != last)
-            {
-                totemToken swap;
-                memcpy(&swap, symbol, sizeof(totemToken));
-                
-                for (totemToken *toCopy = symbol + 1, *copyTo = symbol; toCopy <= last; toCopy++, copyTo++)
-                {
-                    memcpy(copyTo, toCopy, sizeof(totemToken));
-                }
-                
-                memcpy(last, &swap, sizeof(totemToken));
-            }
-            
-            totemTokenList_Inc(list);
-            toCheck = list->Current;
-        }
-        else
-        {
-            totemTokenList_Inc(list);
-        }
-    }
-    
-    return totemLexStatus_Success;
+	list->CurrentToken = list->LastToken;
+}
+
+/**
+ * Lex a single token
+ */
+void totemTokenizer_Step(totemTokenizer *worker)
+{
+	while (1)
+	{
+		worker->LastToken = worker->CurrentToken;
+		totemToken *output = &worker->CurrentToken;
+
+		// end
+		if (worker->Current >= worker->CEnd)
+		{
+			totemTokenizer_Set(worker, 0, totemTokenCategory_Other, totemTokenType_EndScript, output);
+			break;
+		}
+
+		// whitespace
+		else if (isspace(*worker->Current))
+		{
+			totemTokenizer_Set(worker, 1, totemTokenCategory_Other, totemTokenType_Whitespace, output);
+
+			do
+			{
+				totemTokenizer_Inc(worker);
+			} 
+			while (worker->Current < worker->CEnd && isspace(worker->Current[0]));
+
+			totemTokenizer_FinishToken(worker, output);
+		}
+
+		// numbers
+		else if (isdigit(*worker->Current))
+		{
+			totemTokenizer_Set(worker, 1, totemTokenCategory_Other, totemTokenType_Number, output);
+
+			do
+			{
+				totemTokenizer_Inc(worker);
+			} 
+			while (worker->Current < worker->CEnd && isdigit(worker->Current[0]));
+
+			totemTokenizer_FinishToken(worker, output);
+		}
+
+		// symbols
+		else if (IsSymbol(*worker->Current))
+		{
+			// comment?
+			if (*worker->Current == '/' && worker->Current < (worker->CEnd - 1) && (worker->Current[1] == '/' || worker->Current[1] == '*') && !worker->InsideStringLiteral)
+			{
+				// skip comments
+				char type = worker->Current[1];
+				totemTokenizer_Inc(worker);
+				totemTokenizer_Inc(worker);
+
+				if (type == '/')
+				{
+					while (worker->Current < worker->CEnd)
+					{
+						if (worker->Current[0] == '\n')
+						{
+							totemTokenizer_Inc(worker);
+							break;
+						}
+
+						totemTokenizer_Inc(worker);
+					}
+				}
+				else if (type == '*')
+				{
+					while (worker->Current < worker->CEnd)
+					{
+						if (worker->Current == worker->CEnd - 2 || (worker->Current[0] == '*' && worker->Current[1] == '/'))
+						{
+							totemTokenizer_Inc(worker);
+							totemTokenizer_Inc(worker);
+							break;
+						}
+
+						totemTokenizer_Inc(worker);
+					}
+				}
+
+				continue;
+			}
+			else
+			{
+				switch (*worker->Current)
+				{
+#define TOTEM_EMIT_SYMBOL_CASE(name, symbol) case symbol: \
+					{ \
+						totemTokenizer_Set(worker, 1, totemTokenCategory_Symbol, totemTokenType_ ## name, output); \
+						totemTokenizer_Inc(worker); \
+						break; \
+					}
+					TOTEM_EMIT_SYMBOLS(TOTEM_EMIT_SYMBOL_CASE)
+#undef TOTEM_EMIT_SYMBOL_CASE
+				}
+			}
+		}
+		else
+		{
+			switch (*worker->Current)
+			{
+				// reserved words
+#define TOTEM_TRY_LEX_WORD(worker, type, word)  \
+				if(worker->Current + strlen(word) <= worker->CEnd) \
+				{ \
+					if(worker->Current + strlen(word) == worker->CEnd || isspace(worker->Current[strlen(word)]) || isdigit(worker->Current[strlen(word)]) || IsSymbol(worker->Current[strlen(word)])) \
+					{ \
+						if(strncmp(worker->Current, word, strlen(word)) == 0) \
+						{ \
+							totemTokenizer_Set(worker, strlen(word), totemTokenCategory_ReservedWord, type, output); \
+							for (size_t i = 0; i < strlen(word); i++) \
+							{ \
+								totemTokenizer_Inc(worker); \
+							} \
+							break; \
+						} \
+					} \
+				}
+
+				case 'a':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Array, "array");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_As, "as");
+					goto lex_identifier;
+
+				case 'b':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Boolean, "boolean");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Break, "break");
+					goto lex_identifier;
+
+				case 'c':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Case, "case");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Coroutine, "coroutine");
+					goto lex_identifier;
+
+				case 'd':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Default, "default");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Do, "do");
+					goto lex_identifier;
+
+				case 'e':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Else, "else");
+					goto lex_identifier;
+
+				case 'f':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_False, "false");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Float, "float");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_For, "for");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Function, "function");
+					goto lex_identifier;
+
+				case 'i':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_If, "if");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Import, "import");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Include, "include");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Int, "int");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Is, "is");
+					goto lex_identifier;
+
+				case 'l':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Let, "let");
+					goto lex_identifier;
+
+				case 'n':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Null, "null");
+					goto lex_identifier;
+
+				case 'o':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Object, "object");
+					goto lex_identifier;
+
+				case 'r':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Return, "return");
+					goto lex_identifier;
+
+				case 's':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_String, "string");
+					goto lex_identifier;
+
+				case 't':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_True, "true");
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Type, "type");
+					goto lex_identifier;
+
+				case 'u':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Userdata, "userdata");
+					goto lex_identifier;
+
+				case 'v':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Var, "var");
+					goto lex_identifier;
+
+				case 'w':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_While, "while");
+					goto lex_identifier;
+
+				case 'y':
+					TOTEM_TRY_LEX_WORD(worker, totemTokenType_Yield, "yield");
+					goto lex_identifier;
+
+				default:
+				lex_identifier :
+				{
+					// assume an identifier
+					totemTokenizer_Set(worker, 1, totemTokenCategory_Other, totemTokenType_Identifier, output);
+
+					do
+					{
+						totemTokenizer_Inc(worker);
+					} 
+					while (!isspace(*worker->Current) && !isdigit(*worker->Current) && !IsSymbol(*worker->Current) && worker->Current < worker->CEnd);
+
+					totemTokenizer_FinishToken(worker, output);
+					break;
+				}
+			}
+		}
+
+		worker->InsideStringLiteral ^= output->Type == totemTokenType_DoubleQuote && worker->LastToken.Type != totemTokenType_Slash;
+		worker->LastToken.Type = output->Type;
+	}
 }
 
 const char *totemLexStatus_Describe(totemLexStatus status)
@@ -465,7 +370,6 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_Let);
             TOTEM_STRINGIFY_CASE(totemTokenType_Coroutine);
             TOTEM_STRINGIFY_CASE(totemTokenType_Default);
-            TOTEM_STRINGIFY_CASE(totemTokenType_Divide);
             TOTEM_STRINGIFY_CASE(totemTokenType_Do);
             TOTEM_STRINGIFY_CASE(totemTokenType_Dot);
             TOTEM_STRINGIFY_CASE(totemTokenType_DoubleQuote);
@@ -504,6 +408,9 @@ const char *totemTokenType_Describe(totemTokenType type)
             TOTEM_STRINGIFY_CASE(totemTokenType_While);
             TOTEM_STRINGIFY_CASE(totemTokenType_Whitespace);
             TOTEM_STRINGIFY_CASE(totemTokenType_Boolean);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Hash);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Import);
+            TOTEM_STRINGIFY_CASE(totemTokenType_Include);
     }
     
     return "UNKNOWN";

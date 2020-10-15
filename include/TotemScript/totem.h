@@ -13,5 +13,6 @@
 #include <TotemScript/parse.h>
 #include <TotemScript/eval.h>
 #include <TotemScript/exec.h>
+#include <TotemScript/memory.h>
 
 #endif

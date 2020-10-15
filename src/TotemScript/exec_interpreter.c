@@ -10,7 +10,6 @@
 void totemInterpreter_Init(totemInterpreter *interpreter)
 {
     totemScriptFile_Init(&interpreter->Script);
-    totemTokenList_Init(&interpreter->TokenList);
     totemParseTree_Init(&interpreter->ParseTree);
     totemBuildPrototype_Init(&interpreter->Build);
     interpreter->Result.Status = totemInterpreterStatus_Success;
@@ -19,7 +18,6 @@ void totemInterpreter_Init(totemInterpreter *interpreter)
 void totemInterpreter_Reset(totemInterpreter *interpreter)
 {
     totemScriptFile_Reset(&interpreter->Script);
-    totemTokenList_Reset(&interpreter->TokenList);
     totemParseTree_Reset(&interpreter->ParseTree);
     totemBuildPrototype_Reset(&interpreter->Build);
     interpreter->Result.Status = totemInterpreterStatus_Success;
@@ -28,7 +26,6 @@ void totemInterpreter_Reset(totemInterpreter *interpreter)
 void totemInterpreter_Cleanup(totemInterpreter *interpreter)
 {
     totemScriptFile_Cleanup(&interpreter->Script);
-    totemTokenList_Cleanup(&interpreter->TokenList);
     totemParseTree_Cleanup(&interpreter->ParseTree);
     totemBuildPrototype_Cleanup(&interpreter->Build);
     interpreter->Result.Status = totemInterpreterStatus_Success;
@@ -38,34 +35,25 @@ totemBool totemInterpreter_InterpretFile(totemInterpreter *interpreter, totemStr
 {
     totemScriptFile_Reset(&interpreter->Script);
     
-    interpreter->Result.FileStatus = totemScriptFile_Load(&interpreter->Script, filename);
-    if (interpreter->Result.FileStatus != totemLoadScriptStatus_Success)
+	interpreter->Result.SubStatus.FileStatus = totemScriptFile_Load(&interpreter->Script, filename);
+	if (interpreter->Result.SubStatus.FileStatus != totemLoadScriptStatus_Success)
     {
         interpreter->Result.Status = totemInterpreterStatus_FileError;
         return totemBool_False;
     }
     
     totemString toParse;
-    toParse.Length = interpreter->Script.Buffer.Length;
-    toParse.Value = interpreter->Script.Buffer.Data;
+	toParse.Length = totemCharBuffer_Num(&interpreter->Script.Buffer);
+    toParse.Value = totemCharBuffer_Bottom(&interpreter->Script.Buffer);
     return totemInterpreter_InterpretString(interpreter, &toParse);
 }
 
 totemBool totemInterpreter_InterpretString(totemInterpreter *interpreter, totemString *string)
 {
-    // lex
-    totemTokenList_Reset(&interpreter->TokenList);
-    interpreter->Result.LexStatus = totemTokenList_Lex(&interpreter->TokenList, string->Value, string->Length);
-    if (interpreter->Result.LexStatus != totemLexStatus_Success)
-    {
-        interpreter->Result.Status = totemInterpreterStatus_LexError;
-        return totemBool_False;
-    }
-    
     // parse
     totemParseTree_Reset(&interpreter->ParseTree);
-    interpreter->Result.ParseStatus = totemParseTree_Parse(&interpreter->ParseTree, &interpreter->TokenList);
-    if (interpreter->Result.ParseStatus != totemParseStatus_Success)
+	interpreter->Result.SubStatus.ParseStatus = totemParseTree_Parse(&interpreter->ParseTree, string->Value, string->Length);
+	if (interpreter->Result.SubStatus.ParseStatus != totemParseStatus_Success)
     {
         interpreter->Result.Status = totemInterpreterStatus_ParseError;
         return totemBool_False;
@@ -73,8 +61,8 @@ totemBool totemInterpreter_InterpretString(totemInterpreter *interpreter, totemS
     
     // eval
     totemBuildPrototype_Reset(&interpreter->Build);
-    interpreter->Result.EvalStatus = totemBuildPrototype_Eval(&interpreter->Build, &interpreter->ParseTree);
-    if (interpreter->Result.EvalStatus != totemEvalStatus_Success)
+	interpreter->Result.SubStatus.EvalStatus = totemBuildPrototype_Eval(&interpreter->Build, &interpreter->ParseTree);
+	if (interpreter->Result.SubStatus.EvalStatus != totemEvalStatus_Success)
     {
         interpreter->Result.Status = totemInterpreterStatus_EvalError;
         return totemBool_False;
@@ -91,7 +79,7 @@ void internalError(char *buffer, size_t bufferLen, const char *desc)
 
 void scriptError(char *buffer, size_t bufferLen, const char *desc, const char *src, const char *start, size_t len, size_t line, size_t cha)
 {
-    totem_snprintf(buffer, bufferLen, "Script error: %s in file %s on line %"PRISize":%"PRISize" : \"...%.*s...\"\n", desc, src, line, cha, (int)15, start);
+    totem_snprintf(buffer, bufferLen, "Script error: %s in file %s on line %"PRISize":%"PRISize" : \"...%.*s...\"\n", desc, src, line, cha, len, start);
 }
 
 void outOfMemoryError(char *buffer, size_t bufferLen)
@@ -101,13 +89,13 @@ void outOfMemoryError(char *buffer, size_t bufferLen)
 
 totemScriptFileBlock *totemInterpreter_LookupFile(totemInterpreter *interpreter, const char *check)
 {
-    const char *start = interpreter->Script.Buffer.Data;
+	const char *start = totemCharBuffer_Bottom(&interpreter->Script.Buffer);
     size_t offsetInd = check - start;
     
-    size_t max = totemMemoryBuffer_GetNumObjects(&interpreter->Script.FileBlock);
+	size_t max = totemScriptFileBlockBuffer_Num(&interpreter->Script.FileBlock);
     for (size_t i = 0; i < max; i++)
     {
-        totemScriptFileBlock *offset = totemMemoryBuffer_Get(&interpreter->Script.FileBlock, i);
+		totemScriptFileBlock *offset = totemScriptFileBlockBuffer_At(&interpreter->Script.FileBlock, i);
         if (offset->Offset > offsetInd)
         {
             if (i == 0)
@@ -132,11 +120,11 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
     switch (result->Status)
     {
         case totemInterpreterStatus_FileError:
-            switch (result->FileStatus)
+			switch (result->SubStatus.FileStatus)
         {
             case totemLoadScriptStatus_FileNotFound:
             {
-                totemScriptFileBlock *offendingOffset = totemMemoryBuffer_Top(&interpreter->Script.FileBlock);
+				totemScriptFileBlock *offendingOffset = totemScriptFileBlockBuffer_Top(&interpreter->Script.FileBlock);
                 totemScriptFileBlock *parentOffset = NULL;
                 
                 const char *missingFile = NULL;
@@ -145,7 +133,7 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
                 if (offendingOffset)
                 {
                     missingFile = offendingOffset->Value;
-                    parentOffset = totemMemoryBuffer_Get(&interpreter->Script.FileBlock, offendingOffset->Parent);
+					parentOffset = totemScriptFileBlockBuffer_At(&interpreter->Script.FileBlock, offendingOffset->Parent);
                     
                     if (parentOffset && offendingOffset->Offset != 0)
                     {
@@ -170,28 +158,28 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
                 break;
                 
             default:
-                internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemLoadScriptStatus_Describe(result->FileStatus));
+				internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemLoadScriptStatus_Describe(result->SubStatus.FileStatus));
                 break;
         }
             
             break;
             
         case totemInterpreterStatus_LexError:
-            switch (result->LexStatus)
+			switch (result->SubStatus.LexStatus)
         {
             case totemLexStatus_OutOfMemory:
                 outOfMemoryError(buffer, TOTEM_ARRAY_SIZE(buffer));
                 break;
                 
             default:
-                internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemLexStatus_Describe(result->LexStatus));
+				internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemLexStatus_Describe(result->SubStatus.LexStatus));
                 break;
         }
             
             break;
             
         case totemInterpreterStatus_ParseError:
-            switch (result->ParseStatus)
+            switch (result->SubStatus.ParseStatus)
         {
             case totemParseStatus_OutOfMemory:
                 outOfMemoryError(buffer, TOTEM_ARRAY_SIZE(buffer));
@@ -199,20 +187,20 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
                 
             case totemParseStatus_UnexpectedToken:
             case totemParseStatus_ValueTooLarge:
-                if (interpreter->ParseTree.ErrorAt)
+                if (interpreter->ParseTree.ErrorAt.Start)
                 {
-                    totemScriptFileBlock *offset = totemInterpreter_LookupFile(interpreter, interpreter->ParseTree.ErrorAt->Start);
+                    totemScriptFileBlock *offset = totemInterpreter_LookupFile(interpreter, interpreter->ParseTree.ErrorAt.Start);
                     
-                    scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemParseStatus_Describe(result->ParseStatus),
+					scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemParseStatus_Describe(result->SubStatus.ParseStatus),
                                 offset ? offset->Value : NULL,
-                                interpreter->ParseTree.ErrorAt->Start,
-                                interpreter->ParseTree.ErrorAt->Length,
-                                offset ? interpreter->ParseTree.ErrorAt->LineNumber - offset->LineStart : interpreter->ParseTree.ErrorAt->LineNumber,
-                                interpreter->ParseTree.ErrorAt->CharNumber);
+                                interpreter->ParseTree.ErrorAt.Start,
+                                interpreter->ParseTree.ErrorAt.Length,
+                                offset ? interpreter->ParseTree.ErrorAt.LineNumber - offset->LineStart : interpreter->ParseTree.ErrorAt.LineNumber,
+                                interpreter->ParseTree.ErrorAt.CharNumber);
                 }
                 else
                 {
-                    scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemParseStatus_Describe(result->ParseStatus),
+					scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemParseStatus_Describe(result->SubStatus.ParseStatus),
                                 NULL,
                                 NULL,
                                 0,
@@ -223,14 +211,14 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
                 break;
                 
             default:
-                internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemParseStatus_Describe(result->ParseStatus));
+				internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemParseStatus_Describe(result->SubStatus.ParseStatus));
                 break;
         }
             
             break;
             
         case totemInterpreterStatus_EvalError:
-            switch (result->EvalStatus)
+			switch (result->SubStatus.EvalStatus)
         {
             case totemEvalStatus_OutOfMemory:
                 outOfMemoryError(buffer, TOTEM_ARRAY_SIZE(buffer));
@@ -238,7 +226,7 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
                 
             case totemEvalStatus_InstructionOverflow:
             case totemEvalStatus_Success:
-                internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemEvalStatus_Describe(result->EvalStatus));
+				internalError(buffer, TOTEM_ARRAY_SIZE(buffer), totemEvalStatus_Describe(result->SubStatus.EvalStatus));
                 break;
                 
             default:
@@ -246,7 +234,7 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
                 {
                     totemScriptFileBlock *offset = totemInterpreter_LookupFile(interpreter, interpreter->Build.ErrorAt->Start);
                     
-                    scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemEvalStatus_Describe(result->EvalStatus),
+					scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemEvalStatus_Describe(result->SubStatus.EvalStatus),
                                 offset ? offset->Value : NULL,
                                 interpreter->Build.ErrorAt->Start,
                                 interpreter->Build.ErrorAt->Length,
@@ -255,7 +243,7 @@ void totemInterpreter_PrintResult(FILE *target, totemInterpreter *interpreter)
                 }
                 else
                 {
-                    scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemEvalStatus_Describe(result->EvalStatus),
+					scriptError(buffer, TOTEM_ARRAY_SIZE(buffer), totemEvalStatus_Describe(result->SubStatus.EvalStatus),
                                 NULL,
                                 NULL,
                                 0,

@@ -48,6 +48,7 @@ function test()
     var t = a as type;
 
     // values can also be "shifted" from one location to another
+	// in this case, "t" would now be null
     a << t;
 }
 ```
@@ -185,34 +186,24 @@ key << obj[key];
 ```
 #### Coroutines
 ```php
-// Coroutines are functions that pause when they return, and can be resumed later
+// Coroutines are functions that can be paused and resumed later
 
 // Coroutines are created by casting any function to a coroutine, and invoked like a regular function
 var co = function(var start, var end)
 {
     for(var i = start; i < end; i++)
     {
-        return i + start + end;
+        yield; // this will pause the function without returning anything
     }
 
-    return 0;
+    return -1; // once the return statement is hit, the coroutine is reset
 } as coroutine;
 
-var start = 11;
-var end = 20;
+co(11, 20);
 
-// Parameters can be overridden with new values on subsequent calls
-co(start, end);
-
-for(var numLoops = 1; var val = co(); numLoops++)
+for(var val = 0; val != -1; val = co())
 {
-    print(val);
-}
-
-// Coroutines reset once they reach the end of a function
-co(start + 1, end + 1);
-for(var numLoops = 1; var val = co(); numLoops++)
-{
+	// will loop until the return statement is hit
     print(val);
 }
 
@@ -221,25 +212,102 @@ co = 123;
 
 ```
 ### Feature Creep
+* Specialized opcodes
+* Num operator (e.g. #{});
+* Clone operator (e.g. *{});
+* Unary precedence
+* bitwise, logical & modulo ops
 * Break statement (e.g. break 2;)
 * Continue statement (e.g. continue 2;)
 * Switch statement
-* Strict compile-time type-hinting e.g. var x:int = 4;
-* Investigate equalizing the size of all operands (including opcodes) to a single byte
- * Will expand total number of possible opcodes, making room for more specialised operations
- * Won't waste operands on certain opcodes
- * Won't need to do any bitshifting during interpretation
-* #import statement 
- * same as #include, but stored in a local variable e.g. #import math.totem as math; math.abs(a);
- * global variables are inaccessible
- * modules get cached locally to execState and are ran once when linked
-* make #include & #import part of the parser
-* bytecode serialization
-* erlang-style records that eval to arrays
- * public / private
- * inheritance / protected
- * compile-time duck-typing
- * requires type-hinted variables
- * "as" is disallowed by default
- * "is" is determined at compile-time
- * operator overloading
+* Try-catch-finally, throw, "error" value type
+* optional statically-typed vars (e.g. var a:int = 123; a = "this will not compile";)
+ * can assign to "generic" var, but not the other way around without a cast first!
+ * function return types
+* classes that eval to objects (e.g. class vec2 { var x:float = 0.0; var y:float = 0.0; }; var pos:vec2 = { x:4.5, y:5.5 }; pos = "this will not compile"; )
+ * member access = array access, rather than key lookup
+ * should degrade to normal objects on assignment
+* change object representation - v8-style
+ * hashmaps are shared amongst commonly-organised objects - also contain "transitions" between hashmaps when adding or removing elements
+  * once assigned to "generic" var, becomes a normal object again
+   * thus, no private vars - no point!
+ * "loose" functions - eval to normal functions that take object as first parameter
+  * don't have overhead of accessing member, but still need to be accessible as members since objects degrade to dynamic vars
+* closures!
+ * when a function references a variable in a parent scope, that variable should be stored in an anon array rather than in register
+ * then when referencing that variable, parent scope will just reference the anon array to update value
+ * each of these objects (one per scope) become additional parameters
+  * global vars are just one of these objects
+   * so I guess..."instance functions" and "instances" get combined into "closures"?
+    * closures carry around "totemScriptFunction" pointer, and array of scope capture objects?
+* at this point, *should* be able to unify all gc objects...array of registers & pointer to...
+ * arrays - members & NULL
+ * objects - members & object layout
+ * coroutines - stack & closure
+ * closure - scope captures & function prototype
+ * userdata - members, clone & destructor callbacks
+* import statement
+ * similar to include, but registers as a closure e.g. import "math.totem" as math; var a = math();
+* make import & include statements part of the parser
+* remove all the "options" :
+ * no global operands - they're just a table now
+ * global cache stays on - but more than one scope now
+ * keep & expand expanded opcodes
+ * stick to mark & sweep, rather than ref-counting
+ * NaN values
+* potentially encode frame info into register stack
+ * instead of linked list
+* large ints
+ * use remaining 16-bits to expand integer value somehow?
+* native classes
+ * should be degradable to objects as well
+* go-style async primitives
+ * channels
+ * select
+* some sort of task scheduler
+ * make use of yield
+  * also allow c functions to yield
+ * execState would have to wait until all pending tasks have finished
+ * how do we adapt our memory model? either:
+  * gc for each execState would need to be concurrent
+  * tasks would need to be fully isolated and not share memory (blegh)
+* basic jit
+
+var x = 1;
+
+function whatever()
+{
+	var c = 2;
+	
+	var d = function()
+	{
+		var e = x;
+		var f = d;
+	};
+	
+	return d;
+}
+
+whatever()();
+
+...
+
+var globals = [1];
+globals[0] = 1;
+
+function whatever(var globalsRef)
+{
+	function _anonFunction0(var globals2Ref)
+	{
+		var e = globals2Ref[0][0];
+		var f = globals2Ref[1];
+	}
+
+	var globals2 = [2];
+	globals2[0] = globalsRef;
+	globals2[1] = createClosure(_anonFunction0, globals2);
+	return globals2[1];
+}
+
+var _whatever = createClosure(whatever, globals);
+whatever()();

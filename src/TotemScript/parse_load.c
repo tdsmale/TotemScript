@@ -11,20 +11,20 @@
 
 void totemScriptFile_Init(totemScriptFile *script)
 {
-    totemMemoryBuffer_Init(&script->Buffer, 1);
-    totemMemoryBuffer_Init(&script->FileBlock, sizeof(totemScriptFileBlock));
+    totemCharBuffer_Init(&script->Buffer);
+	totemScriptFileBlockBuffer_Init(&script->FileBlock);
 }
 
 void totemScriptFile_PopOffset(totemScriptFile *file)
 {
-    totemScriptFileBlock *off = totemMemoryBuffer_Top(&file->FileBlock);
+	totemScriptFileBlock *off = totemScriptFileBlockBuffer_Top(&file->FileBlock);
     totem_CacheFree(off->Value, off->Length);
-    totemMemoryBuffer_Pop(&file->FileBlock, 1);
+	totemScriptFileBlockBuffer_Pop(&file->FileBlock, 1);
 }
 
 void totemScriptFile_CleanupOffsets(totemScriptFile *file)
 {
-    size_t max = totemMemoryBuffer_GetNumObjects(&file->FileBlock);
+	size_t max = totemScriptFileBlockBuffer_Num(&file->FileBlock);
     for (size_t i = 0; i < max; i++)
     {
         totemScriptFile_PopOffset(file);
@@ -34,20 +34,20 @@ void totemScriptFile_CleanupOffsets(totemScriptFile *file)
 void totemScriptFile_Reset(totemScriptFile *script)
 {
     totemScriptFile_CleanupOffsets(script);
-    totemMemoryBuffer_Reset(&script->Buffer);
-    totemMemoryBuffer_Reset(&script->FileBlock);
+    totemCharBuffer_Reset(&script->Buffer);
+	totemScriptFileBlockBuffer_Reset(&script->FileBlock);
 }
 
 void totemScriptFile_Cleanup(totemScriptFile *script)
 {
     totemScriptFile_CleanupOffsets(script);
-    totemMemoryBuffer_Cleanup(&script->Buffer);
-    totemMemoryBuffer_Cleanup(&script->FileBlock);
+    totemCharBuffer_Cleanup(&script->Buffer);
+	totemScriptFileBlockBuffer_Cleanup(&script->FileBlock);
 }
 
-totemScriptFileBlock *totemScriptFile_AddOffset(totemScriptFile *dst, const char *filename, size_t filenameLen, size_t parent)
+static totemScriptFileBlock *totemScriptFile_AddOffset(totemScriptFile *dst, const char *filename, size_t filenameLen, size_t parent)
 {
-    totemScriptFileBlock *offset = totemMemoryBuffer_Secure(&dst->FileBlock, 1);
+	totemScriptFileBlock *offset = totemScriptFileBlockBuffer_Secure(&dst->FileBlock, 1);
     if (!offset)
     {
         return NULL;
@@ -56,7 +56,7 @@ totemScriptFileBlock *totemScriptFile_AddOffset(totemScriptFile *dst, const char
     offset->Value = totem_CacheMalloc(filenameLen + 1);
     if (!offset->Value)
     {
-        totemMemoryBuffer_Pop(&dst->FileBlock, 1);
+		totemScriptFileBlockBuffer_Pop(&dst->FileBlock, 1);
         return NULL;
     }
     
@@ -68,10 +68,10 @@ totemScriptFileBlock *totemScriptFile_AddOffset(totemScriptFile *dst, const char
     return offset;
 }
 
-totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
+static totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
 {
-    size_t blockIndex = totemMemoryBuffer_GetNumObjects(&dst->FileBlock) - 1;
-    totemScriptFileBlock *block = totemMemoryBuffer_Get(&dst->FileBlock, blockIndex);
+	size_t blockIndex = totemScriptFileBlockBuffer_Num(&dst->FileBlock) - 1;
+	totemScriptFileBlock *block = totemScriptFileBlockBuffer_At(&dst->FileBlock, blockIndex);
     
     FILE *file = totem_fopen(block->Value, "rb");
     if (!file)
@@ -90,10 +90,10 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
     }
     
     // look for include statements
-    while (1)
+	for (totemBool loop = totemBool_True; loop; /* nada */)
     {
         long resetPos = 0;
-        char cha = 0;
+        int cha = 0;
         
         do
         {
@@ -105,7 +105,7 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
         if (cha != '#')
         {
             fseek(file, resetPos, SEEK_SET);
-            break;
+			break;
         }
         
         // any include statements?
@@ -115,13 +115,13 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
         if (numRead != 7)
         {
             fseek(file, resetPos, SEEK_SET);
-            break;
+			break;
         }
         
         if (strncmp("include", include, 7) != 0)
         {
             fseek(file, resetPos, SEEK_SET);
-            break;
+			break;
         }
         
         resetPos = ftell(file);
@@ -157,10 +157,10 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
         fseek(file, 2, SEEK_CUR);
         
         totemBool loadFile = totemBool_True;
-        size_t maxFiles = totemMemoryBuffer_GetNumObjects(&dst->FileBlock);
+		size_t maxFiles = totemScriptFileBlockBuffer_Num(&dst->FileBlock);
         for (size_t i = 0; i < maxFiles; i++)
         {
-            totemScriptFileBlock *off = totemMemoryBuffer_Get(&dst->FileBlock, i);
+			totemScriptFileBlock *off = totemScriptFileBlockBuffer_At(&dst->FileBlock, i);
             if (strncmp(off->Value, dst->FilenameBuffer, off->Length) == 0)
             {
                 loadFile = totemBool_False;
@@ -171,7 +171,7 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
         // already in tree? skip this 'un
         if (!loadFile)
         {
-            continue;
+			continue;
         }
         
         // add to tree
@@ -196,16 +196,16 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
         }
     }
     
-    block = totemMemoryBuffer_Get(&dst->FileBlock, blockIndex);
+	block = totemScriptFileBlockBuffer_At(&dst->FileBlock, blockIndex);
     
     // num lines start
-    if (totemMemoryBuffer_GetNumObjects(&dst->FileBlock) > 1)
+	if (totemScriptFileBlockBuffer_Num(&dst->FileBlock) > 1)
     {
         totemScriptFileBlock *lastBlock = block - 1;
         block->LineStart = lastBlock->LineStart;
         
-        const char *toCheck = totemMemoryBuffer_Get(&dst->Buffer, block->Offset);
-        const char *end = totemMemoryBuffer_Top(&dst->Buffer);
+        const char *toCheck = totemCharBuffer_At(&dst->Buffer, block->Offset);
+        const char *end = totemCharBuffer_Top(&dst->Buffer);
         
         while (toCheck != end)
         {
@@ -222,8 +222,8 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
         block->LineStart = 0;
     }
     
-    size_t existingLength = dst->Buffer.Length;
-    char *buffer = totemMemoryBuffer_Secure(&dst->Buffer, fSize + 1);
+    size_t existingLength = totemCharBuffer_Num(&dst->Buffer);
+    char *buffer = totemCharBuffer_Secure(&dst->Buffer, fSize + 1);
     if (!buffer)
     {
         fclose(file);
@@ -235,7 +235,7 @@ totemLoadScriptStatus totemScriptFile_LoadRecursive(totemScriptFile *dst)
     
     size_t read = fread(buffer, 1, fSize, file);
     buffer[read] = 0;
-    dst->Buffer.Length = existingLength + read;
+    dst->Buffer.Base.Length = existingLength + read;
     
     fclose(file);
     return totemLoadScriptStatus_Success;

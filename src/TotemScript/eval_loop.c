@@ -11,7 +11,7 @@
 #include <TotemScript/exec.h>
 #include <string.h>
 
-typedef enum
+typedef enum totemEvalLoopFlag
 {
     totemEvalLoopFlag_None = 0,
     totemEvalLoopFlag_StartingCondition = 1
@@ -29,7 +29,7 @@ typedef struct totemEvalLoopPrototype
 }
 totemEvalLoopPrototype;
 
-void totemEvalLoopPrototype_Begin(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
+static void totemEvalLoopPrototype_Begin(totemEvalLoopPrototype *loop)
 {
     loop->Next = NULL;
     loop->ConditionFailIndex = 0;
@@ -39,37 +39,37 @@ void totemEvalLoopPrototype_Begin(totemEvalLoopPrototype *loop, totemBuildProtot
     loop->BreakIndex = 0;
 }
 
-void totemEvalLoopPrototype_SetStartPosition(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
+static void totemEvalLoopPrototype_SetStartPosition(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
 {
-    loop->LoopBeginIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
+    loop->LoopBeginIndex = totemInstructionBuffer_Num(&build->Instructions);
 }
 
-totemEvalStatus totemEvalLoopPrototype_SetCondition(totemEvalLoopPrototype *loop, totemBuildPrototype *build, totemExpressionPrototype *condition)
+static totemEvalStatus totemEvalLoopPrototype_SetCondition(totemEvalLoopPrototype *loop, totemBuildPrototype *build, totemExpressionPrototype *condition)
 {
-    totemOperandRegisterPrototype conditionOp;
+    totemOperandPrototype conditionOp;
     TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(condition, build, NULL, &conditionOp));
+	loop->ConditionIndex = totemInstructionBuffer_Num(&build->Instructions);
     
-    loop->ConditionIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstructionSigned(build, &conditionOp, 0, totemOperationType_ConditionalGoto));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxInstruction(build, &conditionOp, 0, totemOperationType_ConditionalGoto));
     TOTEM_SETBITS(loop->Flags, totemEvalLoopFlag_StartingCondition);
     
     return totemEvalStatus_Success;
 }
 
-void totemEvalLoopPrototype_SetConditionFailPosition(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
+static void totemEvalLoopPrototype_SetConditionFailPosition(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
 {
-    loop->ConditionFailIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
+    loop->ConditionFailIndex = totemInstructionBuffer_Num(&build->Instructions);
 }
 
-totemEvalStatus totemEvalLoopPrototype_AddBreak(totemEvalLoopPrototype *child, totemBuildPrototype *build)
+static totemEvalStatus totemEvalLoopPrototype_AddBreak(totemEvalLoopPrototype *child, totemBuildPrototype *build)
 {
     // add goto to edit later
-    child->BreakIndex = totemMemoryBuffer_GetNumObjects(&build->Instructions);
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxxInstructionSigned(build, 0, totemOperationType_Goto));
+    child->BreakIndex = totemInstructionBuffer_Num(&build->Instructions);
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxInstruction(build, 0, totemOperationType_Goto));
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemEvalLoopPrototype_AddBreakChild(totemEvalLoopPrototype *parent, totemEvalLoopPrototype *child, totemBuildPrototype *build)
+static totemEvalStatus totemEvalLoopPrototype_AddBreakChild(totemEvalLoopPrototype *parent, totemEvalLoopPrototype *child, totemBuildPrototype *build)
 {
     if (parent->Next != NULL)
     {
@@ -81,29 +81,29 @@ totemEvalStatus totemEvalLoopPrototype_AddBreakChild(totemEvalLoopPrototype *par
     return totemEvalLoopPrototype_AddBreak(child, build);
 }
 
-totemEvalStatus totemEvalLoopPrototype_Loop(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
+static totemEvalStatus totemEvalLoopPrototype_Loop(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
 {
-    size_t numInstructions = totemMemoryBuffer_GetNumObjects(&build->Instructions);
+    size_t numInstructions = totemInstructionBuffer_Num(&build->Instructions);
     totemOperandXSigned resetLoopOffset = (totemOperandXSigned)loop->LoopBeginIndex - (totemOperandXSigned)numInstructions;
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxxInstructionSigned(build, resetLoopOffset, totemOperationType_Goto));
+    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAxInstruction(build, resetLoopOffset, totemOperationType_Goto));
     
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemEvalLoopPrototype_EndChild(totemEvalLoopPrototype *loop, totemEvalLoopPrototype *child, totemBuildPrototype *build)
+static totemEvalStatus totemEvalLoopPrototype_EndChild(totemEvalLoopPrototype *child, totemBuildPrototype *build)
 {
-    size_t numInstructions = totemMemoryBuffer_GetNumObjects(&build->Instructions);
+    size_t numInstructions = totemInstructionBuffer_Num(&build->Instructions);
     
     if (TOTEM_GETBITS(child->Flags, totemEvalLoopFlag_StartingCondition))
     {
-        totemInstruction *gotoInstruction = totemMemoryBuffer_Get(&build->Instructions, child->ConditionIndex);
+        totemInstruction *gotoInstruction = totemInstructionBuffer_At(&build->Instructions, child->ConditionIndex);
         totemOperandXUnsigned offset = (totemOperandXUnsigned)child->ConditionFailIndex - (totemOperandXUnsigned)child->ConditionIndex;
         TOTEM_EVAL_CHECKRETURN(totemInstruction_SetBxUnsigned(gotoInstruction, offset));
     }
     
     if (child->BreakIndex != 0)
     {
-        totemInstruction *gotoInstruction = totemMemoryBuffer_Get(&build->Instructions, child->BreakIndex);
+		totemInstruction *gotoInstruction = totemInstructionBuffer_At(&build->Instructions, child->BreakIndex);
         totemOperandXUnsigned offset = (totemOperandXUnsigned)numInstructions - (totemOperandXUnsigned)child->BreakIndex;
         TOTEM_EVAL_CHECKRETURN(totemInstruction_SetAxSigned(gotoInstruction, offset));
     }
@@ -111,11 +111,11 @@ totemEvalStatus totemEvalLoopPrototype_EndChild(totemEvalLoopPrototype *loop, to
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemEvalLoopPrototype_End(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
+static totemEvalStatus totemEvalLoopPrototype_End(totemEvalLoopPrototype *loop, totemBuildPrototype *build)
 {
     for (totemEvalLoopPrototype *child = loop; child != NULL; child = child->Next)
     {
-        TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_EndChild(loop, child, build));
+        TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_EndChild(child, build));
     }
     
     // clean up condition registers after all loops have been evaluated
@@ -123,8 +123,8 @@ totemEvalStatus totemEvalLoopPrototype_End(totemEvalLoopPrototype *loop, totemBu
     {
         if (TOTEM_GETBITS(child->Flags, totemEvalLoopFlag_StartingCondition))
         {
-            totemInstruction *gotoInstruction = totemMemoryBuffer_Get(&build->Instructions, child->ConditionIndex);
-            totemOperandRegisterPrototype condition;
+            totemInstruction *gotoInstruction = totemInstructionBuffer_At(&build->Instructions, child->ConditionIndex);
+            totemOperandPrototype condition;
             condition.RegisterScopeType = TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(*gotoInstruction);
             condition.RegisterIndex = TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(*gotoInstruction);
             TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &condition));
@@ -134,37 +134,9 @@ totemEvalStatus totemEvalLoopPrototype_End(totemEvalLoopPrototype *loop, totemBu
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totemBuildPrototype *build)
+static totemEvalStatus totemIfBlockPrototype_EvalIfBlock(totemIfBlockPrototype *ifBlock, totemEvalLoopPrototype *loop, totemBuildPrototype *build)
 {
-    totemOperandRegisterPrototype initialisation, afterThought;
-    
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, NULL, &initialisation));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &initialisation));
-    
-    totemEvalLoopPrototype loop;
-    totemEvalLoopPrototype_Begin(&loop, build);
-    totemEvalLoopPrototype_SetStartPosition(&loop, build);
-    TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_SetCondition(&loop, build, forLoop->Condition));
-    
-    for (totemStatementPrototype *statement = forLoop->StatementsStart; statement != NULL; statement = statement->Next)
-    {
-        TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(statement, build));
-    }
-    
-    TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->AfterThought, build, NULL, &afterThought));
-    TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_Loop(&loop, build));
-    totemEvalLoopPrototype_SetConditionFailPosition(&loop, build);
-    TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_End(&loop, build));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &afterThought));
-    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_ExitLocalScope(build));
-    
-    return totemEvalStatus_Success;
-}
-
-totemEvalStatus totemIfBlockPrototype_EvalIfBlock(totemIfBlockPrototype *ifBlock, totemEvalLoopPrototype *loop, totemBuildPrototype *build)
-{
-    totemEvalLoopPrototype_Begin(loop, build);
+    totemEvalLoopPrototype_Begin(loop);
     totemEvalLoopPrototype_SetStartPosition(loop, build);
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
@@ -180,7 +152,7 @@ totemEvalStatus totemIfBlockPrototype_EvalIfBlock(totemIfBlockPrototype *ifBlock
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemIfBlockPrototype_EvalElseBlock(totemEvalLoopPrototype *root, totemElseBlockPrototype *elseBlock, totemBuildPrototype *build)
+static totemEvalStatus totemIfBlockPrototype_EvalElseBlock(totemElseBlockPrototype *elseBlock, totemBuildPrototype *build)
 {
     for (totemStatementPrototype *statement = elseBlock->StatementsStart; statement != NULL; statement = statement->Next)
     {
@@ -190,7 +162,7 @@ totemEvalStatus totemIfBlockPrototype_EvalElseBlock(totemEvalLoopPrototype *root
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemIfBlockPrototype_EvalChild(totemEvalLoopPrototype *root, totemEvalLoopPrototype *parent, totemIfBlockPrototype *ifBlock, totemBuildPrototype *build)
+static totemEvalStatus totemIfBlockPrototype_EvalChild(totemEvalLoopPrototype *root, totemEvalLoopPrototype *parent, totemIfBlockPrototype *ifBlock, totemBuildPrototype *build)
 {
     totemEvalLoopPrototype loop;
     TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalIfBlock(ifBlock, &loop, build));
@@ -201,12 +173,12 @@ totemEvalStatus totemIfBlockPrototype_EvalChild(totemEvalLoopPrototype *root, to
     switch (ifBlock->ElseType)
     {
         case totemIfElseBlockType_Else:
-            TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalElseBlock(root, ifBlock->ElseBlock, build));
+			TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalElseBlock(ifBlock->Next.ElseBlock, build));
             TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_End(root, build));
             break;
             
         case totemIfElseBlockType_ElseIf:
-            TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalChild(root, parent, ifBlock->IfElseBlock, build));
+			TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalChild(root, parent, ifBlock->Next.IfElseBlock, build));
             break;
             
         case totemIfElseBlockType_None:
@@ -216,6 +188,34 @@ totemEvalStatus totemIfBlockPrototype_EvalChild(totemEvalLoopPrototype *root, to
     }
     
     return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemForLoopPrototype_Eval(totemForLoopPrototype *forLoop, totemBuildPrototype *build)
+{
+	totemOperandPrototype initialisation, afterThought;
+
+	TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
+	TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->Initialisation, build, NULL, &initialisation));
+	TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &initialisation));
+
+	totemEvalLoopPrototype loop;
+	totemEvalLoopPrototype_Begin(&loop);
+	totemEvalLoopPrototype_SetStartPosition(&loop, build);
+	TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_SetCondition(&loop, build, forLoop->Condition));
+
+	for (totemStatementPrototype *statement = forLoop->StatementsStart; statement != NULL; statement = statement->Next)
+	{
+		TOTEM_EVAL_CHECKRETURN(totemStatementPrototype_Eval(statement, build));
+	}
+
+	TOTEM_EVAL_CHECKRETURN(totemExpressionPrototype_Eval(forLoop->AfterThought, build, NULL, &afterThought));
+	TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_Loop(&loop, build));
+	totemEvalLoopPrototype_SetConditionFailPosition(&loop, build);
+	TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_End(&loop, build));
+	TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RecycleRegister(build, &afterThought));
+	TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_ExitLocalScope(build));
+
+	return totemEvalStatus_Success;
 }
 
 totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totemBuildPrototype *build)
@@ -228,12 +228,12 @@ totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totem
         case totemIfElseBlockType_ElseIf:
             TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_AddBreak(&loop, build));
             totemEvalLoopPrototype_SetConditionFailPosition(&loop, build);
-            TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalChild(&loop, &loop, ifBlock->IfElseBlock, build));
+            TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalChild(&loop, &loop, ifBlock->Next.IfElseBlock, build));
             break;
             
         case totemIfElseBlockType_Else:
             totemEvalLoopPrototype_SetConditionFailPosition(&loop, build);
-            TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalElseBlock(&loop, ifBlock->ElseBlock, build));
+			TOTEM_EVAL_CHECKRETURN(totemIfBlockPrototype_EvalElseBlock(ifBlock->Next.ElseBlock, build));
             TOTEM_EVAL_CHECKRETURN(totemEvalLoopPrototype_End(&loop, build));
             break;
             
@@ -249,7 +249,7 @@ totemEvalStatus totemIfBlockPrototype_Eval(totemIfBlockPrototype *ifBlock, totem
 totemEvalStatus totemDoWhileLoopPrototype_Eval(totemDoWhileLoopPrototype *doWhileLoop, totemBuildPrototype *build)
 {
     totemEvalLoopPrototype loop;
-    totemEvalLoopPrototype_Begin(&loop, build);
+    totemEvalLoopPrototype_Begin(&loop);
     totemEvalLoopPrototype_SetStartPosition(&loop, build);
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
@@ -272,7 +272,7 @@ totemEvalStatus totemDoWhileLoopPrototype_Eval(totemDoWhileLoopPrototype *doWhil
 totemEvalStatus totemWhileLoopPrototype_Eval(totemWhileLoopPrototype *whileLoop, totemBuildPrototype *build)
 {
     totemEvalLoopPrototype loop;
-    totemEvalLoopPrototype_Begin(&loop, build);
+    totemEvalLoopPrototype_Begin(&loop);
     totemEvalLoopPrototype_SetStartPosition(&loop, build);
     
     TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EnterLocalScope(build));
@@ -325,7 +325,7 @@ totemEvalStatus totemIfBlockPrototype_EvalValues(totemIfBlockPrototype *loop, to
     switch (loop->ElseType)
     {
         case totemIfElseBlockType_ElseIf:
-            return totemIfBlockPrototype_EvalValues(loop->IfElseBlock, build);
+			return totemIfBlockPrototype_EvalValues(loop->Next.IfElseBlock, build);
             
         case totemIfElseBlockType_Else:
             for (totemStatementPrototype *stmt = loop->StatementsStart; stmt != NULL; stmt = stmt->Next)

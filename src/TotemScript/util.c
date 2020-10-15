@@ -9,9 +9,11 @@
 #include <TotemScript/base.h>
 #include <TotemScript/parse.h>
 #include <TotemScript/exec.h>
+#include <TotemScript/dispatch.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stddef.h>
 
 static totemHashCb hashCb = NULL;
 
@@ -20,7 +22,7 @@ void totem_SetGlobalCallbacks(totemHashCb newHashCb)
     hashCb = newHashCb;
 }
 
-totemHash totem_Hash(const void *data, size_t len)
+totemHashValue totem_Hash(const void *data, size_t len)
 {
     if(hashCb)
     {
@@ -29,8 +31,8 @@ totemHash totem_Hash(const void *data, size_t len)
     
     const char *ptr = data;
     
-    totemHash hash = 5831;
-    for(uint32_t i = 0; i < len; ++i)
+    totemHashValue hash = 5831;
+	for (size_t i = 0; i < len; ++i)
     {
         hash = 33 * hash + ptr[i];
     }
@@ -54,39 +56,18 @@ totemBool totemString_Equals(totemString *a, totemString *b)
     return strncmp(a->Value, b->Value, a->Length) == 0;
 }
 
+totemBool totemString_Is(totemString *a, const char *str)
+{
+	return strncmp(a->Value, str, a->Length);
+}
+
 const char *totemOperationType_Describe(totemOperationType op)
 {
     switch (op)
     {
-            TOTEM_STRINGIFY_CASE(totemOperationType_Add);
-            TOTEM_STRINGIFY_CASE(totemOperationType_ConditionalGoto);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Divide);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Equals);
-            TOTEM_STRINGIFY_CASE(totemOperationType_FunctionArg);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Goto);
-            TOTEM_STRINGIFY_CASE(totemOperationType_LessThan);
-            TOTEM_STRINGIFY_CASE(totemOperationType_LessThanEquals);
-            TOTEM_STRINGIFY_CASE(totemOperationType_LogicalAnd);
-            TOTEM_STRINGIFY_CASE(totemOperationType_LogicalNegate);
-            TOTEM_STRINGIFY_CASE(totemOperationType_LogicalOr);
-            TOTEM_STRINGIFY_CASE(totemOperationType_MoreThan);
-            TOTEM_STRINGIFY_CASE(totemOperationType_MoreThanEquals);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Move);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Multiply);
-            TOTEM_STRINGIFY_CASE(totemOperationType_NewObject);
-            TOTEM_STRINGIFY_CASE(totemOperationType_NotEquals);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Return);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Subtract);
-            TOTEM_STRINGIFY_CASE(totemOperationType_ComplexGet);
-            TOTEM_STRINGIFY_CASE(totemOperationType_ComplexSet);
-            TOTEM_STRINGIFY_CASE(totemOperationType_NewArray);
-            TOTEM_STRINGIFY_CASE(totemOperationType_MoveToGlobal);
-            TOTEM_STRINGIFY_CASE(totemOperationType_MoveToLocal);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Invoke);
-            TOTEM_STRINGIFY_CASE(totemOperationType_PreInvoke);
-            TOTEM_STRINGIFY_CASE(totemOperationType_As);
-            TOTEM_STRINGIFY_CASE(totemOperationType_Is);
-            TOTEM_STRINGIFY_CASE(totemOperationType_ComplexShift);
+#define TOTEM_STRINGIFY_OPCODE(op, type, flags) TOTEM_STRINGIFY_CASE(totemOperationType_ ## op);
+		TOTEM_EMIT_OPCODES(TOTEM_STRINGIFY_OPCODE)
+#undef TOTEM_STRINGIFY_OPCODE
     }
     
     return "UNKNOWN";
@@ -134,23 +115,14 @@ const char *totemPrivateDataType_Describe(totemPrivateDataType type)
 
 totemInstructionType totemOperationType_GetInstructionType(totemOperationType op)
 {
-    switch(op)
-    {
-        case totemOperationType_ConditionalGoto:
-        case totemOperationType_FunctionArg:
-        case totemOperationType_Return:
-        case totemOperationType_MoveToGlobal:
-        case totemOperationType_MoveToLocal:
-        case totemOperationType_PreInvoke:
-        case totemOperationType_Invoke:
-            return totemInstructionType_Abx;
-            
-        case totemOperationType_Goto:
-            return totemInstructionType_Axx;
-            
-        default:
-            return totemInstructionType_Abc;
-    }
+	switch (op)
+	{
+#define TOTEM_CASEIFY_OPCODE_TYPE(op, type, flags) case totemOperationType_ ## op: return totemInstructionType_ ## type;
+		TOTEM_EMIT_OPCODES(TOTEM_CASEIFY_OPCODE_TYPE)
+#undef TOTEM_CASEIFY_OPCODE_TYPE
+	}
+
+	return 0;
 }
 
 void totemInstruction_PrintList(FILE *file, totemInstruction *instructions, size_t num)
@@ -168,21 +140,42 @@ void totemInstruction_Print(FILE *file, totemInstruction instruction)
     
     switch(instType)
     {
-        case totemInstructionType_Abcx:
-            totemInstruction_PrintAbcxInstruction(file, instruction);
+        case totemInstructionType_Abc1:
+            totemInstruction_PrintAbc1Instruction(file, instruction);
             break;
+
+		case totemInstructionType_Abc1u:
+			totemInstruction_PrintAbc1uInstruction(file, instruction);
+			break;
             
         case totemInstructionType_Abc:
             totemInstruction_PrintAbcInstruction(file, instruction);
             break;
             
-        case totemInstructionType_Abx:
-            totemInstruction_PrintAbxInstruction(file, instruction);
-            break;
+        case totemInstructionType_Ab2:
+			totemInstruction_PrintAb2Instruction(file, instruction);
+			break;
+
+		case totemInstructionType_Ab2u:
+        case totemInstructionType_Ab2ug:
+			totemInstruction_PrintAb2uInstruction(file, instruction);
+			break;
+
+		case totemInstructionType_Ab:
+			totemInstruction_PrintAbInstruction(file, instruction);
+			break;
             
-        case totemInstructionType_Axx:
-            totemInstruction_PrintAxxInstruction(file, instruction);
-            break;
+        case totemInstructionType_A3:
+			totemInstruction_PrintA3Instruction(file, instruction);
+			break;
+
+		case totemInstructionType_A3u:
+			totemInstruction_PrintA3uInstruction(file, instruction);
+			break;
+
+		case totemInstructionType_A:
+			totemInstruction_PrintAInstruction(file, instruction);
+			break;
     }
 }
 
@@ -191,7 +184,19 @@ char totemOperandType_GetChar(totemOperandType type)
     return type == totemOperandType_GlobalRegister ? 'g' : 'l';
 }
 
-void totemInstruction_PrintAbcxInstruction(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintAbc1uInstruction(FILE *file, totemInstruction instruction)
+{
+	fprintf(file, "%08x %s a:%c%d b:%c%d c:%08x\n",
+		instruction,
+		totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
+		totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+		TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
+		totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
+		TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction),
+		TOTEM_INSTRUCTION_GET_C1U(instruction));
+}
+
+void totemInstruction_PrintAbc1Instruction(FILE *file, totemInstruction instruction)
 {
     fprintf(file, "%08x %s a:%c%d b:%c%d c:%08x\n",
             instruction,
@@ -200,9 +205,8 @@ void totemInstruction_PrintAbcxInstruction(FILE *file, totemInstruction instruct
             TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
             totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction),
-            TOTEM_INSTRUCTION_GET_CX_UNSIGNED(instruction));
+            TOTEM_INSTRUCTION_GET_C1(instruction));
 }
-
 
 void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instruction)
 {
@@ -217,22 +221,60 @@ void totemInstruction_PrintAbcInstruction(FILE *file, totemInstruction instructi
             TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(instruction));
 }
 
-void totemInstruction_PrintAbxInstruction(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintAb2uInstruction(FILE *file, totemInstruction instruction)
+{
+	fprintf(file, "%08x %s a:%c%d bx:%08x\n",
+		instruction,
+		totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
+		totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+		TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
+		TOTEM_INSTRUCTION_GET_B2U(instruction));
+}
+
+void totemInstruction_PrintAb2Instruction(FILE *file, totemInstruction instruction)
 {
     fprintf(file, "%08x %s a:%c%d bx:%08x\n",
             instruction,
             totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
             totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
             TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
-            TOTEM_INSTRUCTION_GET_BX_UNSIGNED(instruction));
+            TOTEM_INSTRUCTION_GET_B2(instruction));
 }
 
-void totemInstruction_PrintAxxInstruction(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintAbInstruction(FILE *file, totemInstruction instruction)
 {
-    fprintf(file, "%08x %s ax:%08x\n",
-            instruction,
-            totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
-            TOTEM_INSTRUCTION_GET_AX_UNSIGNED(instruction));
+	fprintf(file, "%08x %s a:%c%d b:%c%d\n",
+		instruction,
+		totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
+		totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+		TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction),
+		totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(instruction)),
+		TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(instruction));
+}
+
+void totemInstruction_PrintA3uInstruction(FILE *file, totemInstruction instruction)
+{
+	fprintf(file, "%08x %s ax:%08x\n",
+		instruction,
+		totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
+		TOTEM_INSTRUCTION_GET_A3U(instruction));
+}
+
+void totemInstruction_PrintA3Instruction(FILE *file, totemInstruction instruction)
+{
+	fprintf(file, "%08x %s ax:%08x\n",
+		instruction,
+		totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
+		TOTEM_INSTRUCTION_GET_A3(instruction));
+}
+
+void totemInstruction_PrintAInstruction(FILE *file, totemInstruction instruction)
+{
+	fprintf(file, "%08x %s a:%c%d\n",
+		instruction,
+		totemOperationType_Describe(TOTEM_INSTRUCTION_GET_OP(instruction)),
+		totemOperandType_GetChar(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(instruction)),
+		TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(instruction));
 }
 
 void totemInstruction_PrintBits(FILE *file, totemInstruction instruction)
@@ -242,17 +284,23 @@ void totemInstruction_PrintBits(FILE *file, totemInstruction instruction)
     
     switch(instType)
     {
+		case totemInstructionType_Ab:
         case totemInstructionType_Abc:
-        case totemInstructionType_Abcx:
+        case totemInstructionType_Abc1:
+		case totemInstructionType_Abc1u:
             totemInstruction_PrintAbcBits(file, instruction);
             break;
-            
-        case totemInstructionType_Abx:
-            totemInstruction_PrintAbxBits(file, instruction);
+        
+		case totemInstructionType_A:
+        case totemInstructionType_Ab2:
+		case totemInstructionType_Ab2u:
+        case totemInstructionType_Ab2ug:
+            totemInstruction_PrintAb2Bits(file, instruction);
             break;
             
-        case totemInstructionType_Axx:
-            totemInstruction_PrintAxxBits(file, instruction);
+        case totemInstructionType_A3:
+		case totemInstructionType_A3u:
+            totemInstruction_PrintA3Bits(file, instruction);
             break;
     }
 }
@@ -269,21 +317,21 @@ void totemInstruction_PrintAbcBits(FILE *file, totemInstruction instruction)
     fprintf(file, "\n");
 }
 
-void totemInstruction_PrintAbxBits(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintAb2Bits(FILE *file, totemInstruction instruction)
 {
     totem_printBits(file, instruction, totemInstructionSize_Op, totemInstructionStart_Op);
     fprintf(file, "|");
     totem_printBits(file, instruction, totemInstructionSize_A, totemInstructionStart_A);
     fprintf(file, "|");
-    totem_printBits(file, instruction, totemInstructionSize_Bx, totemInstructionStart_B);
+    totem_printBits(file, instruction, totemInstructionSize_B2, totemInstructionStart_B);
     fprintf(file, "\n");
 }
 
-void totemInstruction_PrintAxxBits(FILE *file, totemInstruction instruction)
+void totemInstruction_PrintA3Bits(FILE *file, totemInstruction instruction)
 {
     totem_printBits(file, instruction, totemInstructionSize_Op, totemInstructionStart_Op);
     fprintf(file, "|");
-    totem_printBits(file, instruction, totemInstructionSize_Ax, totemInstructionStart_A);
+    totem_printBits(file, instruction, totemInstructionSize_A3, totemInstructionStart_A);
     fprintf(file, "\n");
 }
 
@@ -327,39 +375,12 @@ totemBool totem_getcwd(char *buffer, size_t size)
     return getcwd(buffer, (totemCwdSize_t)size) == buffer;
 }
 
-void totem_Init()
+void totem_Init(void)
 {
-#define TOTEM_OPCODE_FORMAT(x) 0,
-    TOTEM_STATIC_ASSERT(TOTEM_ARRAY_SIZE((int[]){TOTEM_EMIT_OPCODES()}) < TOTEM_MAXVAL_UNSIGNED(size_t, totemInstructionSize_Op), "Too many opcodes defined!");
-#undef TOTEM_OPCODE_FORMAT
-    
-    TOTEM_STATIC_ASSERT(TOTEM_STRING_LITERAL_SIZE("test") == 4, "String length test");
-    
-    TOTEM_STATIC_ASSERT(sizeof(totemInstruction) == 4, "Totem Instruction must be 4 bytes");
-    TOTEM_STATIC_ASSERT(sizeof(size_t) == sizeof(void*), "size_t must be able to hold any memory address");
-    
-#if !TOTEM_VMOPT_NANBOXING
-    TOTEM_STATIC_ASSERT(sizeof(totemRegisterValue) == 8, "Totem Register Values must be 8 bytes");
-    TOTEM_STATIC_ASSERT(sizeof(totemFloat) == sizeof(totemRegisterValue), "Value-size mismatch");
-    TOTEM_STATIC_ASSERT(sizeof(totemInt) == sizeof(totemRegisterValue), "Value-size mismatch");
-    TOTEM_STATIC_ASSERT(sizeof(void*) == sizeof(totemRegisterValue), "Value-size mismatch");
-    TOTEM_STATIC_ASSERT(sizeof(totemPublicDataType) == sizeof(totemRegisterValue), "Value-size mismatch");
-    TOTEM_STATIC_ASSERT(sizeof(uint64_t) == sizeof(totemRegisterValue), "Value-size mismatch");
-    TOTEM_STATIC_ASSERT((sizeof(char) * (TOTEM_MINISTRING_MAXLENGTH + 1)) <= sizeof(uint64_t), "Value-size mismatch");
-#else
-    TOTEM_STATIC_ASSERT(sizeof(totemFloat) == sizeof(totemRegister), "Value-size mismatch");
-    TOTEM_STATIC_ASSERT(sizeof(uint64_t) == sizeof(totemRegister), "Value-size mismatch");
-#endif
-    
-    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.NextHdr) == offsetof(totemGCHeader, NextHdr), "totemGCObject* must be able to masquerade as a totemGCHeader*");
-    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.PrevHdr) == offsetof(totemGCHeader, PrevHdr), "totemGCObject* must be able to masquerade as a totemGCHeader*");
-    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.NextObj) == offsetof(totemGCHeader, NextObj), "totemGCObject* must be able to masquerade as a totemGCHeader*");
-    TOTEM_STATIC_ASSERT(offsetof(totemGCObject, Header.PrevObj) == offsetof(totemGCHeader, PrevObj), "totemGCObject* must be able to masquerade as a totemGCHeader*");
-    
     totem_InitMemory();
 }
 
-void totem_Cleanup()
+void totem_Cleanup(void)
 {
     totem_CleanupMemory();
 }

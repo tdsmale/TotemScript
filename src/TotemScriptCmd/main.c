@@ -7,8 +7,6 @@
 //
 
 #include <TotemScript/totem.h>
-#include <stdlib.h>
-#include <string.h>
 
 // todo: file, line, char & length for errors
 
@@ -32,7 +30,7 @@ const char *const help = "usage: TotemScriptCmd [options] [filename|string]\n"
 
 typedef totemBool(*totemCmd_EvalCb)(totemInterpreter*, totemString*);
 
-typedef struct
+typedef struct totemCmdState
 {
     totemInterpreter Interpreter;
     totemRuntime Runtime;
@@ -65,7 +63,18 @@ int totemCmdState_Run(totemCmdState *state, const char **argv, int argc)
     {
         printf("Could not load native libraries: %s\n", totemLinkStatus_Describe(linkStatus));
         return EXIT_FAILURE;
-    }
+	}
+
+	// init exec state
+	linkStatus = totemRuntime_LinkExecState(&state->Runtime, &state->ExecState, 256);
+	if (linkStatus != totemLinkStatus_Success)
+	{
+		printf("Could not create exec state: %s\n", totemLinkStatus_Describe(linkStatus));
+		return EXIT_FAILURE;
+	}
+
+	// set arguments
+	totemExecState_SetArgV(&state->ExecState, argv, argc);
     
     // link build
     linkStatus = totemRuntime_LinkBuild(&state->Runtime, &state->Interpreter.Build, &state->Script);
@@ -74,15 +83,7 @@ int totemCmdState_Run(totemCmdState *state, const char **argv, int argc)
         printf("Could not register script: %s\n", totemLinkStatus_Describe(linkStatus));
         return EXIT_FAILURE;
     }
-    
-    // init exec state
-    linkStatus = totemRuntime_LinkExecState(&state->Runtime, &state->ExecState, 256);
-    if (linkStatus != totemLinkStatus_Success)
-    {
-        printf("Could not create exec state: %s\n", totemLinkStatus_Describe(linkStatus));
-        return EXIT_FAILURE;
-    }
-    
+
     // init instance
     totemGCObject *instance = NULL;
     totemExecStatus execStatus = totemExecState_CreateInstance(&state->ExecState, &state->Script, &instance);
@@ -92,12 +93,9 @@ int totemCmdState_Run(totemCmdState *state, const char **argv, int argc)
         return EXIT_FAILURE;
     }
     
-    // set arguments
-    totemExecState_SetArgV(&state->ExecState, argv, argc);
-    
     // run script
-    totemInstanceFunction *func = totemMemoryBuffer_Get(&instance->Instance->LocalFunctions, 0);
-    execStatus = totemExecState_Exec(&state->ExecState, func);
+	totemInstanceFunction *func = totemInstanceFunctionBuffer_At(&instance->Ptr.Instance->LocalFunctions, 0);
+    execStatus = totemExecState_StartInstance(&state->ExecState, func);
     if (execStatus != totemExecStatus_Continue)
     {
         printf("runtime error: %s at line %i\n", totemExecStatus_Describe(execStatus), 0);
@@ -117,7 +115,7 @@ int main(int argc, const char **argv)
     totemBool doFile = totemBool_False;
     totemBool doString = totemBool_False;
     totemBool dumpInstructions = totemBool_False;
-    totemBool doNotRun = totemBool_False;
+    totemBool run = totemBool_True;
     
     if (argc <= 1)
     {
@@ -151,7 +149,7 @@ int main(int argc, const char **argv)
         }
         else if (TOTEM_CMD_ISARG("--norun", arg) || TOTEM_CMD_ISARG("-p", arg))
         {
-            doNotRun = totemBool_True;
+            run = totemBool_True;
         }
         else
         {
@@ -182,7 +180,8 @@ int main(int argc, const char **argv)
         totem_Init();
         totemCmdState_Init(&state);
         totemBool parseResult = totemBool_False;
-        totemString toParseStr = TOTEM_STRING_VAL(toParse);
+		totemString toParseStr;
+		totemString_FromLiteral(&toParseStr, toParse);
         
         if (doFile)
         {
@@ -205,11 +204,13 @@ int main(int argc, const char **argv)
                 printf("******\n");
                 printf("Instructions:\n");
                 printf("******\n");
-                totemInstruction_PrintList(stdout, totemMemoryBuffer_Bottom(&state.Interpreter.Build.Instructions), totemMemoryBuffer_GetNumObjects(&state.Interpreter.Build.Instructions));
+				totemInstruction_PrintList(stdout,
+                                           totemInstructionBuffer_Bottom(&state.Interpreter.Build.Instructions),
+                                           totemInstructionBuffer_Num(&state.Interpreter.Build.Instructions));
                 printf("\n");
             }
             
-            if (!doNotRun)
+            if (run)
             {
                 ret = totemCmdState_Run(&state, scriptArgs, numScriptArgs);
             }

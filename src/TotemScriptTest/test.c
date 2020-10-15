@@ -17,7 +17,7 @@
 #define TOTEMSCRIPTCMD "time ./TotemScriptCmd"
 #endif
 
-int main(int argc, const char * argv[])
+int main(void)
 {
     char buffer[PATH_MAX];
     const char *dir = "./tests";
