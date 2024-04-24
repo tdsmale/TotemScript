@@ -2,6 +2,7 @@
 * A small, accessible scripting language.
 * Designed to be small, simple and dumb - easily plugged into existing applications.
 * Features dynamic typing, full garbage-collection, cooperative multitasking, and a silly name.
+* Source Repository: [https://github.com/tdsmale/TotemScript](https://github.com/tdsmale/TotemScript)
 
 ### Examples
 ```php
