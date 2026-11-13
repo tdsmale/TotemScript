@@ -1,0 +1,5 @@
+markdown: GFM
+title: TotemScript
+remote_theme: tdsmale/primer
+plugins:
+- jekyll-remote-theme
