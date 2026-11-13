@@ -7,6 +7,7 @@
 //
 
 #include <TotemScript/totem.h>
+#include <string.h>
 
 #define TOTEM_MAX_TERMINAL_INPUT 2048
 
@@ -170,7 +171,6 @@ int main(int argc, const char **argv)
     {
 #define EMIT(a, b, c) fprintf(stdout, "%s %s %i\n", #a, #b, do_ ## b);
         TOTEM_EMIT_CMDS(EMIT)
-        printf("toParse: %s\n", toParse);
 #undef EMIT
     }
     
@@ -207,7 +207,9 @@ int main(int argc, const char **argv)
                 
                 if (do_string || do_terminal)
                 {
-                    totemCmdState_InitWithString(&state, toParse, strlen(toParse), argv, argc);
+                    size_t toParseLen = strnlen(toParse, sizeof(terminalInput));
+                    TOTEM_LOG_V(Cmd, Result, Output, "Parsing string \"%.*s\"...", toParseLen, toParse);
+                    totemCmdState_InitWithString(&state, toParse, toParseLen, argv, argc);
                     didInit = totemBool_True;
                 }
                 else if (do_file)

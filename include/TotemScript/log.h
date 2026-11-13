@@ -101,6 +101,7 @@ typedef void(*totemLogCallback)(totemLog *output, void *cxt);
 totemLog *totemLogContext_Begin(totemLogContext *cxt, const char *category, const char *file, int line);
 void totemLogContext_End(totemLogContext *cxt);
 size_t totemLog_Write(totemLog *dst, const char *format, ...);
+size_t totemLog_WriteLine(totemLog* dst, const char* format, ...);
 
 #define TOTEM_LOG_LEVEL_IS_COMPILED(a) totemLogLevel_ ## a ## _IsCompiled
 #define TOTEM_LOG_CATEGORY_IS_COMPILED(a, b, c) totemLogCategory_ ## a ## _ ## b ## _ ## c ## _IsCompiled
@@ -162,11 +163,11 @@ TOTEM_EMIT_LOGGING_CATEGORIES(EMIT_CAT)
         stmt; \
     TOTEM_ASSERT_END()
 
-#define TOTEM_LOG(a, b, c, string) TOTEM_LOG_DO(a, b, c, logger, totemLog_Write(logger, string))
-#define TOTEM_LOG_V(a, b, c, string, ...) TOTEM_LOG_DO(a, b, c, logger, totemLog_Write(logger, string, __VA_ARGS__))
+#define TOTEM_LOG(a, b, c, string) TOTEM_LOG_DO(a, b, c, logger, totemLog_WriteLine(logger, string))
+#define TOTEM_LOG_V(a, b, c, string, ...) TOTEM_LOG_DO(a, b, c, logger, totemLog_WriteLine(logger, string, __VA_ARGS__))
 
-#define TOTEM_ASSERT_F(check, format) TOTEM_ASSERT_DO(check, logger, totemLog_Write(logger, format))
-#define TOTEM_ASSERT_V(check, format, ...) TOTEM_ASSERT_DO(check, logger, totemLog_Write(logger, format, __VA_ARGS__))
+#define TOTEM_ASSERT_F(check, format) TOTEM_ASSERT_DO(check, logger, totemLog_WriteLine(logger, format))
+#define TOTEM_ASSERT_V(check, format, ...) TOTEM_ASSERT_DO(check, logger, totemLog_WriteLine(logger, format, __VA_ARGS__))
 #define TOTEM_ASSERT(check) TOTEM_ASSERT_V(check, "assert failed: \"%s\"", #check)
 
 #define TOTEM_LOG_GENERIC_DO(logger, stmt) TOTEM_LOG_DO(Log, Generic, Debug, logger, stmt)

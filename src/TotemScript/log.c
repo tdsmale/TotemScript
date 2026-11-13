@@ -149,6 +149,19 @@ size_t totemLog_Write(totemLog *dst, const char *format, ...)
     return written;
 }
 
+size_t totemLog_WriteLine(totemLog* dst, const char* format, ...)
+{
+    size_t written = 0;
+    totemVaList args;
+    va_start(args.list, format);
+    written = totemLogVfprintf(dst->File, format, &args);
+    va_end(args.list);
+
+    fprintf(dst->File, "\n");
+
+    return written;
+}
+
 static void totemLogContextStart(totemLog *f, totemLogContext *cxt)
 {
     totemLog_Write(f, "%s\n%s(%i)\n", cxt->Category, cxt->File, cxt->Line);
