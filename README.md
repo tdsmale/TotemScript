@@ -6,7 +6,6 @@
 
 ### Hello, World!
 ```php
-// Statements can either end with ';' or a new-line
 print("Hello, World!");
 ```
 #### Defining Variables
