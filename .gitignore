@@ -1,4 +1,1 @@
-*.o
-*.d
-TotemScriptCmd
-src/TotemScriptTest/TotemScriptTest
+project/

@@ -50,7 +50,7 @@ totemJitEmitStatus totemJit_Emit(totemScriptFunction *func)
 
 	1. function prologue
 		a. setup stack
-		b. determine first instruction
+		b. determine first instruction offset from table
 		c. if not valid bail out
 		d. jump to first instruction
 	2. goto table - pointer per instruction
@@ -153,7 +153,7 @@ totemJitEmitStatus totemJit_Emit(totemScriptFunction *func)
 		}
 	}
 
-	// fix conditional gotos & direct gotos
+	fixGotoOffsets();
 	
 	setToReadExec();
 

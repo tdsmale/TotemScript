@@ -14,12 +14,6 @@
 #define TOTEM_MEM_NUM_FREELISTS (512)
 #define TOTEM_MEM_PAGESIZE (TOTEM_MEM_FREELIST_DIVISOR * TOTEM_MEM_NUM_FREELISTS)
 
-#if TOTEM_DEBUGOPT_ASSERT_HASHMAP_LISTS
-#define TOTEM_DEBUG_HASHMAP_ASSERT(x) TotemHashMap_Assert(x)
-#else
-#define TOTEM_DEBUG_HASHMAP_ASSERT(x)
-#endif
-
 typedef struct totemMemoryPageObject
 {
     struct totemMemoryPageObject *Next;
@@ -126,16 +120,16 @@ static totemMemoryFreeList *totemMemoryFreeList_Get(size_t amount)
 	index += (amount % TOTEM_MEM_FREELIST_DIVISOR != 0);
     index -= (index != 0);
     
-	TOTEM_DEBUG_ASSERT(index < TOTEM_MEM_NUM_FREELISTS);
+	TOTEM_ASSERT(index < TOTEM_MEM_NUM_FREELISTS);
     totemMemoryFreeList *list = &s_FreeLists[index];
     
-    TOTEM_DEBUG_ASSERT(amount <= list->ObjectSize);
-    TOTEM_DEBUG_ASSERT(list == &s_FreeLists[0] ? 1 : amount > (list - 1)->ObjectSize);
+    TOTEM_ASSERT(amount <= list->ObjectSize);
+    TOTEM_ASSERT(list == &s_FreeLists[0] ? 1 : amount > (list - 1)->ObjectSize);
     
     return list;
 }
 
-void *totem_CacheMalloc(size_t amount)
+void *totem_CacheMalloc(size_t amount, size_t line, const char *file)
 {
     if(amount > TOTEM_MEM_PAGESIZE)
     {
@@ -162,9 +156,10 @@ void *totem_CacheMalloc(size_t amount)
             if (freeList->HeadPage)
             {
                 totemMemoryPage *page = freeList->HeadPage;
+                
                 if (page->NumAllocated < page->NumTotal)
                 {
-                    totemMemoryPageObject *obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
+                    totemMemoryPageObject* obj = (totemMemoryPageObject*)(page->Data + (page->NumAllocated * freeList->ObjectSize));
                     page->NumAllocated++;
                     ptr = obj;
                 }
@@ -186,12 +181,13 @@ void *totem_CacheMalloc(size_t amount)
         }
         
         totemLock_Release(&freeList->Lock);
+        TOTEM_LOG_V(Memory, Free, Debug, "Allocated pointer %p %i %s:%i", ptr, freeList->ObjectSize, file, line);
     }
     
     return ptr;
 }
 
-void totem_CacheFree(void *ptr, size_t amount)
+void totem_CacheFree(void *ptr, size_t amount, size_t line, const char *file)
 {
     if(!ptr)
     {
@@ -205,566 +201,269 @@ void totem_CacheFree(void *ptr, size_t amount)
     }
     
     totemMemoryFreeList *freeList = totemMemoryFreeList_Get(amount);
-    totemMemoryPageObject *obj = ptr;
     
+    TOTEM_LOG_BEGIN(Memory, Free, Debug, logger);
+    {
+        totemLog_Write(logger, "Freeing pointer %p %i %s:%i\n", ptr, freeList->ObjectSize, file, line);
+
+        totemBool found = totemBool_False;
+        for(totemMemoryPage *page = freeList->HeadPage; page; page = page->Next)
+        {
+            char *start = page->Data;
+            char *end = start + sizeof(page->Data) - freeList->ObjectSize;
+            totemBool isBetween = ptr >= (void*)start && ptr <= (void*)end;
+            
+            totemLog_Write(logger, "Found page page(%p) start(%p) end(%p) ptr(%p) isBetween(%i)\n", page, start, end, ptr, isBetween);
+            
+            if(isBetween)
+            {
+                TOTEM_ASSERT(!found);
+                found = totemBool_True;
+            }
+        }
+    
+        TOTEM_ASSERT(found);
+    }
+    TOTEM_LOG_END();
+    
+    totemMemoryPageObject *obj = ptr;
+    memset(obj, 0xDEADBEEF, amount);
     totemLock_Acquire(&freeList->Lock);
     obj->Next = freeList->HeadObject;
     freeList->HeadObject = obj;
     totemLock_Release(&freeList->Lock);
 }
 
-void totemMemoryBlock_Cleanup(totemMemoryBlock **blockHead)
+void *totem_CacheRealloc(void *ptr, size_t oldLen, size_t newLen, size_t line, const char *file)
 {
-    totemMemoryBlock *block = *blockHead;
-    
-    while(block)
+    char *newMem = (char*)totem_CacheMalloc(newLen, line, file);
+    if (newMem == NULL)
     {
-        void *ptr = block;
-        block = block->Prev;
-        totem_CacheFree(ptr, sizeof(totemMemoryBlock));
-    }
-}
-
-void *totemMemoryBlock_Alloc(totemMemoryBlock **blockHead, size_t objectSize)
-{
-    size_t allocSize = objectSize;
-    size_t extra = allocSize % sizeof(uintptr_t);
-    if(extra != 0)
-    {
-        allocSize += sizeof(uintptr_t) - extra;
+        return NULL;
     }
     
-    totemMemoryBlock *chosenBlock = NULL;
-    
-    for(totemMemoryBlock *block = *blockHead; block != NULL; block = block->Prev)
+    if(oldLen < newLen)
     {
-        if(block->Remaining > allocSize)
-        {
-            chosenBlock = block;
-            break;
-        }
-    }
-    
-    if(chosenBlock == NULL)
-    {
-        // alloc new
-        chosenBlock = (totemMemoryBlock*)totem_CacheMalloc(sizeof(totemMemoryBlock));
-        if(chosenBlock == NULL)
-        {
-            return NULL;
-        }
-        chosenBlock->Remaining = TOTEM_MEMORYBLOCK_DATASIZE;
-        chosenBlock->Prev = *blockHead;
-        *blockHead = chosenBlock;
-    }
-    
-    char *ptr = chosenBlock->Data + (TOTEM_MEMORYBLOCK_DATASIZE - chosenBlock->Remaining);
-    TOTEM_ZERO_ARRAY(ptr, objectSize);
-    chosenBlock->Remaining -= allocSize;
-    return (void*)ptr;
-}
-
-void totemBufferBase_Init(totemBufferBase *buffer)
-{
-    buffer->Data = NULL;
-    buffer->Length = 0;
-    buffer->MaxLength = 0;
-}
-
-void totemBufferBase_Reset(totemBufferBase *buffer)
-{
-    buffer->Length = 0;
-}
-
-void totemBufferBase_Cleanup(totemBufferBase *buffer, size_t objectSize)
-{
-    if(buffer->Data)
-    {
-        totem_CacheFree(buffer->Data, buffer->MaxLength * objectSize);
-        
-        buffer->Data = NULL;
-        buffer->Length = 0;
-        buffer->MaxLength = 0;
-    }
-}
-
-void *totemBufferBase_Top(totemBufferBase *buffer, size_t objectSize)
-{
-    if(buffer->Length)
-    {
-        size_t index = (buffer->Length - 1) * objectSize;
-        return &buffer->Data[index];
-    }
-    
-    return NULL;
-}
-
-void *totemBufferBase_Bottom(totemBufferBase *buffer)
-{
-    if(buffer->Length)
-    {
-        return buffer->Data;
-    }
-    
-    return NULL;
-}
-
-void totemBufferBase_Pop(totemBufferBase *buffer, size_t amount)
-{
-    if(amount > buffer->Length)
-    {
-        amount = buffer->Length;
-    }
-    
-    buffer->Length -= amount;
-}
-
-void *totemBufferBase_At(totemBufferBase *buffer, size_t index, size_t objectSize)
-{
-    if(index < buffer->MaxLength)
-    {
-        return (void*)&buffer->Data[index * objectSize];
-    }
-    
-    return NULL;
-}
-
-size_t totemBufferBase_Num(totemBufferBase *buffer)
-{
-    return buffer->Length;
-}
-
-size_t totemBufferBase_Max(totemBufferBase *buffer)
-{
-    return buffer->MaxLength;
-}
-
-void *totemBufferBase_Secure(totemBufferBase *buffer, size_t amount, size_t objectSize, totemMallocCb alloc, totemFreeCb dealloc)
-{
-	if (buffer->Length + 1 >= buffer->MaxLength)
-	{
-		size_t toAlloc = 0;
-		if (buffer->MaxLength == 0)
-		{
-			toAlloc = 8;
-		}
-		else
-		{
-			toAlloc = buffer->MaxLength * 2;
-		}
-
-		if (amount + buffer->Length > toAlloc)
-		{
-			toAlloc = amount + buffer->Length;
-		}
-
-		char *newMem = (char*)alloc(toAlloc * objectSize);
-
-		if (newMem == NULL)
-		{
-			return NULL;
-		}
-
-		memcpy(newMem, buffer->Data, buffer->MaxLength * objectSize);
-		TOTEM_ZERO_ARRAY(newMem + (buffer->MaxLength * objectSize), (toAlloc - buffer->MaxLength) * objectSize);
-
-		dealloc(buffer->Data, buffer->MaxLength * objectSize);
-
-		buffer->MaxLength = toAlloc;
-		buffer->Data = newMem;
-	}
-
-	void *ptr = buffer->Data + (buffer->Length * objectSize);
-	buffer->Length += amount;
-	return ptr;
-}
-
-void *totemBufferBase_Insert(totemBufferBase *buffer, void *data, size_t amount, size_t objectSize, totemMallocCb alloc, totemFreeCb dealloc)
-{
-	void *ptr = totemBufferBase_Secure(buffer, amount, objectSize, alloc, dealloc);
-	if (!ptr)
-	{
-		return NULL;
-	}
-
-	memcpy(ptr, data, objectSize * amount);
-	return ptr;
-}
-
-totemBool totemBufferBase_Reserve(totemBufferBase *buffer, size_t amount, size_t objectSize, totemMallocCb alloc, totemFreeCb dealloc)
-{
-	if (buffer->MaxLength < amount)
-	{
-		size_t currentAmount = buffer->Length;
-
-		if (totemBufferBase_Secure(buffer, amount - buffer->MaxLength, objectSize, alloc, dealloc) == NULL)
-		{
-			return totemBool_False;
-		}
-
-		buffer->Length = currentAmount;
-	}
-
-	return totemBool_True;
-}
-
-void TotemHashMap_Assert(totemHashMap *hashmap)
-{
-	for (totemInt i = 0; i < hashmap->NumBuckets; i++)
-    {
-        totemHashMapEntry *bucket = hashmap->Buckets[i];
-        
-        for (size_t k = 0; bucket; k++)
-        {
-            TOTEM_DEBUG_ASSERT(k < 50000);
-            bucket = bucket->Next;
-        }
-    }
-    
-    totemHashMapEntry *bucket = hashmap->FreeList;
-    
-    for (size_t i = 0; bucket; i++)
-    {
-        TOTEM_DEBUG_ASSERT(i < 50000);
-        bucket = bucket->Next;
-    }
-}
-
-void totemHashMap_Init(totemHashMap *hashmap)
-{
-    TOTEM_ZERO(hashmap);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-}
-
-void totemHashMap_FreeEntry(totemHashMap *hashmap, totemHashMapEntry *entry)
-{
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totem_CacheFree((void*)entry->Key, entry->KeyLen);
-    
-    entry->Next = hashmap->FreeList;
-    hashmap->FreeList = entry;
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-}
-
-totemHashMapEntry *totemHashMap_SecureEntry(totemHashMap *hashmap)
-{
-    totemHashMapEntry *entry = NULL;
-    
-    if (hashmap->FreeList)
-    {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        entry = hashmap->FreeList;
-        hashmap->FreeList = entry->Next;
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
+        memcpy(newMem, ptr, oldLen);
+        TOTEM_ZERO_N(newMem + oldLen, newLen - oldLen);
     }
     else
     {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        entry = totem_CacheMalloc(sizeof(totemHashMapEntry));
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
+        memcpy(newMem, ptr, newLen);
     }
     
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    return entry;
+    totem_CacheFree(ptr, oldLen, line, file);
+    return newMem;
 }
 
-void totemHashMap_MoveKeysToFreeList(totemHashMap *hashmap)
+void *totem_CacheCopy(void *ptr, size_t len, size_t line, const char *file)
 {
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    
-    for(totemInt i = 0; i < hashmap->NumBuckets; i++)
+    char *newMem = (char*)totem_CacheMalloc(len, line, file);
+    if(newMem == NULL)
     {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        while(hashmap->Buckets[i])
+        return NULL;
+    }
+    
+    memcpy(newMem, ptr, len);
+    return newMem;
+}
+
+void totemBuffer_Init(totemBuffer *buff)
+{
+    buff->Len = 0;
+    buff->Ptr = NULL;
+}
+
+void totemBuffer_Reset(totemBuffer *buff, size_t elemSize)
+{
+    totemBuffer_Cleanup(buff, elemSize);
+}
+
+void totemBuffer_Cleanup(totemBuffer *buff, size_t elemSize)
+{
+    TOTEM_FREE(buff->Ptr, buff->Len * elemSize);
+    buff->Ptr = NULL;
+    buff->Len = 0;
+}
+
+char *totemBuffer_Top(totemBuffer *buffer, size_t elemSize)
+{
+    if(buffer->Len)
+    {
+        return buffer->Ptr + (elemSize * (buffer->Len - 1));
+    }
+    
+    return NULL;
+}
+
+char *totemBuffer_Bottom(totemBuffer *buffer)
+{
+    if(buffer->Len)
+    {
+        return buffer->Ptr;
+    }
+    
+    return NULL;
+}
+
+char *totemBuffer_At(totemBuffer *buffer, size_t at, size_t elemSize)
+{
+    if(at < buffer->Len)
+    {
+        return buffer->Ptr + (elemSize * at);
+    }
+    
+    return NULL;
+}
+
+totemBool totemBuffer_Reserve(totemBuffer *buffer, size_t len, size_t elemSize)
+{
+    if(buffer->Len < len)
+    {
+        char *newPtr = TOTEM_REALLOC(buffer->Ptr, buffer->Len * elemSize, len * elemSize);
+        if(!newPtr)
         {
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-            totemHashMapEntry *entry = hashmap->Buckets[i];
-            hashmap->Buckets[i] = entry->Next;
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-            totemHashMap_FreeEntry(hashmap, entry);
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
+            buffer->Len = len;
+            buffer->Ptr = newPtr;
+            return totemBool_True;
         }
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
     }
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
     
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    
-    hashmap->NumKeys = 0;
+    return totemBool_False;
 }
 
-void totemHashMap_InsertDirect(totemHashMapEntry **buckets, size_t numBuckets, totemHashMapEntry *entry)
+size_t totemBuffer_Length(totemBuffer *buffer)
 {
-    size_t index = entry->Hash % numBuckets;
-    if(buckets[index] == NULL)
+    return buffer->Len;
+}
+
+void totemDynBuffer_Init(totemDynBuffer *buf)
+{
+    buf->Max = 0;
+    buf->Ptr = NULL;
+    totemDynBuffer_Reset(buf);
+}
+
+void totemDynBuffer_Reset(totemDynBuffer *buf)
+{
+    buf->Len = 0;
+}
+
+void totemDynBuffer_Cleanup(totemDynBuffer *buf, size_t elemSize)
+{
+    if (buf->Ptr)
     {
-        buckets[index] = entry;
-    }
-    else
-    {
-        for(totemHashMapEntry *bucket = buckets[index]; bucket != NULL; bucket = bucket->Next)
-        {
-            if(bucket->Next == NULL)
-            {
-                bucket->Next = entry;
-                break;
-            }
-        }
+        TOTEM_FREE(buf->Ptr, buf->Max * elemSize);
+        buf->Ptr = NULL;
+        buf->Len = 0;
+        buf->Max = 0;
     }
 }
 
-totemBool totemHashMap_InsertPrecomputedWithoutSearch(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashMapValue value, totemHashValue hash)
+char *totemDynBuffer_Top(totemDynBuffer *buf, size_t elemSize)
 {
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    if (hashmap->NumKeys >= hashmap->NumBuckets)
+    if(buf->Len)
     {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        // buckets realloc
-		totemInt newNumBuckets = 0;
-        if (hashmap->NumKeys == 0)
+        return &buf->Ptr[(buf->Len * elemSize) - elemSize];
+    }
+    
+    return NULL;
+}
+
+char *totemDynBuffer_Bottom(totemDynBuffer *buf)
+{
+    if(buf->Len)
+    {
+        return buf->Ptr;
+    }
+    
+    return NULL;
+}
+
+char *totemDynBuffer_Push(totemDynBuffer *buf, char *data, size_t len, size_t elemSize)
+{
+    char* ptr = totemDynBuffer_Secure(buf, len, elemSize);
+    if (!ptr)
+    {
+        return NULL;
+    }
+
+    memcpy(ptr, data, len * elemSize);
+    return ptr;
+}
+
+totemBool totemDynBuffer_Pop(totemDynBuffer *buf, size_t size)
+{
+    if(buf->Len >= size)
+    {
+        buf->Len -= size;
+        return totemBool_True;
+    }
+    
+    return totemBool_False;
+}
+
+char *totemDynBuffer_At(totemDynBuffer *buf, size_t at, size_t elemSize)
+{
+    if(buf->Len > at)
+    {
+        return buf->Ptr + (at * elemSize);
+    }
+    
+    return NULL;
+}
+
+totemBool totemDynBuffer_Reserve(totemDynBuffer *buf, size_t needed, size_t elemSize)
+{
+    // allocate space for x elements
+    if (needed >= buf->Max)
+    {
+        size_t toAlloc = 0;
+        if (buf->Max == 0)
         {
-            newNumBuckets = 32;
+            toAlloc = 8;
         }
         else
         {
-            newNumBuckets = hashmap->NumKeys * 2;
+            toAlloc = buf->Max * 2;
         }
-        
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        totemHashMapEntry **newBuckets = totem_CacheMalloc(sizeof(totemHashMapEntry**) * newNumBuckets);
-        if (!newBuckets)
+        if (needed > toAlloc)
         {
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
+            toAlloc = needed;
+        }
+        char *newMem = TOTEM_REALLOC(buf->Ptr, buf->Max * elemSize, toAlloc * elemSize);
+        if (newMem == NULL)
+        {
             return totemBool_False;
         }
-        
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        // reassign
-		TOTEM_ZERO_ARRAY(newBuckets, newNumBuckets);
-		for (totemInt i = 0; i < hashmap->NumBuckets; i++)
-        {
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-            totemHashMapEntry *next = NULL;
-            for (totemHashMapEntry *entry = hashmap->Buckets[i]; entry != NULL; entry = next)
-            {
-                TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                next = entry->Next;
-                entry->Next = NULL;
-                totemHashMap_InsertDirect(newBuckets, newNumBuckets, entry);
-                TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-            }
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        }
-        
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        // replace buckets
-        totem_CacheFree(hashmap->Buckets, sizeof(totemHashMapEntry**) * hashmap->NumBuckets);
-        hashmap->Buckets = newBuckets;
-        hashmap->NumBuckets = newNumBuckets;
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
+        buf->Max = toAlloc;
+        buf->Ptr = newMem;
     }
-    
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashMapEntry *entry = totemHashMap_SecureEntry(hashmap);
-    if (!entry)
-    {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        return totemBool_False;
-    }
-    
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    void *persistKey = totem_CacheMalloc(keyLen);
-    if (!persistKey)
-    {
-        return totemBool_False;
-    }
-    
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    memcpy(persistKey, key, keyLen);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    
-    entry->Next = NULL;
-    entry->Value = value;
-    entry->Key = persistKey;
-    entry->KeyLen = keyLen;
-    entry->Hash = hash;
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashMap_InsertDirect(hashmap->Buckets, hashmap->NumBuckets, entry);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    
-    hashmap->NumKeys++;
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    return totemBool_True;
-}
-
-totemBool totemHashMap_InsertPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashMapValue value, totemHashValue hash)
-{
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashMapEntry *existingEntry = totemHashMap_Find(hashmap, key, keyLen);
-    if(existingEntry)
-    {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        existingEntry->Value = value;
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        return totemBool_True;
-    }
-    else
-    {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        totemBool result = totemHashMap_InsertPrecomputedWithoutSearch(hashmap, key, keyLen, value, hash);
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        return result;
-    }
-}
-
-totemBool totemHashMap_Insert(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashMapValue value)
-{
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashValue hash = totem_Hash(key, keyLen);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemBool result = totemHashMap_InsertPrecomputed(hashmap, key, keyLen, value, hash);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    return result;
-}
-
-totemBool totemHashMap_TakeFrom(totemHashMap *hashmap, totemHashMap *from)
-{
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    // todo: if this fails half-way through the list, free previously allocated entries
-	for (totemInt i = 0; i < from->NumBuckets; i++)
-    {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        for(totemHashMapEntry *entry = from->Buckets[i]; entry != NULL; entry = entry->Next)
-        {
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-            if(!totemHashMap_InsertPrecomputed(hashmap, entry->Key, entry->KeyLen, entry->Value, entry->Hash))
-            {
-                TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                return totemBool_False;
-            }
-            
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        }
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    }
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
     
     return totemBool_True;
 }
 
-totemHashMapEntry *totemHashMap_RemovePrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue hash)
+char *totemDynBuffer_Secure(totemDynBuffer *buf, size_t len, size_t elemSize)
 {
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    if (hashmap->NumBuckets > 0)
+    // add x elements
+    size_t needed = buf->Len + len;
+    
+    if(!totemDynBuffer_Reserve(buf, needed, elemSize))
     {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        int index = hash % hashmap->NumBuckets;
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        for (totemHashMapEntry *entry = hashmap->Buckets[index], *prev = NULL; entry != NULL; prev = entry, entry = entry->Next)
-        {
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-            if (entry->Hash == hash && memcmp(entry->Key, key, keyLen) == 0)
-            {
-                TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                if (prev)
-                {
-                    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                    prev->Next = entry->Next;
-                    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                }
-                else
-                {
-                    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                    hashmap->Buckets[index] = entry->Next;
-                    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                }
-                
-                TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                totemHashMap_FreeEntry(hashmap, entry);
-                TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                hashmap->NumKeys--;
-                return entry;
-            }
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        }
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
+        return NULL;
     }
     
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    return NULL;
+    char *ptr = buf->Ptr + (buf->Len * elemSize);
+    buf->Len += len;
+    return ptr;
 }
 
-totemHashMapEntry *totemHashMap_Remove(totemHashMap *hashmap, const void *key, size_t keyLen)
+size_t totemDynBuffer_Length(totemDynBuffer *buf)
 {
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashValue hash = totem_Hash(key, keyLen);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashMapEntry *result = totemHashMap_RemovePrecomputed(hashmap, key, keyLen, hash);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    return result;
+    return buf->Len;
 }
 
-totemHashMapEntry *totemHashMap_Find(totemHashMap *hashmap, const void *key, size_t keyLen)
+size_t totemDynBuffer_Max(totemDynBuffer *buf)
 {
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashValue hash = totem_Hash(key, keyLen);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashMapEntry *result = totemHashMap_FindPrecomputed(hashmap, key, keyLen, hash);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    return result;
-}
-
-totemHashMapEntry *totemHashMap_FindPrecomputed(totemHashMap *hashmap, const void *key, size_t keyLen, totemHashValue hash)
-{
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    if(hashmap->NumBuckets > 0)
-    {
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        int index = hash % hashmap->NumBuckets;
-        TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        for(totemHashMapEntry *entry = hashmap->Buckets[index]; entry != NULL; entry = entry->Next)
-        {
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-            
-            if(entry->Hash == hash && entry->KeyLen == keyLen && memcmp(entry->Key, key, entry->KeyLen) == 0)
-            {
-                TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-                return entry;
-            }
-            TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-        }
-    }
-    
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    return NULL;
-}
-
-void totemHashMap_Reset(totemHashMap *hashmap)
-{
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    totemHashMap_MoveKeysToFreeList(hashmap);
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-    hashmap->NumKeys = 0;
-    TOTEM_DEBUG_HASHMAP_ASSERT(hashmap);
-}
-
-void totemHashMap_Cleanup(totemHashMap *map)
-{
-    TOTEM_DEBUG_HASHMAP_ASSERT(map);
-    totemHashMap_MoveKeysToFreeList(map);
-    TOTEM_DEBUG_HASHMAP_ASSERT(map);
-    while(map->FreeList)
-    {
-        TOTEM_DEBUG_HASHMAP_ASSERT(map);
-        totemHashMapEntry *entry = map->FreeList;
-        map->FreeList = entry->Next;
-        totem_CacheFree(entry, sizeof(totemHashMapEntry));
-        TOTEM_DEBUG_HASHMAP_ASSERT(map);
-    }
-    
-    TOTEM_DEBUG_HASHMAP_ASSERT(map);
-    totem_CacheFree(map->Buckets, sizeof(totemHashMapEntry**) * map->NumBuckets);
-    map->Buckets = NULL;
-    map->NumBuckets = 0;
-    TOTEM_DEBUG_HASHMAP_ASSERT(map);
+    return buf->Max;
 }

@@ -11,16 +11,19 @@
 
 #include <TotemScript/base.h>
 #include <TotemScript/memory.h>
+#include <TotemScript/log.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define TOTEM_MAX_TOKEN_LENGTH (2048)
+
 #define TOTEM_EMIT_SYMBOLS(_) \
 	_(DoubleQuote,	'"') \
 	_(Plus,			'+') \
 	_(Minus,		'-') \
-	_(Multiply,		'*') \
+	_(Star,		    '*') \
 	_(Not,			'!') \
 	_(And,			'&') \
 	_(Or,			'|') \
@@ -32,7 +35,7 @@ extern "C" {
 	_(LCBracket,	'{') \
 	_(RCBracket,	'}') \
 	_(Dot,			'.') \
-	_(PowerTo,		'^') \
+	_(Caret,		'^') \
 	_(Semicolon,	';') \
 	_(SingleQuote,	'\'') \
 	_(LSBracket,	'[') \
@@ -43,20 +46,39 @@ extern "C" {
 	_(Slash,		'/') \
 	_(At,			'@') \
 	_(Hash,			'#') \
+    _(Tilde,        '~') \
 
-	typedef enum totemLoadScriptStatus
-    {
-        totemLoadScriptStatus_Success,
-        totemLoadScriptStatus_FileNotFound,
-        totemLoadScriptStatus_OutOfMemory,
-        totemLoadScriptStatus_CwdTooLarge,
-        totemLoadScriptStatus_FChDirError,
-        totemLoadScriptStatus_FilenameTooLarge
-    }
-    totemLoadScriptStatus;
-    
-    const char *totemLoadScriptStatus_Describe(totemLoadScriptStatus status);
-     
+#define TOTEM_EMIT_RESERVED_WORDS(_) \
+    _(Null,         "null") \
+    _(Var,          "var") \
+    _(If,           "if") \
+    _(Do,           "do") \
+    _(While,        "while") \
+    _(For,          "for") \
+    _(Return,       "return") \
+    _(Case,         "case") \
+    _(Function,     "function") \
+    _(Break,        "break") \
+    _(Default,      "default") \
+    _(Else,         "else") \
+    _(True,         "true") \
+    _(False,        "false") \
+    _(Bool,         "bool") \
+    _(Let,          "let") \
+    _(Is,           "is") \
+    _(Int,          "int") \
+    _(Float,        "float") \
+    _(Array,        "array") \
+    _(String,       "string") \
+    _(Type,         "type") \
+    _(Object,       "object") \
+    _(As,           "as") \
+    _(Coroutine,    "coroutine") \
+    _(Userdata,     "userdata") \
+    _(Yield,        "yield") \
+    _(Continue,     "continue") \
+    _(Loop,         "loop") \
+
 	typedef enum totemLexStatus
     {
         totemLexStatus_Success,
@@ -73,12 +95,21 @@ extern "C" {
         totemParseStatus_UnexpectedToken,
         totemParseStatus_ValueTooLarge,
         totemParseStatus_OutOfMemory,
-        totemParseStatus_TooManyItems
+        totemParseStatus_TooManyItems,
+        totemParseStatus_LexError
     }
     totemParseStatus;
     
     const char *totemParseStatus_Describe(totemParseStatus status);
     
+    typedef enum totemParseStringFlag
+    {
+        totemParseStringFlag_None = 0,
+        totemParseStringFlag_IsLink = 1,
+        totemParseStringFlag_IsEnd = 1 << 1
+    }
+    totemParseStringFlag;
+
 	typedef enum totemVariablePrototypeFlag
     {
         totemVariablePrototypeFlag_None = 0,
@@ -97,7 +128,8 @@ extern "C" {
         totemArgumentType_Type,
         totemArgumentType_Identifier,
         totemArgumentType_FunctionDeclaration,
-        totemArgumentType_Boolean,
+        totemArgumentType_CoroutineDeclaration,
+        totemArgumentType_Bool,
         totemArgumentType_Null
     }
     totemArgumentType;
@@ -108,9 +140,9 @@ extern "C" {
         totemPreUnaryOperatorType_Dec,
         totemPreUnaryOperatorType_Inc,
 		totemPreUnaryOperatorType_LengthOf,
-		totemPreUnaryOperatorType_CloneOf,
         totemPreUnaryOperatorType_Negate,
-        totemPreUnaryOperatorType_LogicalNegate
+        totemPreUnaryOperatorType_LogicalNegate,
+        totemPreUnaryOperatorType_BinaryNot,
     }
     totemPreUnaryOperatorType;
     
@@ -146,28 +178,35 @@ extern "C" {
         totemBinaryOperatorType_LogicalOr,
         totemBinaryOperatorType_IsType,
         totemBinaryOperatorType_AsType,
-        totemBinaryOperatorType_LeftShift,
-		totemBinaryOperatorType_RightShift,
+        totemBinaryOperatorType_BinaryLeftShift,
+        totemBinaryOperatorType_BinaryRightShift,
+        totemBinaryOperatorType_BinaryAnd,
+        totemBinaryOperatorType_BinaryOr,
+        totemBinaryOperatorType_BinaryXor,
     }
     totemBinaryOperatorType;
     const char *totemBinaryOperatorType_Describe(totemBinaryOperatorType type);
     
 	typedef enum totemStatementType
     {
-        totemStatementType_WhileLoop = 1,
+        totemStatementType_Simple = 0,
+        totemStatementType_WhileLoop,
         totemStatementType_ForLoop,
         totemStatementType_IfBlock,
         totemStatementType_DoWhileLoop,
+        totemStatementType_Loop,
         totemStatementType_Return,
 		totemStatementType_Yield,
-        totemStatementType_Simple
+        totemStatementType_Scope
     }
     totemStatementType;
     
 	typedef enum totemBlockType
     {
-        totemBlockType_FunctionDeclaration = 1,
-        totemBlockType_Statement
+        totemBlockType_Statement,
+        totemBlockType_Export,
+        totemBlockType_Import,
+        totemBlockType_Function
     }
     totemBlockType;
     
@@ -188,42 +227,16 @@ extern "C" {
     
 	typedef enum totemTokenType
     {
-		totemTokenType_None = 0,
 		totemTokenType_Identifier,
 		totemTokenType_Whitespace,
-		totemTokenType_Null,
-		totemTokenType_Var,
-		totemTokenType_If,
-		totemTokenType_Do,
-		totemTokenType_While,
-		totemTokenType_For,
-		totemTokenType_Return,
-		totemTokenType_Case,
-		totemTokenType_Function,
-		totemTokenType_EndScript,
-		totemTokenType_Number,
-		totemTokenType_Break,
-		totemTokenType_Default,
-		totemTokenType_Else,
-		totemTokenType_True,
-		totemTokenType_False,
-		totemTokenType_Boolean,
-		totemTokenType_Let,
-		totemTokenType_Is,
-		totemTokenType_Int,
-		totemTokenType_Float,
-		totemTokenType_Array,
-		totemTokenType_String,
-		totemTokenType_Type,
-		totemTokenType_Object,
-		totemTokenType_As,
-		totemTokenType_Coroutine,
-		totemTokenType_Userdata,
-		totemTokenType_Include,
-		totemTokenType_Import,
-		totemTokenType_Yield,
+        totemTokenType_Digits,
+        totemTokenType_EndScript,
+#define TOTEM_EMIT_RESERVED_WORD_TOKEN(name, word) totemTokenType_ ## name,
+        TOTEM_EMIT_RESERVED_WORDS(TOTEM_EMIT_RESERVED_WORD_TOKEN)
+#undef TOTEM_EMIT_RESERVED_WORD_TOKEN
 #define TOTEM_EMIT_SYMBOL_TOKEN(name, symbol) totemTokenType_ ## name,
 		TOTEM_EMIT_SYMBOLS(TOTEM_EMIT_SYMBOL_TOKEN)
+#undef TOTEM_EMIT_SYMBOL_TOKEN
 		totemTokenType_Max,
     }
     totemTokenType;
@@ -232,37 +245,81 @@ extern "C" {
 	
 	typedef enum totemTokenCategory
     {
-        totemTokenCategory_None = 0,
         totemTokenCategory_Symbol,
         totemTokenCategory_ReservedWord,
         totemTokenCategory_Other
     }
 	totemTokenCategory;
 
-	typedef struct totemBufferPositionInfo
+    totemTokenCategory totemTokenType_ToCategory(totemTokenType type);
+
+	typedef struct totemTokenPositionInfo
     {
         size_t LineNumber;
-        size_t CharNumber;
+        size_t CharNumber; // relative to current line
         size_t Length;
-        const char *Start;
+        size_t Start; // relative to beginning of source
     }
-    totemBufferPositionInfo;
-    
+    totemTokenPositionInfo;
+
+    struct totemParseTree;
+
+    void totemTokenPositionInfo_Print(totemTokenPositionInfo *info, struct totemParseTree *src, totemLog *dst);
+
 	typedef struct totemToken
     {
-        totemBufferPositionInfo Position;
+        totemTokenPositionInfo Position;
         totemTokenType Type;
-        totemTokenCategory Category;
     }
     totemToken;
 
-	void totemToken_Print(FILE *target, totemToken *token);
-	void totemToken_PrintList(FILE *target, totemToken *token, size_t num);
+	void totemToken_Print(totemLog *target, totemToken *token, struct totemParseTree *tree);
+	void totemToken_PrintList(totemLog *target, totemToken *token, size_t num, struct totemParseTree *tree);
+
+    typedef struct totemParseStringHeader
+    {
+        char Flags;
+    }
+    totemParseStringHeader;
+
+    totemParseStringHeader *totemParseStringHeader_IntFromBuffer(char *buffer, uint8_t bufferLen, totemInt num);
+
+    typedef struct totemParseString
+    {
+        totemParseStringHeader *Data;
+    }
+    totemParseString;
+
+    size_t totemParseString_GetLength(totemParseString* str);
+    size_t totemParseString_ExtractValue(totemParseString* str, char* valOut, size_t bufferLen);
+    size_t totemParseString_Print(totemParseString *str, totemLog *to);
+    totemBool totemParseString_Compare(totemParseString* str1, totemParseString* str2);
+    totemBool totemParseString_Equals(totemParseString* str, const char* str2, size_t str2Len);
+    totemHashValue totemParseString_Hash(totemParseString* str);
+
+    typedef struct totemParseStringIterator
+    {
+        totemParseStringHeader *Itr;
+        const char *Current;
+        totemParseStringFlag CurrentFlags;
+        uint8_t CurrentLength;
+    }
+    totemParseStringIterator;
+
+    void totemParseStringIterator_Begin(totemParseStringIterator *it, totemParseString* str);
+    totemBool totemParseStringIterator_Step(totemParseStringIterator *it);
+
+    typedef struct totemNumberPrototype
+    {
+        totemParseString Value;
+        totemBool IsFloat;
+    }
+    totemNumberPrototype;
 
     typedef struct totemVariablePrototype
     {
-		totemBufferPositionInfo Position;
-        totemString Identifier;
+		totemTokenPositionInfo Position;
+        totemParseString Identifier;
         struct totemVariablePrototype *Next;
         totemVariablePrototypeFlag Flags;
     }
@@ -274,36 +331,46 @@ extern "C" {
     {
         struct totemExpressionPrototype *Keys;
         struct totemExpressionPrototype *Values;
-        totemInt Num;
+        uint32_t Num;
     }
     totemNewObjectPrototype;
     
 	typedef struct totemNewArrayPrototype
     {
-		totemInt Num;
+        struct totemExpressionPrototype *NumExpression;
         struct totemExpressionPrototype *Accessor;
+        size_t NumElements;
     }
     totemNewArrayPrototype;
     
-    struct totemFunctionDeclarationPrototype;
+    struct totemStatementPrototype;
+
+    typedef struct totemFunctionDeclarationPrototype
+    {
+        totemTokenPositionInfo Position;
+        totemVariablePrototype* ParametersStart;
+        struct totemStatementPrototype* StatementsStart;
+        struct totemFunctionDeclarationPrototype* Next;
+    }
+    totemFunctionDeclarationPrototype;
 
 	typedef union totemArgumentPrototypeValue
 	{
+        totemParseString String;
+        totemParseString Identifier;
 		totemVariablePrototype *Variable;
-		totemString *String;
-		totemString *Number;
-		totemString *Identifier;
-		struct totemFunctionDeclarationPrototype *FunctionDeclaration;
+        totemNumberPrototype *Number;
+        totemFunctionDeclarationPrototype *Func;
 		totemNewArrayPrototype *NewArray;
 		totemNewObjectPrototype *NewObject;
 		totemPublicDataType DataType;
-		totemBool Boolean;
+		totemBool Bool;
 	}
 	totemArgumentPrototypeValue;
     
     typedef struct totemArgumentPrototype
     {
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
 		totemArgumentPrototypeValue Value;
         totemArgumentType Type;
     }
@@ -333,7 +400,7 @@ extern "C" {
     
     typedef struct totemExpressionPrototype
     {
-        totemBufferPositionInfo Position;
+        totemTokenPositionInfo Position;
 		totemLValuePrototype LValue;
         struct totemExpressionPrototype *RValue;
         struct totemExpressionPrototype *Next;
@@ -345,11 +412,9 @@ extern "C" {
     }
     totemExpressionPrototype;
     
-    struct totemStatementPrototype;
-    
 	typedef struct totemWhileLoopPrototype
     {
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
         struct totemStatementPrototype *StatementsStart;
         totemExpressionPrototype *Expression;
     }
@@ -357,7 +422,7 @@ extern "C" {
     
 	typedef struct totemForLoopPrototype
     { 
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
         struct totemStatementPrototype *StatementsStart;
         totemExpressionPrototype *Initialisation;
         totemExpressionPrototype *Condition;
@@ -367,7 +432,7 @@ extern "C" {
     
 	typedef struct totemElseBlockPrototype
     {
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
         struct totemStatementPrototype *StatementsStart;
     }
     totemElseBlockPrototype;
@@ -381,7 +446,7 @@ extern "C" {
 
     typedef struct totemIfBlockPrototype
     {
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
         struct totemStatementPrototype *StatementsStart;
         totemExpressionPrototype *Expression;
 		totemIfBlockPrototypeNextBlockPtr Next;
@@ -391,22 +456,20 @@ extern "C" {
      
 	typedef struct totemDoWhileLoopPrototype
     {
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
         struct totemStatementPrototype *StatementsStart;
         totemExpressionPrototype *Expression;
     }
     totemDoWhileLoopPrototype;
-    
-    typedef struct totemFunctionDeclarationPrototype
+
+    typedef struct totemScopePrototype
     {
-		totemBufferPositionInfo Position;
-        totemVariablePrototype *ParametersStart;
-        struct totemStatementPrototype *StatementsStart;
-        totemString *Identifier;
-        struct totemFunctionDeclarationPrototype *Next;
+        struct totemStatementPrototype* StatementsStart;
     }
-    totemFunctionDeclarationPrototype;
+    totemScopePrototype;
     
+    struct totemStatementPrototype;
+
 	typedef union totemStatementPrototypePtr
 	{
 		totemWhileLoopPrototype *WhileLoop;
@@ -415,94 +478,143 @@ extern "C" {
 		totemDoWhileLoopPrototype *DoWhileLoop;
 		totemExpressionPrototype *Return;
 		totemExpressionPrototype *Simple;
+        struct totemStatementPrototype *Set;
 	}
 	totemStatementPrototypePtr;
 
     typedef struct totemStatementPrototype
     {
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
 		totemStatementPrototypePtr Ptr;
         struct totemStatementPrototype *Next;
         totemStatementType Type;
     }
     totemStatementPrototype;
+
+    typedef struct totemImportStatementPrototype
+    {
+        totemParseString ScriptName;
+        totemParseString Alias;
+        struct totemImportStatementPrototype* Next;
+    }
+    totemImportStatementPrototype;
+
+    typedef struct totemImportBlockPrototype
+    {
+        totemImportStatementPrototype* Stmts;
+    }
+    totemImportBlockPrototype;
+
+    typedef struct totemExportBlockPrototype
+    {
+        struct totemBlockPrototype* Blocks;
+    }
+    totemExportBlockPrototype;
+
+    typedef struct totemFunctionBlockPrototype
+    {
+        totemParseString Identifier;
+        totemFunctionDeclarationPrototype Dec;
+    }
+    totemFunctionBlockPrototype;
     
 	typedef union totemBlockPrototypePtr
 	{
-		totemFunctionDeclarationPrototype *FuncDec;
 		totemStatementPrototype *Statement;
+        totemExportBlockPrototype *Export;
+        totemImportBlockPrototype *Import;
+        totemFunctionBlockPrototype *Function;
 	}
 	totemBlockPrototypePtr;
 
     typedef struct totemBlockPrototype
     {
-		totemBufferPositionInfo Position;
+		totemTokenPositionInfo Position;
 		totemBlockPrototypePtr Ptr;
         struct totemBlockPrototype *Next;
         totemBlockType Type;
     }
     totemBlockPrototype;
     
-	typedef struct totemScriptFileBlock
-    {
-        char *Value;
-        size_t Length;
-        size_t Offset;
-        size_t Parent;
-        size_t LineStart;
-    }
-    totemScriptFileBlock;
+    //typedef size_t(*totemTokenizerReaderCb)(char *buffer, size_t bufferLen, void*);
 
-	TOTEM_CACHEBUFFER_DEFINITION(totemScriptFileBlock);
+/*
+	void totemTokenizer_Step(totemTokenizer *list, totemTokenizerReaderCb reader, void* readerCxt);
     
-	typedef struct totemScriptFile
+*/
+
+    typedef struct totemParseMemBlock
     {
-        totemCharBuffer Buffer;
-		totemScriptFileBlockBuffer FileBlock;
-        char FilenameBuffer[PATH_MAX];
+        char Data[512];
+        size_t Remaining;
+        struct totemParseMemBlock* Next;
     }
-	totemScriptFile;
+    totemParseMemBlock;
 
-	void totemScriptFile_Init(totemScriptFile *file);
-	void totemScriptFile_Reset(totemScriptFile *file);
-	void totemScriptFile_Cleanup(totemScriptFile *file);
-	totemLoadScriptStatus totemScriptFile_Load(totemScriptFile *dst, totemString *filename);
+    typedef struct totemParseGlobalValue
+    {
+        totemArgumentPrototype *Arg;
+        struct totemParseGlobalValue *Next;
+    }
+    totemParseGlobalValue;
 
-	typedef struct totemTokenizer
-	{
-		totemToken CurrentToken;
-		totemToken LastToken;
-		size_t CurrentChar;
-		size_t CurrentLine;
-		const char *Current;
-		const char *CEnd;
-		totemBool InsideStringLiteral;
-	}
-	totemTokenizer;
+    typedef size_t(*totemParseTree_StepCallback)(void *cxtIn, char *buffer, size_t len, size_t pos);
+    typedef void(*totemParseTree_ResetCallback)(void* cxtIn);
+    typedef void(*totemParseTree_PrintCallback)(void *cxtIn, totemLog *f, size_t len, size_t pos);
 
-	void totemTokenizer_Init(totemTokenizer *list);
-	void totemTokenizer_Reset(totemTokenizer *list);
-	void totemTokenizer_Cleanup(totemTokenizer *list);
-	void totemTokenizer_Begin(totemTokenizer *list, const char *buffer, size_t length);
-	void totemTokenizer_Step(totemTokenizer *list);
-	void totemTokenizer_Rewind(totemTokenizer *list);
+    typedef struct totemParseTreeClass
+    {
+        totemParseTree_StepCallback Step;
+        totemParseTree_ResetCallback Reset;
+        totemParseTree_PrintCallback Print;
+    }
+    totemParseTreeClass;
 
 	typedef struct totemParseTree
 	{
-		totemBufferPositionInfo ErrorAt;
-		totemTokenizer Tokenizer;
+        totemToken CurrentToken;
+        totemToken LastToken;
+        size_t CurrentLineChar;
+        size_t CurrentLine;
+        size_t NumLineBreaksInCurrentToken;
+        totemBool InsideStringLiteral;
+        size_t CurrentPos;
+        char ReadBuffer[TOTEM_MAX_TOKEN_LENGTH];
+        
+		totemTokenPositionInfo ErrorAt;
+		//totemTokenizer Tokenizer;
 		totemJmpBuffer Jmp;
-		totemMemoryBlock *LastMemBlock;
+		totemParseMemBlock *LastMemBlock;
+        totemParseMemBlock *MemBlockFreeList;
 		totemBlockPrototype *FirstBlock;
-		totemParseStatus JmpStatus;
+        totemParseStringHeader *StringParseHead;
+        totemParseStringHeader *StringParseTail;
+        totemParseGlobalValue *Globals;
+        const struct totemParseTreeClass *Callbacks;
+        void *SrcCxt;
+        size_t SrcLen;
+        size_t SrcPos;
+        totemParseStatus JmpStatus;
 	}
 	totemParseTree;
 
-	void totemParseTree_Init(totemParseTree *tree);
+	void totemParseTree_InitWithString(totemParseTree *tree, const char *str, totemStringLength len);
+    void totemParseTree_InitWithFile(totemParseTree *tree, FILE *file);
 	void totemParseTree_Reset(totemParseTree *tree);
 	void totemParseTree_Cleanup(totemParseTree *tree);
-	totemParseStatus totemParseTree_Parse(totemParseTree *tree, const char *start, size_t len);
+    char totemParseTree_GetAbs(totemParseTree* tree, size_t pos);
+    void totemParseTree_InitialRead(totemParseTree *tee);
+    void totemParseTree_LexToken(totemParseTree *tree);
+	totemParseStatus totemParseTree_Parse(totemParseTree *tree);
     
+    totemToken* totemParseTree_Current(totemParseTree* tree);
+    void totemParseTree_Break(totemParseTree *tree, totemParseStatus status, totemTokenPositionInfo *location);
+    void totemParseTree_AllocMemBlock(totemParseTree* tree);
+
+    void totemParseTree_StringParseBegin(totemParseTree* tree);
+    void totemParseTree_StringParseEnd(totemParseTree* tree, totemParseString* result);
+    void totemParseTree_StringParseStep(totemParseTree *tree);
+
 #ifdef __cplusplus
 }
 #endif

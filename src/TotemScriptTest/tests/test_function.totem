@@ -1,6 +1,14 @@
+var numTests = 0;
+
 function test(var b, var c)
 {
+    numTests++;
     return b + c;
+}
+
+function getNumTests()
+{
+    return numTests;
 }
 
 var a = test;
@@ -8,8 +16,8 @@ var b = 123;
 var c = 456;
 var d = a(b, c);
 var e = assert;
-var f = [10];
-f[5] = [12];
+var f = [10:];
+f[5] = [12:];
 f[5][2] = assert;
 
 assert(d == (b + c));

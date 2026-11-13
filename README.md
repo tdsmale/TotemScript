@@ -4,28 +4,30 @@
 * Features dynamic typing, full garbage-collection, cooperative multitasking, and a silly name.
 * Source Repository: [https://github.com/tdsmale/TotemScript](https://github.com/tdsmale/TotemScript)
 
-### Examples
+### Hello, World!
 ```php
+// Statements can either end with ';' or a new-line
 print("Hello, World!");
 ```
 #### Defining Variables
 Variables are dynamically-typed, supporting the following types:
-* int - 64-bit signed integers
 * float - 64-bit floating point
+* int - 32-bit unsigned integers
 * string - Interned, immutable strings
 * function - First-class functions
 * array - Fixed-size Arrays
 * object - String/Value Maps
-* coroutine - First-class coroutines
+* coroutine - Cooperative coroutines
+* instance - Script instances
 * type - Type objects (e.g. int, float, type etc.)
 * userdata - Data supplied by native C functions
 * boolean - true/false
 * null
 ```php
-// variables are declared thusly:
+// variables are declared by using the "var" keyword
 var a = 123;
 
-// variables can hold values of any type
+// variables are dynamically-typed and can hold values of any type
 a = "This is now a string.";
 
 function test()
@@ -33,7 +35,7 @@ function test()
     // this will reference the variable in global-scope
     a = 456;
 
-    // variables can also be declared as read-only
+    // variables can also be declared as read-only using the "let" keyword
     let x = "This variable cannot be modified";
 
     // values can be typecast
@@ -47,10 +49,6 @@ function test()
 
     // can also retrieve type as value
     var t = a as type;
-
-    // values can also be "shifted" from one location to another
-	// in this case, "t" would now be null
-    a << t;
 }
 ```
 #### Variable Scope
@@ -71,52 +69,65 @@ function localTest()
     var b = function()
     {
         return c; // "variable undefined" error
-    }
+    };
 
     // variable names can be reused within a new scope by just redefining them
     var a = 123;
 	
+	// control loops also have their own scope
 	if(true)
 	{
-		var a = 456; // control loops also have their own scope
+		var a = 456; 
 	}
 }
 
+// Explicitly declare new scopes like this:
+{
+	var x = 123;
+}
+
 ```
-#### Combining scripts
+#### Loading External Scripts
 ```php
-#include ../otherDir/otherFile.totem;
-// include statements must be the first statements in a file
-// file paths are relative to the current file's path
+// combine scripts by using "import"
+// this will load that script as an instance that you can use to call its functions
+// any instructions defined in the script's "global" scope will be ran automatically upon creation
+let a = import("./myfilename.totem");
+
+a.callFunc(123, 456);
+
+// you can create as many individual instances as you want
+let b = import("./myfilename.totem");
+
+// use "import_shared" to create & load a shared, cached version
+// calling this multiple times yields the same instance
+let c = import_shared("./myfilename.totem");
+
+// the instance cannot be directly modified, and only string keys can be used on it
+let d = c[123]; // runtime error
+c["what"] = 123; // runtime error
 ```
 #### Functions
 ```php
 // declaring a function
-// named functions can only be declared in global scope
 function test(var a, var b)
 {
     return a + b;
 }
 
-var a = test(123, 456); 
-a = test(123); // arguments default to null when not provided by caller
+var a = test(123, 456);
 
-var b = test; // functions can also be stored in variables
-a = b(123, 456, 789); // additional arguments provided by caller are discarded
+// arguments default to null when not provided by caller
+a = test(123); 
 
-// functions can also be anonymous, which can be declared anywhere
-b = function(var a, var b)
+// additional arguments provided by the caller are discarded
+a = test(123, 456, 789); 
+
+// functions can also be declared anonymously and assigned as values
+let x = function(var a, var b)
 {
-    return a * b;
+	return a + b;
 };
-
-a = b(123, 456);
-
-a = function(var b, var c)
-{
-    return b - c;
-}
-(456, 123);
 ```
 #### Strings
 ```php
@@ -124,39 +135,43 @@ a = function(var b, var c)
 var a = "Hello, ";
 var b = a + " World!";
 print(b); // Hello, World!
+
+// you can also access individual characters
 var c = a[2];
 print(c); // l
 ```
 #### Arrays
 ```php
-// Defines an Array that holds 20 values
-var a = [20];
+// Defines a garbage-collected array that holds 5 values
+var a = [5:1, 2, 3, 4, 5];
 
-for(var i = 0; i < 20; i++)
-{
-	a[i] = i;
-}
+// ...or they can be declared with just their size and no elements
+a = [4:];
 
+// ...or with just a set of elements
+a = [1, 2, 3, 4, 5];
+
+// you can access elements like this:
 var b = a[0] + a[1];
 
 // Arrays cannot be resized and must be redeclared if additional space is needed
 a[20] = 1; // runtime error
 
-a = "some other value"; // Arrays are automatically garbage-collected when no-longer referenced
+// Arrays are automatically garbage-collected when no-longer referenced
+a = null; 
 
-// Arrays can also be created with values already inserted
-a = [1, 2, "3", b];
 ```
-#### Objects
+#### Object
 ```php
 // Create new garbage-collected object
 var obj = {};
 
-// Objects map values to names
+// Objects map strings to values
 obj.test = 123;
 var val = obj.test;
 
-obj["test"] = 456; // objects can use either bracket-notation or dot-notation
+// Objects can use either bracket-notation or dot-notation
+obj["test"] = 456; 
 
 // Objects can store any sort of value
 obj["test2"] = function(var x, var y)
@@ -164,9 +179,9 @@ obj["test2"] = function(var x, var y)
     return x * y;
 };
 
-val["test2"](123, 456);
+obj["test2"](123, 456);
 
-// Objects are less efficient than arrays, but can hold any amount of values 
+// Objects do not need to be resized to insert new elements, but are less efficient than arrays
 var key = "key";
 obj[key] = [20];
 
@@ -175,140 +190,130 @@ for(var i = 0; i < 20; i++)
     obj[key][i] = i;
 }
 
-// non-string keys are implicitly cast to strings
-obj[123] = 456;
-assert(obj[123] == obj[(123 as string)]);
+// Objects can be initialized with values just like arrays
+var y = { a:456, "b":"Hello!" };
 
-// objects can be initialized with values just like arrays
-var y = { 123:456, "789":"Hello!" };
+// values can be removed by assigning null
+obj[key] = null;
+assert(obj[key] == null);
 
-// values can be removed by shifting them out
-key << obj[key];
 ```
 #### Coroutines
 ```php
 // Coroutines are functions that can be paused and resumed later
-
-// Coroutines are created by casting any function to a coroutine, and invoked like a regular function
-var co = function(var start, var end)
+var co = coroutine(var start, var end)
 {
     for(var i = start; i < end; i++)
     {
-        yield; // this will pause the function without returning anything
+		// yield statements pause the coroutine
+		// when called again, the coroutine will resume from this position
+        yield i; 
     }
 
-    return -1; // once the return statement is hit, the coroutine is reset
-} as coroutine;
+	// once a return statement is hit, the coroutine is reset
+    return -1; 
+};
+
+// Coroutines can also be created by casting a function to a coroutine
+var co = myFunction as coroutine;
 
 co(11, 20);
 
-for(var val = 0; val != -1; val = co())
-{
-	// will loop until the return statement is hit
-    print(val);
-}
-
-// Coroutines are also garbage-collected, just like Arrays - when no longer referenced, they are destroyed
-co = 123;
+// Coroutines are also garbage-collected, just like arrays - when no longer referenced, they are destroyed
+co = null;
 
 ```
-### Feature Creep
-* Specialized opcodes
-* Num operator (e.g. #{});
-* Clone operator (e.g. *{});
+### Version History
+
+#### 0.1
+* Initial release
+
+#### 0.2
+* Removed include statement
+* Added "import" & "import_shared" functionality
+* Can define anonymous blocks
+* Removed reference-counting as a garbage-collection option, now just mark-and-sweep
+* Removed 32-bit build support
+* Array declarations can now explicitly state the number of elements as well as the included elements
+* Removed "shift" operation
+* Added bitwise operations for integers
+* Coroutine expression e.g. let x = coroutine(let a, let b) { stmts }
+* Expanded instruction set
+* Better register/value evaluation
+
+### Planned Feature Creep
+
+### 0.3
+* Add loop { stmts }
+* both signed & unsigned integer support
+* integer / float folding at compile time
+* Array range support
 * Unary precedence
-* bitwise, logical & modulo ops
-* Break statement (e.g. break 2;)
-* Continue statement (e.g. continue 2;)
+* push pop operators
+	* ->
+	* <-
+* Make arrays resizable with push operator
+	* push n entries with optional values, same as array declarations e.g. x <- n:null
+* Closures
+	* when a function references a variable in a parent function scope, that parent scope is passed in as an array
+	* should be able to reference any parent scope, not just global
+	* global scope just becomes another parent scope (no need for global variables in instruction format anymore)
+	* consolidate instance functions & scripts into closures - no more global instructions or variables
+
+#### Language Backlog
+* Break statement
+* Continue statement
 * Switch statement
-* Try-catch-finally, throw, "error" value type
-* optional statically-typed vars (e.g. var a:int = 123; a = "this will not compile";)
- * can assign to "generic" var, but not the other way around without a cast first!
- * function return types
-* classes that eval to objects (e.g. class vec2 { var x:float = 0.0; var y:float = 0.0; }; var pos:vec2 = { x:4.5, y:5.5 }; pos = "this will not compile"; )
- * member access = array access, rather than key lookup
- * should degrade to normal objects on assignment
-* change object representation - v8-style
- * hashmaps are shared amongst commonly-organised objects - also contain "transitions" between hashmaps when adding or removing elements
-  * once assigned to "generic" var, becomes a normal object again
-   * thus, no private vars - no point!
- * "loose" functions - eval to normal functions that take object as first parameter
-  * don't have overhead of accessing member, but still need to be accessible as members since objects degrade to dynamic vars
-* closures!
- * when a function references a variable in a parent scope, that variable should be stored in an anon array rather than in register
- * then when referencing that variable, parent scope will just reference the anon array to update value
- * each of these objects (one per scope) become additional parameters
-  * global vars are just one of these objects
-   * so I guess..."instance functions" and "instances" get combined into "closures"?
-    * closures carry around "totemScriptFunction" pointer, and array of scope capture objects?
-* at this point, *should* be able to unify all gc objects...array of registers & pointer to...
- * arrays - members & NULL
- * objects - members & object layout
- * coroutines - stack & closure
- * closure - scope captures & function prototype
- * userdata - members, clone & destructor callbacks
-* import statement
- * similar to include, but registers as a closure e.g. import "math.totem" as math; var a = math();
-* make import & include statements part of the parser
-* remove all the "options" :
- * no global operands - they're just a table now
- * global cache stays on - but more than one scope now
- * keep & expand expanded opcodes
- * stick to mark & sweep, rather than ref-counting
- * NaN values
-* potentially encode frame info into register stack
- * instead of linked list
-* large ints
- * use remaining 16-bits to expand integer value somehow?
-* native classes
- * should be degradable to objects as well
-* go-style async primitives
- * channels
- * select
-* some sort of task scheduler
- * make use of yield
-  * also allow c functions to yield
- * execState would have to wait until all pending tasks have finished
- * how do we adapt our memory model? either:
-  * gc for each execState would need to be concurrent
-  * tasks would need to be fully isolated and not share memory (blegh)
+* Define multiple vars e.g. let x, y = 1, 2
+* Allow all possible values as keys/values in objects & instances
+	* Need to hash all possible values
+* Key-only entries in maps (making it a set if only keys are provided, which does not need values array)
+	* e.g. var x = { "key": "value", "keyonly" }
+	* if key and value are the same, store as keyonly
+	* returns key on lookup
+	* no need for additional value register
+* Multiple return values
+* integer literals
+	* hex, octal, binary
+* unpacking e.g.  
+	* let x = [1, 2, 3]; print(x...);
+	* let x = [1, 2, 3]; let a, b, c = x...;
+* packing e.g.
+	* let x, ...y = 1, 2, 3, 4; print(y...); //2, 3, 4
+* Labelling control blocks, so break/continue statements can reference them and break out of multiple loops at once
+* with (stmts) { stmts } then { stmts } - "then" always executes when leaving this scope
+* object arithmetic (add, subtract, union, intersection, difference etc.)
+* async (single-threaded socket/file/timer poller in an execState)
+	* await { case exp1: { stmts } case exp2: case exp3: { stmts } }
+		* each case is a coroutine
+		* each case is a set of expressions that can be fed variables
+		* if part of a case expression blocks, move onto another
+		* break when at least one case has completed
+	* nowait { stmts }    
+		* fire-and-forget equivalent of await
+	* allwait { stmts }
+		* same as await, but waits for all included expressions to finish
+	* execState will not "stop" until all remaining async work is complete
+	* let native functions yield and resume as well
+	* async variables
+		* value can be checked for changes in async case statements
+		* e.g. async a = 3; allwait { case a == 3: break; } / allwait(a) { case 3: break; }
+* run arbitrary code at compile-time
+
+#### Runtime Backlog
+* Fold complex constants (arrays, objects, strings)
+* Fold unary operations
+* Instruction / Instance / Value Serialization
+* Better type inference under-the-hood
+* Inline caching / hidden classes for objects (similar to V8)
+* have evaluator use TOTEM_JMP
+* rewrite in TotemScript (incrementally)
+* Instruction interrupts (replace instruction with interrupt, fire callback then execute original instruction in-place)
+* encode function call info into register stack
 * basic jit
-
-var x = 1;
-
-function whatever()
-{
-	var c = 2;
-	
-	var d = function()
-	{
-		var e = x;
-		var f = d;
-	};
-	
-	return d;
-}
-
-whatever()();
-
-...
-
-var globals = [1];
-globals[0] = 1;
-
-function whatever(var globalsRef)
-{
-	function _anonFunction0(var globals2Ref)
-	{
-		var e = globals2Ref[0][0];
-		var f = globals2Ref[1];
-	}
-
-	var globals2 = [2];
-	globals2[0] = globalsRef;
-	globals2[1] = createClosure(_anonFunction0, globals2);
-	return globals2[1];
-}
-
-var _whatever = createClosure(whatever, globals);
-whatever()();
+	* function-call per instruction
+	* write in TotemScript
+* c unit tests
+* encode compressed floating point numbers into instructions where lossless
+	* do strings as well
+* vscode plugin

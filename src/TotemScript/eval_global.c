@@ -11,141 +11,141 @@
 
 totemEvalStatus totemBuildPrototype_RotateGlobalCache(totemBuildPrototype *build, totemRegisterListPrototype *list, totemRegisterListPrototypeScope *scope, totemBool toLocal)
 {
-#if TOTEM_EVALOPT_GLOBAL_CACHE
-    for (totemInt i = 0; i < scope->MoveToLocalVars.NumBuckets; i++)
+    for (uint32_t i = 0; i < scope->MoveToLocalVars.NumBuckets; i++)
     {
         for (totemHashMapEntry *entry = scope->MoveToLocalVars.Buckets[i]; entry != NULL; entry = entry->Next)
         {
-            totemOperandXUnsigned globalCache = 0;
+            totemEvalOperandHashMapEntry* e = (totemEvalOperandHashMapEntry*)entry;
             
-            if (totemRegisterListPrototype_GetRegisterGlobalCache(list, (totemOperandXUnsigned)entry->Value, &globalCache))
+            totemOperandXu global = e->Data.Key;
+            totemOperandXu local = e->Data.Value;
+            
+            // only need to rotate what can be mutated
+            totemRegisterPrototypeFlag globalFlags;
+            if (totemRegisterListPrototype_GetRegisterFlags(&build->GlobalRegisters, global, &globalFlags)
+                && !TOTEM_HASANYBITS(globalFlags, totemRegisterPrototypeFlag_IsValue | totemRegisterPrototypeFlag_IsConst))
             {
-                totemRegisterPrototypeFlag globalFlags;
-                if (totemRegisterListPrototype_GetRegisterFlags(&build->GlobalRegisters, globalCache, &globalFlags)
-                    && !TOTEM_HASANYBITS(globalFlags, totemRegisterPrototypeFlag_IsValue | totemRegisterPrototypeFlag_IsConst))
+                totemRegisterPrototypeFlag localFlags;
+                if (totemRegisterListPrototype_GetRegisterFlags(list, local, &localFlags))
                 {
-                    totemRegisterPrototypeFlag localFlags;
-                    if (totemRegisterListPrototype_GetRegisterFlags(list, (totemOperandXUnsigned)entry->Value, &localFlags))
+                    if (!TOTEM_HASBITS(globalFlags, totemRegisterPrototypeFlag_IsAssigned)
+                        && !TOTEM_HASBITS(localFlags, totemRegisterPrototypeFlag_IsAssigned))
                     {
-                        if (!TOTEM_HASBITS(globalFlags, totemRegisterPrototypeFlag_IsAssigned) && !TOTEM_HASBITS(localFlags, totemRegisterPrototypeFlag_IsAssigned))
-                        {
-                            continue;
-                        }
+                        continue;
                     }
+                }
                     
-                    totemOperandPrototype dummy;
-                    dummy.RegisterIndex = (totemOperandXUnsigned)entry->Value;
-                    dummy.RegisterScopeType = totemOperandType_LocalRegister;
-                    
-                    if (toLocal)
-                    {
-                        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxuInstruction(build, &dummy, globalCache, totemOperationType_MoveToLocal));
-                    }
-                    else
-                    {
-                        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxuInstruction(build, &dummy, globalCache, totemOperationType_MoveToGlobal));
-                    }
+                totemOperandPrototype dummy;
+                dummy.RegisterIndex = local;
+                
+                if (toLocal)
+                {
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddInstruction_MoveToLocal(build, &dummy, global));
+                }
+                else
+                {
+                    TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddInstruction_MoveToGlobal(build, &dummy, global));
                 }
             }
         }
     }
-#endif
+
     return totemEvalStatus_Success;
 }
 
 // write instructions to free global associations from ALL local scopes
 totemEvalStatus totemBuildPrototype_RotateAllGlobalCaches(totemBuildPrototype *build, totemRegisterListPrototype *list, totemBool toLocal)
 {
-#if TOTEM_EVALOPT_GLOBAL_CACHE
     for (totemRegisterListPrototypeScope *scope = list->Scope; scope; scope = scope->Prev)
     {
         TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_RotateGlobalCache(build, list, scope, toLocal));
     }
-#endif
     
     return totemEvalStatus_Success;
 }
 
 totemEvalStatus totemBuildPrototype_GlobalCacheCheck(totemBuildPrototype *build, totemOperandPrototype *opOut, totemOperandPrototype *hint)
 {
-#if TOTEM_EVALOPT_GLOBAL_CACHE
     // if we can't access this in a normal instruction, move to local-scope
-    if (opOut->RegisterScopeType == totemOperandType_GlobalRegister && TOTEM_HASBITS(build->Flags, totemBuildPrototypeFlag_EvalGlobalCaches))
+    if (TOTEM_HASBITS(build->Flags, totemBuildPrototypeFlag_EvalGlobalCaches))
     {
-#if TOTEM_VMOPT_GLOBAL_OPERANDS
-        totemBool doIt = opOut->RegisterIndex >= TOTEM_MAX_LOCAL_REGISTERS;
-#else
-        totemBool doIt = totemBool_True;
-#endif
-        if (doIt)
+        totemRegisterListPrototype *localRegList = totemBuildPrototype_GetLocalRegisters(build);
+        if (localRegList->ScopeType == totemOperandType_GlobalRegister)
         {
-            totemRegisterListPrototype *localScopeList = totemBuildPrototype_GetLocalScope(build);
-            totemRegisterListPrototypeScope *localScope = localScopeList->Scope;
-            
-            while (localScope)
+            // already in global scope, so nothing to do
+            TOTEM_ASSERT(opOut->RegisterIndex < TOTEM_MAX_LOCAL_REGISTERS);
+            return totemEvalStatus_Success;
+        }
+
+        totemEvalOperandHashMapKey key;
+        key.Key = opOut->RegisterIndex;
+
+        totemRegisterListPrototypeScope *localScope = localRegList->Scope;
+        while (localScope)
+        {
+            // is this register already in local scope?
+            if (totemEvalOperandHashMap_Get(&localScope->MoveToLocalVars, &key))
             {
-                // is this register already in local scope?
-                totemHashMapEntry *entry = totemHashMap_Find(&localScope->MoveToLocalVars, (const char*)opOut, sizeof(totemOperandPrototype));
-                if (entry != NULL)
-                {
-                    opOut->RegisterIndex = (totemOperandXUnsigned)entry->Value;
-                    opOut->RegisterScopeType = totemOperandType_LocalRegister;
-                    return totemEvalStatus_Success;
-                }
+                opOut->RegisterIndex = key.Value;
+                TOTEM_ASSERT(opOut->RegisterIndex < TOTEM_MAX_LOCAL_REGISTERS);
+                return totemEvalStatus_Success;
+            }
                 
-                localScope = localScope->Prev;
-            }
+            localScope = localScope->Prev;
+        }
             
-            // need to add a new one to current scope
-            localScope = localScopeList->Scope;
+        // need to add a new one to current scope
+        localScope = localRegList->Scope;
+
+        totemOperandPrototype original = *opOut;
             
-            totemOperandPrototype original = *opOut;
+        if (hint)
+        {
+			*opOut = *hint;
+        }
+        else
+        {
+            TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(localRegList, opOut));
+        }
             
-            if (hint)
+        //totemRegisterPrototypeFlag srcFlags;
+        //totemRegisterListPrototype_GetRegisterFlags(&build->GlobalRegisters, original.RegisterIndex, &srcFlags);
+        //if (TOTEM_HASANYBITS(srcFlags, totemRegisterPrototypeFlag_IsAssigned | totemRegisterPrototypeFlag_IsValue))
+        {
+            TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AddInstruction_MoveToLocal(build, opOut, original.RegisterIndex));
+        }
+            
+        totemRegisterPrototypeFlag dstFlags;
+        totemRegisterListPrototype_GetRegisterFlags(localRegList, opOut->RegisterIndex, &dstFlags);
+        if (!TOTEM_HASBITS(dstFlags, totemRegisterPrototypeFlag_IsVariable))
+        {
+            // add to lookup
+            key.Value = opOut->RegisterIndex;
+            if(!totemEvalOperandHashMap_InsertNoSearch(&localScope->MoveToLocalVars, &key))
             {
-				*opOut = *hint;
-            }
-            else
-            {
-                TOTEM_EVAL_CHECKRETURN(totemRegisterListPrototype_AddRegister(localScopeList, opOut));
+                return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
             }
             
-            totemRegisterPrototypeFlag srcFlags;
-            totemRegisterListPrototype_GetRegisterFlags(&build->GlobalRegisters, original.RegisterIndex, &srcFlags);
-            if (TOTEM_HASANYBITS(srcFlags, totemRegisterPrototypeFlag_IsAssigned | totemRegisterPrototypeFlag_IsValue))
-            {
-                TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_EvalAbxuInstruction(build, opOut, original.RegisterIndex, totemOperationType_MoveToLocal));
-            }
+            totemRegisterPrototype *globalReg = totemRegisterPrototypeDynBuffer_At(&build->GlobalRegisters.Registers, original.RegisterIndex);
+            totemRegisterPrototype *localReg = totemRegisterPrototypeDynBuffer_At(&localRegList->Registers, opOut->RegisterIndex);
             
-            totemRegisterPrototypeFlag dstFlags;
-            totemRegisterListPrototype_GetRegisterFlags(localScopeList, opOut->RegisterIndex, &dstFlags);
-            if (!TOTEM_HASBITS(dstFlags, totemRegisterPrototypeFlag_IsVariable))
-            {
-                totemRegisterListPrototype_SetRegisterGlobalCache(localScopeList, opOut->RegisterIndex, original.RegisterIndex);
-                
-                // add to lookup
-                if (!totemHashMap_Insert(&localScope->MoveToLocalVars, (const char*)&original, sizeof(totemOperandPrototype), opOut->RegisterIndex))
-                {
-                    return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
-                }
-                
-                totemRegisterListPrototype_UnsetRegisterFlags(localScopeList, opOut->RegisterIndex, totemRegisterPrototypeFlag_IsTemporary);
-                
-                if (hint)
-                {
-                    totemRegisterListPrototype_SetRegisterFlags(localScopeList, opOut->RegisterIndex, totemRegisterPrototypeFlag_IsGlobalCache);
-                }
-                else
-                {
-                    totemPublicDataType type;
-                    totemRegisterListPrototype_GetRegisterType(&build->GlobalRegisters, original.RegisterIndex, &type);
-                    totemRegisterListPrototype_SetRegisterFlags(localScopeList, opOut->RegisterIndex, srcFlags | totemRegisterPrototypeFlag_IsGlobalCache);
-                    totemRegisterListPrototype_SetRegisterType(localScopeList, opOut->RegisterIndex, type);
-                }
-            }
+            *localReg = *globalReg;
+            
+            /*
+            totemRegisterListPrototype_UnsetRegisterFlags(localRegList, opOut->RegisterIndex, totemRegisterPrototypeFlag_IsTemporary);
+            
+            totemPublicDataType type;
+            totemRegisterPrototypeValue val;
+            totemRegisterPrototypeFlag flag;
+            totemRegisterListPrototype_GetRegisterType(&build->GlobalRegisters, original.RegisterIndex, &type);
+            totemRegisterListPrototype_GetRegisterValue(&build->GlobalRegisters, original.RegisterIndex, &val);
+            totemRegisterListPrototype_GetRegisterFlags(localRegList, original.RegisterIndex, &flag);
+            totemRegisterListPrototype_SetRegisterType(localRegList, opOut->RegisterIndex, type);
+            totemRegisterListPrototype_SetRegisterValue(localRegList, opOut->RegisterIndex, &val);
+            totemRegisterListPrototype_SetRegisterFlags(localRegList, opOut->RegisterIndex, flag);*/
         }
     }
-#endif
     
+    TOTEM_ASSERT(opOut->RegisterIndex < TOTEM_MAX_LOCAL_REGISTERS);
     return totemEvalStatus_Success;
 }

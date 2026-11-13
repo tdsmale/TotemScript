@@ -1,11 +1,16 @@
 function refCycle()
 {
-    var y = [1];
-    y[0] = y;
+    var y = [1:];
+    y[0] = y; // write barrier keeps this alive on the next collect cycle
 }
 
 var num = gc_num();
 
 refCycle();
-gc_collect(true);
+var newNum = gc_num();
+
+gc_collect(true); // array will not be freed on this one due to the write barrier
+assert(gc_num() == newNum);
+
+gc_collect(true); // now it will
 assert(gc_num() == num);

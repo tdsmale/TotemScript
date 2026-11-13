@@ -10,7 +10,7 @@ obj["test4"] = {};
 obj["test4"]["what"] = "hello!";
 var d = obj["test4"]["what"];
 
-obj["test5"] = [2];
+obj["test5"] = [2:];
 obj["test5"][1] = "Doop!";
 
 assert(obj["test"] == a);
@@ -30,7 +30,7 @@ assert(d == "hello!");
 obj.invoke = function(var a, var b) { return a + b; };
 assert(obj.invoke(123, 456) == 123 + 456);
 
-var y = { 123:456, "789":"Hello!" };
+var y = { "123":456, "789":"Hello!" };
 assert(y["123"] == 456);
-assert(y[789] == "Hello!");
+assert(y["789"] == "Hello!");
 assert((y as int) == 2);

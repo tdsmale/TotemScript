@@ -5,6 +5,8 @@ assert((a + b) == 3);
 var c = 0.5;
 assert((a + c) == 1.5);
 assert((a + c) != 1);
+assert((a + c) as type == float);
+assert((a + c) as type != int);
 
 var d = 1.7;
 assert((c + d) == 2.2);

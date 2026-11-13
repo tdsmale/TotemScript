@@ -12,6 +12,22 @@ function test(var e)
 	{
 		var y = 101010;
 	}
+ 
+    assert(y == 789);
+    
+    {
+        var y = 121212;
+    }
+    
+    assert(y == 789);
+    
+    // empty scopes
+    {}
+    {
+        // empty scope with comments
+        // empty scope with comments
+        /* empty scope with comments */
+    }
 }
 
 test(y);

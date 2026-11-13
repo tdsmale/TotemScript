@@ -23,12 +23,8 @@
 #endif
 
 #if __LP64__
-#define TOTEM_IOS64
-#define TOTEM_64
+#define TOTEM_IOS
 #define TOTEM_JIT_ARM64
-#else
-#define TOTEM_IOS32
-#define TOTEM_JIT_ARM32
 #endif
 
 #else
@@ -45,33 +41,18 @@
 #endif // mac / ios
 
 // windows
-#if defined(_WIN32) || defined(__MINGW32__) || defined(__MINGW64__)
-#define TOTEM_WIN
-
-#if defined(__MINGW32__) || defined(__MINGW64__)
-#define TOTEM_MINGW
-#endif
-
 #if defined(_WIN64) || defined(__MINGW64__)
-#define TOTEM_WIN64
-#define TOTEM_64
-
-#else
-#define TOTEM_WIN32
-#define TOTEM_JIT_X86_CDECL
-#endif
-
-#ifdef _M_IX86
-#define TOTEM_X86
+#define TOTEM_WIN
 #endif
 
 #ifdef _M_X64
 #define TOTEM_X64
+
+#if defined(TOTEM_WIN)
 #define TOTEM_JIT_X64_WIN
 //#define TOTEM_JIT
 #endif
-
-#endif // windows
+#endif
 
 // linux
 #ifdef __linux__
@@ -87,8 +68,12 @@
 #define TOTEM_CDECL _cdecl
 #define TOTEM_UNREACHABLE() __assume(0)
 #define totem_snprintf(dst, dstlen, format, ...) _snprintf_s(dst, dstlen, _TRUNCATE, format, __VA_ARGS__)
-#define TOTEM_SUPPRESS_NO_RETURN_WARNING
-#define TOTEM_SUPPRESS_LIFT
+#define TOTEM_SUPPRESS_NO_RETURN_WARNING \
+    __pragma(warning(push)) \
+    __pragma(warning(disable:4716)) \
+    __pragma(warning(disable:4715))
+#define TOTEM_LIFT_NO_RETURN_WARNING \
+    __pragma(warning(pop))
 #endif
 
 // clang
@@ -103,7 +88,7 @@
 #define TOTEM_SUPPRESS_NO_RETURN_WARNING \
     _Pragma("GCC diagnostic push") \
     _Pragma("GCC diagnostic ignored \"-Wreturn-type\"")
-#define TOTEM_SUPPRESS_LIFT \
+#define TOTEM_LIFT_NO_RETURN_WARNING \
     _Pragma("GCC diagnostic pop")
 
 #endif
@@ -141,13 +126,8 @@ typedef int totemCwdSize_t;
 #define totemLock_Acquire EnterCriticalSection
 #define totemLock_Release LeaveCriticalSection
 
-#ifdef TOTEM_64
 #define totem_setjmp(jmp) setjmp(jmp)
 #define totem_longjmp(jmp) longjmp(jmp, 1)
-#else
-#define totem_setjmp(jmp) setjmp((int*)jmp)
-#define totem_longjmp(jmp) longjmp((int*)jmp, 1)
-#endif
 
 #ifndef PATH_MAX
 #define PATH_MAX (_MAX_PATH)
@@ -202,23 +182,12 @@ typedef size_t totemCwdSize_t;
 #include <unistd.h>
 
 #define totemLock pthread_mutex_t
-#define totemLock_Init(x) pthread_mutex_init(x, NULL)
+void totemLock_Init(totemLock *mutex);
 #define totemLock_Cleanup pthread_mutex_destroy
 #define totemLock_Acquire pthread_mutex_lock
 #define totemLock_Release pthread_mutex_unlock
+
 #endif
-
-// gc options
-
-// ref-counting frees memory quickly and deterministically, but adds more program overhead
-#define TOTEM_GCTYPE_REFCOUNTING (0)
-
-// mark-and-sweep adds less overall program overhead, but makes it more difficult to predict when memory is actually freed
-#define TOTEM_GCTYPE_MARKANDSWEEP (1)
-
-#define TOTEM_GCTYPE (TOTEM_GCTYPE_MARKANDSWEEP)
-#define TOTEM_GCTYPE_ISREFCOUNTING (TOTEM_GCTYPE == TOTEM_GCTYPE_REFCOUNTING)
-#define TOTEM_GCTYPE_ISMARKANDSWEEP (TOTEM_GCTYPE == TOTEM_GCTYPE_MARKANDSWEEP)
 
 // vm options
 
@@ -230,12 +199,12 @@ typedef size_t totemCwdSize_t;
 #define TOTEM_VMOPT_THREADED_DISPATCH (0)
 #endif
 
+// register values are represented using NaN-boxing
 // all possible values are encoded as a single 8-byte IEEE-754 double
-// halves the size of registers
 // more work is needed to encode/decode values
 // integers can only be 32-bits in width
 // mini-strings are smaller
-#ifdef TOTEM_X64
+#if defined(TOTEM_X64)
 #define TOTEM_VMOPT_NANBOXING (1)
 #else
 #define TOTEM_VMOPT_NANBOXING (0)
@@ -243,19 +212,12 @@ typedef size_t totemCwdSize_t;
 
 // debug options
 
-#define TOTEM_DEBUGOPT_ASSERT_REGISTER_VALUES (0)
-#define TOTEM_DEBUGOPT_ASSERT_GC (0)
-#define TOTEM_DEBUGOPT_PRINT_VM_ACTIVITY (0)
-#define TOTEM_DEBUGOPT_ASSERT_HASHMAP_LISTS (0)
-
 #ifdef TOTEM_DEBUG
-#define TOTEM_DEBUG_INLINE TOTEM_INLINE
-#else
+#define TOTEM_IS_DEBUG (1)
 #define TOTEM_DEBUG_INLINE TOTEM_FORCE_INLINE
-#endif
-
-#ifndef TOTEM_64
-#define TOTEM_32
+#else
+#define TOTEM_IS_DEBUG (0)
+#define TOTEM_DEBUG_INLINE TOTEM_FORCE_INLINE
 #endif
 
 #endif

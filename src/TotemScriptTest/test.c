@@ -30,18 +30,28 @@ int main(void)
         {
             if (strstr(f->d_name, ".totem"))
             {
-                totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), TOTEMSCRIPTCMD " -f %s/%s", dir, f->d_name);
-                fprintf(stdout, "\n\n##########\nNext test: %s\n\n", buffer);
-                printf("Press the return key to run\n\n");
+                totem_snprintf(buffer, TOTEM_ARRAY_SIZE(buffer), TOTEMSCRIPTCMD " -a -f %s/%s", dir, f->d_name);
+                fprintf(stdout, "##########\nNext test: %s\n\n", buffer);
+                printf("\n\nPress the return key to run\n");
                 getchar();
-                system(buffer);
+                int returnVal = system(buffer);
+                if(returnVal != EXIT_SUCCESS)
+                {
+                    printf("\n\n%s: Test Failed %i\n", f->d_name, returnVal);
+                    printf("\n\nPress the return key to continue\n");
+                    getchar();
+                }
+                else
+                {
+                    printf("\n\n%s: Test Succeeded\n", f->d_name);
+                }
             }
         }
     }
     
     closedir(d);
     
-    printf("All tests run - press the return key to exit\n\n");
+    printf("\nAll tests run - press the return key to exit\n");
     getchar();
     
     return 0;

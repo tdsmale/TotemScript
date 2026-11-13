@@ -8,27 +8,35 @@
 
 #include <TotemScript/totem.h>
 
+#define TOTEM_MAX_TERMINAL_INPUT 2048
+
 // todo: file, line, char & length for errors
 
-const char *const version = "TotemScriptCmd 0.1\n"
+#define TOTEM_EMIT_CMDS(_) \
+    _(h, help,      "Display this information and exit") \
+    _(a, printargs, "Display input arguments") \
+    _(v, version,   "Display version info and exit") \
+    _(t, terminal,  "Run terminal (max length: " TOTEM_STRINGIFY(TOTEM_MAX_TERMINAL_INPUT) ")") \
+    _(f, file,      "Parse file specified by \"filename\"") \
+    _(s, string,    "Parse \"string\"") \
+    _(d, dump,      "Display bytecode before running") \
+    _(p, parseonly, "Only parse bytecode") \
+
+const char *const version = 
+"TotemScriptCmd " TOTEM_VERSION_STRING "\n"
 "The MIT License (MIT)\n"
 "Copyright (C) 2016 Timothy Smale\n"
 "\n";
 
+#define TOTEM_EMIT_CMD(char, name, info) "-" #char "/ -" #name " (" info ")\n"
 const char *const help = "usage: TotemScriptCmd [options] [filename|string]\n"
 "Options:\n"
-"-h / --help		Display this information and exit\n"
-"-v / --version		Display version info and exit\n"
-"-f / --file		Parse file specified by \"filename\"\n"
-"-s / --string		Parse \"string\"\n"
-"-d / --dump		Display bytecode before running\n"
-"-p / --norun		Only parse bytecode\n"
+TOTEM_EMIT_CMDS(TOTEM_EMIT_CMD)
 "\n"
 "http://github.com/tdsmale/TotemScript/\n";
+#undef TOTEM_EMIT_CMD
 
 #define TOTEM_CMD_ISARG(a, arg) (strncmp(a, arg, strlen(a)) == 0)
-
-typedef totemBool(*totemCmd_EvalCb)(totemInterpreter*, totemString*);
 
 typedef struct totemCmdState
 {
@@ -36,15 +44,37 @@ typedef struct totemCmdState
     totemRuntime Runtime;
     totemExecState ExecState;
     totemScript Script;
+    FILE *Src;
 }
 totemCmdState;
 
-void totemCmdState_Init(totemCmdState *state)
+void totemCmdState_Init(totemCmdState *state, const char **argv, int argc)
 {
-    totemInterpreter_Init(&state->Interpreter);
     totemRuntime_Init(&state->Runtime);
     totemExecState_Init(&state->ExecState);
     totemScript_Init(&state->Script);
+
+    // load libs
+    totemLinkStatus linkStatus = totemRuntime_LinkStdLib(&state->Runtime);
+    if (linkStatus != totemLinkStatus_Success)
+    {
+        printf("Could not load native libraries: %s\n", totemLinkStatus_Describe(linkStatus));
+    }
+
+    // set arguments
+    totemExecState_SetArgV(&state->ExecState, argv, argc);
+}
+
+void totemCmdState_InitWithFile(totemCmdState *state, FILE *file, const char **argv, int argc)
+{
+    totemInterpreter_InitWithFile(&state->Interpreter, file);
+    totemCmdState_Init(state, argv, argc);
+}
+
+void totemCmdState_InitWithString(totemCmdState *state, const char *str, size_t len, const char **argv, int argc)
+{
+    totemInterpreter_InitWithString(&state->Interpreter, str, len);
+    totemCmdState_Init(state, argv, argc);
 }
 
 void totemCmdState_Cleanup(totemCmdState *state)
@@ -56,12 +86,12 @@ void totemCmdState_Cleanup(totemCmdState *state)
 }
 
 int totemCmdState_Run(totemCmdState *state, const char **argv, int argc)
-{
-    // load libs
-    totemLinkStatus linkStatus = totemRuntime_LinkStdLib(&state->Runtime);
+{   
+    // link build
+    totemLinkStatus linkStatus = totemRuntime_LinkBuild(&state->Runtime, &state->Interpreter.Build, &state->Script);
     if (linkStatus != totemLinkStatus_Success)
     {
-        printf("Could not load native libraries: %s\n", totemLinkStatus_Describe(linkStatus));
+        printf("Could not register script: %s\n", totemLinkStatus_Describe(linkStatus));
         return EXIT_FAILURE;
 	}
 
@@ -73,86 +103,55 @@ int totemCmdState_Run(totemCmdState *state, const char **argv, int argc)
 		return EXIT_FAILURE;
 	}
 
-	// set arguments
-	totemExecState_SetArgV(&state->ExecState, argv, argc);
+    // init & run instance
+    totemGCObject *instance = NULL;
+    totemExecStatus execStatus = totemExecState_CreateInstance(&state->ExecState, &state->Script, totemBool_True, &instance);
     
-    // link build
-    linkStatus = totemRuntime_LinkBuild(&state->Runtime, &state->Interpreter.Build, &state->Script);
-    if (linkStatus != totemLinkStatus_Success)
+    if (execStatus != totemExecStatus_Continue)
     {
-        printf("Could not register script: %s\n", totemLinkStatus_Describe(linkStatus));
+        printf("Could not create & run instance: %s\n", totemExecStatus_Describe(execStatus));
         return EXIT_FAILURE;
     }
 
-    // init instance
-    totemGCObject *instance = NULL;
-    totemExecStatus execStatus = totemExecState_CreateInstance(&state->ExecState, &state->Script, &instance);
-    if (execStatus != totemExecStatus_Continue)
-    {
-        printf("Could not create instance: %s\n", totemExecStatus_Describe(execStatus));
-        return EXIT_FAILURE;
-    }
-    
-    // run script
-	totemInstanceFunction *func = totemInstanceFunctionBuffer_At(&instance->Ptr.Instance->LocalFunctions, 0);
-    execStatus = totemExecState_StartInstance(&state->ExecState, func);
-    if (execStatus != totemExecStatus_Continue)
-    {
-        printf("runtime error: %s at line %i\n", totemExecStatus_Describe(execStatus), 0);
-    }
-    
     return EXIT_SUCCESS;
 }
 
 int main(int argc, const char **argv)
 {
     totemCmdState state;
-    const char *toParse = NULL;
-    const char **scriptArgs = NULL;
+    FILE *file = NULL;
+    const char* toParse = NULL;
+    const char** scriptArgs = NULL;
     int numScriptArgs = 0;
-    totemBool doHelp = totemBool_False;
-    totemBool doVersion = totemBool_False;
-    totemBool doFile = totemBool_False;
-    totemBool doString = totemBool_False;
-    totemBool dumpInstructions = totemBool_False;
-    totemBool run = totemBool_True;
-    
+    char terminalInput[TOTEM_MAX_TERMINAL_INPUT];
+
+#define TOTEM_EMIT_CMD(char, name, info) static totemBool do_ ##name = totemBool_False;
+    TOTEM_EMIT_CMDS(TOTEM_EMIT_CMD);
+#undef TOTEM_EMIT_CMD
+
     if (argc <= 1)
     {
-        fprintf(stderr, "%s", help);
+        printf("%s", help);
         return EXIT_FAILURE;
     }
     
     for (int i = 1; i < argc; i++)
     {
         const char *arg = argv[i];
+        totemBool recognised = totemBool_False;
         
-        if (TOTEM_CMD_ISARG("--help", arg) || TOTEM_CMD_ISARG("-h", arg))
-        {
-            doHelp = totemBool_True;
+#define TOTEM_EMIT_CMD(cha, name, info) \
+        if(TOTEM_CMD_ISARG("-"#cha, arg) || TOTEM_CMD_ISARG(#name, arg)) \
+        { \
+            do_ ##name = totemBool_True; \
+            recognised = totemBool_True; \
         }
-        else if (TOTEM_CMD_ISARG("--version", arg) || TOTEM_CMD_ISARG("-v", arg))
+        TOTEM_EMIT_CMDS(TOTEM_EMIT_CMD)
+#undef TOTEM_EMIT_CMD
+
+        if(!recognised)
         {
-            doVersion = totemBool_True;
-        }
-        else if (TOTEM_CMD_ISARG("--file", arg) || TOTEM_CMD_ISARG("-f", arg))
-        {
-            doFile = totemBool_True;
-        }
-        else if (TOTEM_CMD_ISARG("--string", arg) || TOTEM_CMD_ISARG("-s", arg))
-        {
-            doString = totemBool_True;
-        }
-        else if (TOTEM_CMD_ISARG("--dump", arg) || TOTEM_CMD_ISARG("-d", arg))
-        {
-            dumpInstructions = totemBool_True;
-        }
-        else if (TOTEM_CMD_ISARG("--norun", arg) || TOTEM_CMD_ISARG("-p", arg))
-        {
-            run = totemBool_True;
-        }
-        else
-        {
+            // assume this is either string or filename
             toParse = arg;
             
             if (i < argc - 1)
@@ -166,63 +165,108 @@ int main(int argc, const char **argv)
     }
     
     int ret = EXIT_SUCCESS;
+
+    if (do_printargs)
+    {
+#define EMIT(a, b, c) fprintf(stdout, "%s %s %i\n", #a, #b, do_ ## b);
+        TOTEM_EMIT_CMDS(EMIT)
+        printf("toParse: %s\n", toParse);
+#undef EMIT
+    }
     
-    if (doVersion)
+    if (do_version)
     {
-        fprintf(stdout, "%s", version);
+        printf("%s", version);
     }
-    else if (doHelp)
+    else if (do_help)
     {
-        fprintf(stdout, "%s", help);
+        printf("%s", help);
     }
-    else if (toParse)
+    else if(((do_file || do_string) && toParse) || do_terminal)
     {
         totem_Init();
-        totemCmdState_Init(&state);
-        totemBool parseResult = totemBool_False;
-		totemString toParseStr;
-		totemString_FromLiteral(&toParseStr, toParse);
         
-        if (doFile)
+        while (1)
         {
-            parseResult = totemInterpreter_InterpretFile(&state.Interpreter, &toParseStr);
-        }
-        else if (doString)
-        {
-            parseResult = totemInterpreter_InterpretString(&state.Interpreter, &toParseStr);
-        }
-        
-        if (!parseResult)
-        {
-            totemInterpreter_PrintResult(stderr, &state.Interpreter);
-            ret = EXIT_FAILURE;
-        }
-        else
-        {
-            if (dumpInstructions)
-            {
-                printf("******\n");
-                printf("Instructions:\n");
-                printf("******\n");
-				totemInstruction_PrintList(stdout,
-                                           totemInstructionBuffer_Bottom(&state.Interpreter.Build.Instructions),
-                                           totemInstructionBuffer_Num(&state.Interpreter.Build.Instructions));
-                printf("\n");
-            }
+            totemBool parseResult = totemBool_False;
             
-            if (run)
+            if (do_terminal)
             {
-                ret = totemCmdState_Run(&state, scriptArgs, numScriptArgs);
+                if (fgets(terminalInput, sizeof(terminalInput), stdin) == NULL)
+                {
+                    continue;
+                }
+
+                terminalInput[TOTEM_MAX_TERMINAL_INPUT - 1] = 0;
+                toParse = terminalInput;
+            }
+
+            if (toParse)
+            {
+                totemBool didInit = totemBool_False;
+                
+                if (do_string || do_terminal)
+                {
+                    totemCmdState_InitWithString(&state, toParse, strlen(toParse), argv, argc);
+                    didInit = totemBool_True;
+                }
+                else if (do_file)
+                {
+                    file = totem_fopen(toParse, "rb");
+                    if(file)
+                    {
+                        totemCmdState_InitWithFile(&state, file, argv, argc);
+                        didInit = totemBool_True;
+                    }
+                    else
+                    {
+                        ret = EXIT_FAILURE;
+                    }
+                }
+                
+                if(didInit)
+                {
+                    parseResult = totemInterpreter_Interpret(&state.Interpreter);
+
+                    if (!parseResult)
+                    {
+                        TOTEM_LOG_DO(Cmd, Result, Error, logger, totemInterpreter_PrintResult(&state.Interpreter, logger));
+                        ret = EXIT_FAILURE;
+                    }
+                    else
+                    {
+                        if (do_dump)
+                        {
+                            TOTEM_LOG_DO(Cmd, Result, Output, dst, totemInstruction_PrintList(dst, totemInstructionDynBuffer_Bottom(&state.Interpreter.Build.Instructions), totemInstructionDynBuffer_Length(&state.Interpreter.Build.Instructions)));
+                        }
+
+                        if (!do_parseonly)
+                        {
+                            ret = totemCmdState_Run(&state, scriptArgs, numScriptArgs);
+                        }
+                    }
+                    
+                    totemCmdState_Cleanup(&state);
+                }
+            }
+
+            if (!do_terminal)
+            {
+                break;
             }
         }
         
-        totemCmdState_Cleanup(&state);
         totem_Cleanup();
     }
     else
     {
-        fprintf(stderr, "%s", help);
+        fprintf(stdout, "%s", help);
         ret = EXIT_FAILURE;
+    }
+    
+    if(file)
+    {
+        fclose(file);
     }
     
     return ret;

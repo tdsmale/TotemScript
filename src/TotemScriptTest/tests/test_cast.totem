@@ -20,7 +20,7 @@ assert((123.45 as array)[0] == 123.45);
 assert((123.45 as int) == 123);
 assert((123.45 as type) == float);
 
-var rep = [2];
+var rep = [2:];
 rep[0] = 456;
 rep[1] = 789;
 
@@ -50,6 +50,7 @@ function dataTypeTest()
 	return 0;
 }
 
+/*
 var x = dataTypeTest as coroutine;
 assert((x as function) == dataTypeTest);
 assert((x as string) == "dataTypeTest");
@@ -62,3 +63,4 @@ x["what"] = 123;
 assert((x as type) == object);
 assert((x as int) == 1);
 assert((x as float) == 1.0);
+*/

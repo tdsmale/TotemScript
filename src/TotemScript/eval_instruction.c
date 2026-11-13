@@ -32,7 +32,7 @@ static totemEvalStatus totemInstruction_SetSignedValue(totemInstruction *instruc
     
     uint32_t mask = 0;
     uint32_t isNegative = value < 0;
-    uint32_t unsignedValue = *((uint32_t*)(&value));
+    uint32_t unsignedValue = TOTEM_BITCAST(uint32_t, value);
     
     if (isNegative)
     {
@@ -53,138 +53,157 @@ static totemEvalStatus totemInstruction_SetSignedValue(totemInstruction *instruc
     return totemEvalStatus_Success;
 }
 
-static totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope, uint32_t start)
+static totemEvalStatus totemInstruction_SetRegister(totemInstruction *instruction, totemOperandXu index, uint32_t start)
 {
 	if (index > TOTEM_MAX_LOCAL_REGISTERS)
 	{
 		return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow);
 	}
 
-	uint32_t reg = scope;
-	if (scope > 1)
-	{
-		return totemEvalStatus_Break(totemEvalStatus_InstructionOverflow);
-	}
-
-	TOTEM_SETBITS_OFFSET(reg, index, 1);
-	TOTEM_SETBITS_OFFSET(*instruction, reg, start);
-
 	totemInstruction_SetUnsignedValue(
-									instruction,
-									reg, 
-									TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_A), 
-									TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_A), 
-									start, 
-									totemInstructionSize_A);
+		instruction,
+		index, 
+		TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_A), 
+		TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_A), 
+		start, 
+		totemInstructionSize_A);
 
 	return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_SetRegisterA(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope)
+totemEvalStatus totemInstruction_SetA(totemInstruction *instruction, totemOperandPrototype* index)
 {
-    totemEvalStatus status = totemInstruction_SetRegister(instruction, index, scope, totemInstructionStart_A);
+    totemEvalStatus status = totemInstruction_SetRegister(instruction, index->RegisterIndex, totemInstructionStart_A);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetRegisterB(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope)
+totemEvalStatus totemInstruction_SetB(totemInstruction *instruction, totemOperandPrototype* index)
 {
-    totemEvalStatus status = totemInstruction_SetRegister(instruction, index, scope, totemInstructionStart_B);
+    totemEvalStatus status = totemInstruction_SetRegister(instruction, index->RegisterIndex, totemInstructionStart_B);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetRegisterC(totemInstruction *instruction, totemOperandXUnsigned index, totemOperandType scope)
+totemEvalStatus totemInstruction_SetC(totemInstruction *instruction, totemOperandPrototype* index)
 {
-    totemEvalStatus status = totemInstruction_SetRegister(instruction, index, scope, totemInstructionStart_C);
+    totemEvalStatus status = totemInstruction_SetRegister(instruction, index->RegisterIndex, totemInstructionStart_C);
     return status;
 }
 
 totemEvalStatus totemInstruction_SetOp(totemInstruction *instruction, totemOperationType op)
 {
     totemEvalStatus status = totemInstruction_SetUnsignedValue(
-                                                               instruction,
-                                                               op,
-                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_Op),
-                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_Op),
-                                                               totemInstructionStart_Op,
-															   totemInstructionSize_Op);
+        instruction,
+        op,
+        TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_Op),
+        TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_Op),
+        totemInstructionStart_Op,
+	    totemInstructionSize_Op);
 	
-    TOTEM_DEBUG_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_OP(*instruction) == op);
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_OP(*instruction) == op);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetB2Unsigned(totemInstruction *instruction, totemOperandXUnsigned bx)
-{
-    totemEvalStatus status = totemInstruction_SetUnsignedValue(
-                                                               instruction,
-                                                               bx,
-                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_B2),
-                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_B2),
-                                                               totemInstructionStart_B,
-															   totemInstructionSize_B2);
-    
-    TOTEM_DEBUG_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_B2U(*instruction) == bx);
-    return status;
-}
-
-totemEvalStatus totemInstruction_SetB2Signed(totemInstruction *instruction, totemOperandXSigned bx)
+totemEvalStatus totemInstruction_SetB1(totemInstruction* instruction, totemOperandX bx)
 {
     totemEvalStatus status = totemInstruction_SetSignedValue(
-                                                             instruction,
-                                                             bx,
-                                                             TOTEM_MINVAL_SIGNED(int32_t, totemInstructionSize_B2),
-                                                             TOTEM_MAXVAL_SIGNED(int32_t, totemInstructionSize_B2),
-                                                             totemInstructionStart_B,
-                                                             totemInstructionSize_B2);
-    
-    TOTEM_DEBUG_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_B2(*instruction) == bx);
+        instruction,
+        bx,
+        TOTEM_MINVAL_SIGNED(int32_t, totemInstructionSize_B1),
+        TOTEM_MAXVAL_SIGNED(int32_t, totemInstructionSize_B1),
+        totemInstructionStart_B,
+        totemInstructionSize_B1);
+
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_B1(*instruction) == bx);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetA3Signed(totemInstruction *instruction, totemOperandXSigned ax)
+totemEvalStatus totemInstruction_SetB2u(totemInstruction *instruction, totemOperandXu bx)
+{
+    totemEvalStatus status = totemInstruction_SetUnsignedValue(
+        instruction,
+        bx,
+        TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_B2),
+        TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_B2),
+        totemInstructionStart_B,
+		totemInstructionSize_B2);
+    
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_B2U(*instruction) == bx);
+    return status;
+}
+
+totemEvalStatus totemInstruction_SetB2(totemInstruction *instruction, totemOperandX bx)
 {
     totemEvalStatus status = totemInstruction_SetSignedValue(
-                                                             instruction,
-                                                             ax,
-                                                             TOTEM_MINVAL_SIGNED(int32_t, totemInstructionSize_A3),
-                                                             TOTEM_MAXVAL_SIGNED(int32_t, totemInstructionSize_A3),
-                                                             totemInstructionStart_A,
-                                                             totemInstructionSize_A3);
+        instruction,
+        bx,
+        TOTEM_MINVAL_SIGNED(int32_t, totemInstructionSize_B2),
+        TOTEM_MAXVAL_SIGNED(int32_t, totemInstructionSize_B2),
+        totemInstructionStart_B,
+        totemInstructionSize_B2);
     
-    TOTEM_DEBUG_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_A3(*instruction) == ax);
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_B2(*instruction) == bx);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetA3Unsigned(totemInstruction *instruction, totemOperandXUnsigned ax)
+totemEvalStatus totemInstruction_SetA3(totemInstruction *instruction, totemOperandX ax)
 {
-    totemEvalStatus status = totemInstruction_SetUnsignedValue(
-                                                               instruction,
-                                                               ax,
-                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_A3),
-                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_A3),
-                                                               totemInstructionStart_A,
-															   totemInstructionSize_A3);
+    totemEvalStatus status = totemInstruction_SetSignedValue(
+        instruction,
+        ax,
+        TOTEM_MINVAL_SIGNED(int32_t, totemInstructionSize_A3),
+        TOTEM_MAXVAL_SIGNED(int32_t, totemInstructionSize_A3),
+        totemInstructionStart_A,
+        totemInstructionSize_A3);
     
-    TOTEM_DEBUG_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_A3U(*instruction) == ax);
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_A3(*instruction) == ax);
     return status;
 }
 
-totemEvalStatus totemInstruction_SetC1Unsigned(totemInstruction *instruction, totemOperandXUnsigned cx)
+totemEvalStatus totemInstruction_SetA3u(totemInstruction *instruction, totemOperandXu ax)
 {
     totemEvalStatus status = totemInstruction_SetUnsignedValue(
-                                                               instruction,
-                                                               cx,
-                                                               TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_C1),
-                                                               TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_C1),
-                                                               totemInstructionStart_C,
-															   totemInstructionSize_C1);
+        instruction,
+        ax,
+        TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_A3),
+        TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_A3),
+        totemInstructionStart_A,
+		totemInstructionSize_A3);
     
-    TOTEM_DEBUG_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_C1U(*instruction) == cx);
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_A3U(*instruction) == ax);
+    return status;
+}
+
+totemEvalStatus totemInstruction_SetC1(totemInstruction *instruction, totemOperandX cx)
+{
+    totemEvalStatus status = totemInstruction_SetUnsignedValue(
+        instruction,
+        cx,
+        TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_C1),
+        TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_C1),
+        totemInstructionStart_C,
+		totemInstructionSize_C1);
+    
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_C1(*instruction) == cx);
+    return status;
+}
+
+totemEvalStatus totemInstruction_SetC1u(totemInstruction* instruction, totemOperandXu cx)
+{
+    totemEvalStatus status = totemInstruction_SetUnsignedValue(
+        instruction,
+        cx,
+        TOTEM_MINVAL_UNSIGNED(uint32_t, totemInstructionSize_C1),
+        TOTEM_MAXVAL_UNSIGNED(uint32_t, totemInstructionSize_C1),
+        totemInstructionStart_C,
+        totemInstructionSize_C1);
+
+    TOTEM_ASSERT(status != totemEvalStatus_Success || TOTEM_INSTRUCTION_GET_C1U(*instruction) == cx);
     return status;
 }
 
 totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build, totemInstruction **instructionOut)
 {
-    *instructionOut = totemInstructionBuffer_Secure(&build->Instructions, 1);
+    *instructionOut = totemInstructionDynBuffer_Secure(&build->Instructions, 1);
     if (*instructionOut)
     {
         return totemEvalStatus_Success;
@@ -194,92 +213,93 @@ totemEvalStatus totemBuildPrototype_AllocInstruction(totemBuildPrototype *build,
     return totemEvalStatus_Break(totemEvalStatus_OutOfMemory);
 }
 
-totemEvalStatus totemInstruction_AsA(totemInstruction *instruction, totemOperandPrototype *a, totemOperationType operationType)
+totemEvalStatus totemInstruction_AsA(totemInstruction *instruction, EMIT_PARAMS_A, totemOperationType operationType)
 {
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_A);
+	TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_A);
 	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a->RegisterIndex, a->RegisterScopeType));
+	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
 
 	return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_AsA3(totemInstruction *instruction, totemOperandXSigned ax, totemOperationType operationType)
+totemEvalStatus totemInstruction_AsA3(totemInstruction *instruction, EMIT_PARAMS_A3, totemOperationType operationType)
 {
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_A3);
+	TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_A3);
 	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA3(instruction, ax));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA3(instruction, a3));
     
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_AsA3u(totemInstruction *instruction, totemOperandXUnsigned ax, totemOperationType operationType)
+totemEvalStatus totemInstruction_AsAb(totemInstruction *instruction, EMIT_PARAMS_Ab, totemOperationType operationType)
 {
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_A3u);
+	TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab);
 	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA3u(instruction, ax));
-    
-    return totemEvalStatus_Success;
-}
-
-totemEvalStatus totemInstruction_AsAb(totemInstruction *instruction, totemOperandPrototype *aSrc, totemOperandPrototype *bSrc, totemOperationType operationType)
-{
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab);
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB(instruction, bSrc->RegisterIndex, bSrc->RegisterScopeType));
+	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
+	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB(instruction, b));
 
 	return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_AsAb2(totemInstruction *instruction, totemOperandPrototype *aSrc, totemOperandXSigned bx, totemOperationType operationType)
+totemEvalStatus totemInstruction_AsAb2(totemInstruction *instruction, EMIT_PARAMS_Ab2, totemOperationType operationType)
 {
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab2);
+	TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab2);
     TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB2(instruction, bx));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB2(instruction, b2));
     
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_AsAb2u(totemInstruction *instruction, totemOperandPrototype *aSrc, totemOperandXUnsigned bx, totemOperationType operationType)
+totemEvalStatus totemInstruction_AsAb2u(totemInstruction *instruction, EMIT_PARAMS_Ab2u, totemOperationType operationType)
 {
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab2u);
+	TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab2u);
     TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB2u(instruction, bx));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB2u(instruction, b2u));
     
     return totemEvalStatus_Success;
 }
 
-totemEvalStatus totemInstruction_AsAb1c1(totemInstruction *instruction, totemOperandPrototype *aSrc, totemOperandXSigned bx, totemOperandXSigned cx, totemOperationType operationType)
+totemEvalStatus totemInstruction_AsAb2ug(totemInstruction* instruction, EMIT_PARAMS_Ab2ug, totemOperationType operationType)
 {
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab1c1);
+    TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Ab2ug);
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB2u(instruction, b2ug));
+
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemInstruction_AsAbc(totemInstruction *instruction, EMIT_PARAMS_Abc, totemOperationType operationType)
+{
+	TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Abc);
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB(instruction, b));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetC(instruction, c));
+    
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemInstruction_AsAbc1(totemInstruction* instruction, EMIT_PARAMS_Abc1, totemOperationType operationType)
+{
+    TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Abc1);
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB(instruction, b));
+    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetC1u(instruction, c1));
+
+    return totemEvalStatus_Success;
+}
+
+totemEvalStatus totemInstruction_AsAbc1u(totemInstruction *instruction, EMIT_PARAMS_Abc1u, totemOperationType operationType)
+{
+	TOTEM_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Abc1u);
 	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB1(instruction, bx));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetC1(instruction, cx));
-
-	return totemEvalStatus_Success;
-}
-
-totemEvalStatus totemInstruction_AsAbc(totemInstruction *instruction, totemOperandPrototype *aSrc, totemOperandPrototype *bSrc, totemOperandPrototype *cSrc, totemOperationType operationType)
-{
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Abc);
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB(instruction, bSrc->RegisterIndex, bSrc->RegisterScopeType));
-    TOTEM_EVAL_CHECKRETURN(totemInstruction_SetC(instruction, cSrc->RegisterIndex, cSrc->RegisterScopeType));
-    
-    return totemEvalStatus_Success;
-}
-
-totemEvalStatus totemInstruction_AsAbc1u(totemInstruction *instruction, totemOperandPrototype *aSrc, totemOperandPrototype *bSrc, totemOperandXUnsigned cx, totemOperationType operationType)
-{
-	TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(operationType) == totemInstructionType_Abc1u);
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetOp(instruction, operationType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, aSrc->RegisterIndex, aSrc->RegisterScopeType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB(instruction, bSrc->RegisterIndex, bSrc->RegisterScopeType));
-	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetC1u(instruction, cx));
+	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetA(instruction, a));
+	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetB(instruction, b));
+	TOTEM_EVAL_CHECKRETURN(totemInstruction_SetC1u(instruction, c1u));
 
 	return totemEvalStatus_Success;
 }
@@ -290,26 +310,36 @@ totemEvalStatus totemInstruction_AsAbc1u(totemInstruction *instruction, totemOpe
 #define EMIT_TYPELESS_PARAMS_Ab		instruction, a, b
 #define EMIT_TYPELESS_PARAMS_Ab2	instruction, a, b2
 #define EMIT_TYPELESS_PARAMS_Ab2u	instruction, a, b2u
-#define EMIT_TYPELESS_PARAMS_Ab2ug	instruction, a, b2u
+#define EMIT_TYPELESS_PARAMS_Ab2ug	instruction, a, b2ug
 #define EMIT_TYPELESS_PARAMS_Abc	instruction, a, b, c
 #define EMIT_TYPELESS_PARAMS_Abc1	instruction, a, b, c1
 #define EMIT_TYPELESS_PARAMS_Abc1u	instruction, a, b, c1u
 #define EMIT_TYPELESS_PARAMS_Ab1c1	instruction, a, b1, c1
-#define EMIT(op, type, behaviour)  \
-	totemEvalStatus totemInstruction_As ## op ( EMIT_PARAMS_ ## type ) \
-	{ \
-		TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(totemOperationType_ ## op) == totemInstructionType_ ## type); \
-		TOTEM_EVAL_CHECKRETURN(totemInstruction_As ## type ( EMIT_TYPELESS_PARAMS_ ## type, totemOperationType_ ## op ) ); \
-		return totemEvalStatus_Success; \
-	}  \
-	\
-	totemEvalStatus totemBuildPrototype_EvalInstruction_As ## op ( totemBuildPrototype *build, EMIT_PARAMS_ ## type ) \
-	{ \
-		TOTEM_DEBUG_ASSERT(totemOperationType_GetInstructionType(totemOperationType_ ## op) == totemInstructionType_ ## type); \
-		totemInstruction *instruction = NULL; \
-		TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction)); \
-		TOTEM_EVAL_CHECKRETURN(totemInstruction_As ## op ( EMIT_TYPELESS_PARAMS_ ## type ) ); \
-		return totemEvalStatus_Success; \
-	}
-TOTEM_EMIT_OPCODES(EMIT)
+
+#define EMIT(ins) \
+totemEvalStatus totemBuildPrototype_Eval ## ins ## Instruction(totemBuildPrototype *build, EMIT_PARAMS_ ## ins, totemOperationType op) \
+    { \
+        totemInstruction *instruction = NULL; \
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction)); \
+        TOTEM_EVAL_CHECKRETURN(totemInstruction_As ## ins (EMIT_TYPELESS_PARAMS_ ## ins, op)); \
+        return totemEvalStatus_Success; \
+    }
+
+    TOTEM_EMIT_INSTRUCTION_TYPES(EMIT)
+#undef EMIT
+
+#define EMIT(op, type, behaviour) \
+    totemEvalStatus totemInstruction_As_ ## op ( totemInstruction *instruction, EMIT_PARAMS_ ## type ) \
+    { \
+        return totemInstruction_As ## type(EMIT_TYPELESS_PARAMS_ ## type, totemOperationType_ ## op); \
+    }  \
+    \
+    totemEvalStatus totemBuildPrototype_AddInstruction_ ## op ( totemBuildPrototype *build, EMIT_PARAMS_ ## type ) \
+    { \
+        totemInstruction *instruction = NULL; \
+        TOTEM_EVAL_CHECKRETURN(totemBuildPrototype_AllocInstruction(build, &instruction)); \
+        TOTEM_EVAL_CHECKRETURN(totemInstruction_As_ ## op ( EMIT_TYPELESS_PARAMS_ ## type )); \
+        return totemEvalStatus_Success; \
+    }
+    TOTEM_EMIT_OPCODES(EMIT)
 #undef EMIT

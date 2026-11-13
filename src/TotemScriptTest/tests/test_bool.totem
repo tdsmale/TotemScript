@@ -5,9 +5,9 @@ assert(false != null);
 var a = true;
 assert(a != 1);
 assert(a == true);
-assert(a is boolean);
+assert(a is bool);
 
 a = false;
 assert(a != 0);
 assert(a == false);
-assert(a is boolean);
+assert(a is bool);

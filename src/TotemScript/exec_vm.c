@@ -10,64 +10,6 @@
 #include <string.h>
 #include <limits.h>
 
-#if TOTEM_DEBUGOPT_PRINT_VM_ACTIVITY
-#define TOTEM_INSTRUCTION_PRINT_DEBUG(vm, state) totemVMState_PrintInstructionDetailed(vm, state, stdout)
-#else
-#define TOTEM_INSTRUCTION_PRINT_DEBUG(vm, state)
-#endif
-
-#define TOTEM_VM_GET_REG(x) totemDispatchArgument_FromRegister((x))
-#define TOTEM_VM_GET_XU(x) totemDispatchArgument_FromOperandXUnsigned((x))
-#define TOTEM_VM_GET_X(x) totemDispatchArgument_FromOperandXSigned((x))
-#define TOTEM_VM_ZERO TOTEM_VM_GET_REG(NULL)
-#define TOTEM_VM_GET_A3(instruction) TOTEM_VM_GET_X(TOTEM_INSTRUCTION_GET_A3(instruction))
-#define TOTEM_VM_GET_A3U(instruction) TOTEM_VM_GET_XU(TOTEM_INSTRUCTION_GET_A3U(instruction))
-#define TOTEM_VM_GET_B2(instruction) TOTEM_VM_GET_X(TOTEM_INSTRUCTION_GET_B2(instruction))
-#define TOTEM_VM_GET_B2U(instruction) TOTEM_VM_GET_XU(TOTEM_INSTRUCTION_GET_B2U(instruction))
-#define TOTEM_VM_GET_B1(instruction) TOTEM_VM_GET_X(TOTEM_INSTRUCTION_GET_B1(instruction))
-#define TOTEM_VM_GET_C1(instruction) TOTEM_VM_GET_X(TOTEM_INSTRUCTION_GET_C1(instruction))
-#define TOTEM_VM_GET_C1U(instruction) TOTEM_VM_GET_XU(TOTEM_INSTRUCTION_GET_C1U(instruction))
-
-#if TOTEM_VMOPT_GLOBAL_OPERANDS
-
-typedef struct totemVMState
-{
-	totemInstruction *InsPtr;
-	totemRegister *Base[2];
-	totemInstruction Ins;
-	totemOperationType Op;
-}
-totemVMState;
-
-static TOTEM_DEBUG_INLINE void totemVMState_Init(totemVMState *vm, totemExecState *state)
-{
-	vm->InsPtr = state->CallStack->ResumeAt;
-	vm->Base[totemOperandType_GlobalRegister] = state->GlobalRegisters;
-	vm->Base[totemOperandType_LocalRegister] = state->LocalRegisters;
-}
-
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetA(totemVMState *vm)
-{
-	return TOTEM_VM_GET_REG(&vm->Base[(TOTEM_INSTRUCTION_GET_REGISTERA_SCOPE(vm->Ins))][(TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(vm->Ins))]);
-}
-
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetB(totemVMState *vm)
-{
-	return TOTEM_VM_GET_REG(&vm->Base[(TOTEM_INSTRUCTION_GET_REGISTERB_SCOPE(vm->Ins))][(TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(vm->Ins))]);
-}
-
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetC(totemVMState *vm)
-{
-	return TOTEM_VM_GET_REG(&vm->Base[(TOTEM_INSTRUCTION_GET_REGISTERC_SCOPE(vm->Ins))][(TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(vm->Ins))]);
-}
-
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetGlobal(totemVMState *vm, totemOperandXUnsigned index)
-{
-	return TOTEM_VM_GET_REG(&vm->Base[totemOperandType_GlobalRegister][index]);
-}
-
-#else
-
 typedef struct
 {
 	totemInstruction *InsPtr;
@@ -77,80 +19,73 @@ typedef struct
 }
 totemVMState;
 
+void totemVMState_PrintInstructionDetailed(totemLog *file, totemVMState *vm, totemExecState *state);
+
 static TOTEM_DEBUG_INLINE void totemVMState_Init(totemVMState *vm, totemExecState *state)
 {
 	vm->InsPtr = state->CallStack->ResumeAt;
-	vm->Base = state->GlobalRegisters;
-	vm->Globals = state->LocalRegisters;
+	vm->Base = state->LocalRegisters;
+	vm->Globals = state->GlobalRegisters;
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetA(totemVMState *vm)
+static TOTEM_DEBUG_INLINE totemRegister *totemVMState_GetA(totemVMState *vm)
 {
-	return TOTEM_VM_GET_REG(&vm->Base[(TOTEM_INSTRUCTION_GET_REGISTERA_INDEX(vm->Ins))]);
+    totemRegister *r = &vm->Base[(TOTEM_INSTRUCTION_GET_A(vm->Ins))];
+    return r;
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetB(totemVMState *vm)
+static TOTEM_DEBUG_INLINE totemRegister* totemVMState_GetB(totemVMState *vm)
 {
-	return TOTEM_VM_GET_REG(&vm->Base[(TOTEM_INSTRUCTION_GET_REGISTERB_INDEX(vm->Ins))]);
+    totemRegister *r = &vm->Base[(TOTEM_INSTRUCTION_GET_B(vm->Ins))];
+    return r;
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetC(totemVMState *vm)
+static TOTEM_DEBUG_INLINE totemRegister* totemVMState_GetC(totemVMState *vm)
 {
-	return TOTEM_VM_GET_REG(&vm->Base[(TOTEM_INSTRUCTION_GET_REGISTERC_INDEX(vm->Ins))]);
+    totemRegister *r = &vm->Base[(TOTEM_INSTRUCTION_GET_C(vm->Ins))];
+    return r;
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetGlobal(totemVMState *vm, totemOperandXUnsigned index)
+static TOTEM_DEBUG_INLINE totemRegister* totemVMState_GetGlobal(totemVMState *vm, totemOperandXu index)
 {
-	return TOTEM_VM_GET_REG(&vm->Globals[index]);
+    totemRegister *r = &vm->Globals[index];
+    return r;
 }
-
-#endif
 
 static TOTEM_DEBUG_INLINE void totemVMState_FetchInstruction(totemVMState *vm, totemExecState *state)
 {
 	vm->Ins = *vm->InsPtr;
-	TOTEM_INSTRUCTION_PRINT_DEBUG(vm, state);
 }
 
 static TOTEM_DEBUG_INLINE void totemVMState_Prologue(totemVMState *vm, totemExecState *state)
 {
 	totemVMState_FetchInstruction(vm, state);
 	vm->Op = TOTEM_INSTRUCTION_GET_OP(vm->Ins);
+    TOTEM_LOG_DO(Exec, VM, Debug, dst, totemVMState_PrintInstructionDetailed(dst, vm, state));
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetA3(totemVMState *vm)
+static TOTEM_DEBUG_INLINE totemOperand3 totemVMState_GetA3(totemVMState *vm)
 {
-	return TOTEM_VM_GET_A3(vm->Ins);
+    totemOperand3 o = TOTEM_INSTRUCTION_GET_A3(vm->Ins);;
+    return o;
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetA3u(totemVMState *vm)
+static TOTEM_DEBUG_INLINE totemOperand2 totemVMState_GetB2(totemVMState *vm)
 {
-	return TOTEM_VM_GET_A3U(vm->Ins);
+    totemOperand2 o = TOTEM_INSTRUCTION_GET_B2(vm->Ins);
+    return o;
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetB2(totemVMState *vm)
+static TOTEM_DEBUG_INLINE totemOperand2u totemVMState_GetB2u(totemVMState *vm)
 {
-	return TOTEM_VM_GET_B2(vm->Ins);
+    totemOperand2u o = TOTEM_INSTRUCTION_GET_B2U(vm->Ins);
+    return o;
 }
 
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetB2u(totemVMState *vm)
+static TOTEM_DEBUG_INLINE totemOperand1u totemVMState_GetC1u(totemVMState *vm)
 {
-	return TOTEM_VM_GET_B2U(vm->Ins);
-}
-
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetB1(totemVMState *vm)
-{
-	return TOTEM_VM_GET_B1(vm->Ins);
-}
-
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetC1(totemVMState *vm)
-{
-	return TOTEM_VM_GET_C1(vm->Ins);
-}
-
-static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetC1u(totemVMState *vm)
-{
-	return TOTEM_VM_GET_C1U(vm->Ins);
+    totemOperand1u o = TOTEM_INSTRUCTION_GET_C1U(vm->Ins);
+    return o;
 }
 
 #if TOTEM_VMOPT_THREADED_DISPATCH
@@ -164,7 +99,7 @@ static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetC1u(totemVMState
 #define TOTEM_VM_DEFAULT_TARGET_LABEL TOTEM_VM_TARGET_LABEL(badop)
 #define TOTEM_VM_DEFAULT_TARGET() TOTEM_VM_DEFAULT_TARGET_LABEL:
 
-#define TOTEM_VM_OPCODE_FORMAT_TABLE(x, y) &&TOTEM_VM_TARGET_LABEL(val),
+#define TOTEM_VM_OPCODE_FORMAT_TABLE(x, y, z) &&TOTEM_VM_TARGET_LABEL(x),
 #define TOTEM_VM_DEFINE_TARGET_TABLE() static const void *s_opcodes[UINT8_MAX + 1] = \
     { \
         TOTEM_EMIT_OPCODES(TOTEM_VM_OPCODE_FORMAT_TABLE) \
@@ -195,122 +130,139 @@ static TOTEM_DEBUG_INLINE totemDispatchArgument totemVMState_GetC1u(totemVMState
 #define TOTEM_EMIT_OPCODE_ABC1U(_, op, behaviour)	TOTEM_EMIT_OPCODE(_, op, Abc1u, behaviour)
 #define TOTEM_EMIT_OPCODE_AB1C1(_, op, behaviour)	TOTEM_EMIT_OPCODE(_, op, Ab1c1, behaviour)
 
+#define TOTEM_EMIT_STATE_PARAM_Pure TOTEM_NONE
+#define TOTEM_EMIT_STATE_PARAM_None state, 
+#define TOTEM_EMIT_STATE_PARAM(x) TOTEM_EMIT_STATE_PARAM_ ## x
+
 // dispatch targets for each instruction type
-#define TOTEM_VM_DISPATCH_A(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), TOTEM_VM_ZERO, TOTEM_VM_ZERO)
+#define TOTEM_VM_DISPATCH_A(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm))
 
-#define TOTEM_VM_DISPATCH_A3(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA3(vm), TOTEM_VM_ZERO, TOTEM_VM_ZERO)
+#define TOTEM_VM_DISPATCH_A3(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA3(vm))
 
-#define TOTEM_VM_DISPATCH_A3u(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA3u(vm), TOTEM_VM_ZERO, TOTEM_VM_ZERO)
+#define TOTEM_VM_DISPATCH_A3u(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA3u(vm))
 
-#define TOTEM_VM_DISPATCH_Ab(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB(vm), TOTEM_VM_ZERO)
+#define TOTEM_VM_DISPATCH_Ab(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetB(vm))
 
-#define TOTEM_VM_DISPATCH_Ab2(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB2(vm), TOTEM_VM_ZERO)
+#define TOTEM_VM_DISPATCH_Ab2(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetB2(vm))
 
-#define TOTEM_VM_DISPATCH_Ab2u(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB2u(vm), TOTEM_VM_ZERO)
+#define TOTEM_VM_DISPATCH_Ab2u(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetB2u(vm))
 
-#define TOTEM_VM_DISPATCH_Ab2ug(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetGlobal(vm, totemVMState_GetB2u(vm).XUnsigned), TOTEM_VM_ZERO)
+#define TOTEM_VM_DISPATCH_Ab2ug(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetGlobal(vm, totemVMState_GetB2u(vm)))
 
-#define TOTEM_VM_DISPATCH_Abc(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB(vm), totemVMState_GetC(vm))
+#define TOTEM_VM_DISPATCH_Abc(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetB(vm), totemVMState_GetC(vm))
 
-#define TOTEM_VM_DISPATCH_Abc1(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB(vm), totemVMState_GetC1(vm))
+#define TOTEM_VM_DISPATCH_Abc1(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetB(vm), totemVMState_GetC1(vm))
 
-#define TOTEM_VM_DISPATCH_Abc1u(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB(vm), totemVMState_GetC1u(vm))
+#define TOTEM_VM_DISPATCH_Abc1u(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetB(vm), totemVMState_GetC1u(vm))
 
-#define TOTEM_VM_DISPATCH_Abc1u(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB(vm), totemVMState_GetC1u(vm))
+#define TOTEM_VM_DISPATCH_Ab1c1(vm, state, op, isPure) \
+	TOTEM_DISPATCH_NAME(op) (TOTEM_EMIT_STATE_PARAM(isPure) totemVMState_GetA(vm), totemVMState_GetB1(vm), totemVMState_GetC1(vm))
 
-#define TOTEM_VM_DISPATCH_Ab1c1(vm, state, op) \
-	TOTEM_DISPATCH_NAME(op) (state, totemVMState_GetA(vm), totemVMState_GetB1(vm), totemVMState_GetC1(vm))
+#define TOTEM_VM_DISPATCH(vm, state, op, type, isPure) TOTEM_VM_DISPATCH_ ## type (vm, state, op, isPure)
 
-#define TOTEM_VM_DISPATCH(vm, state, op, type) TOTEM_VM_DISPATCH_ ## type (vm, state, op)
+#define TOTEM_VM_BEHAVIOUR_Pure(op, type) \
+	vm.InsPtr++; \
+	TOTEM_VM_DISPATCH(&vm, state, op, type, Pure); \
+	TOTEM_VM_NEXT(&vm, state);
 
-void totemVMState_PrintInstructionDetailed(totemVMState *vm, totemExecState *state, FILE *file)
+#define TOTEM_VM_BEHAVIOUR_PureControl(op, type) \
+	vm.InsPtr += TOTEM_VM_DISPATCH(&vm, state, op, type, Pure); \
+	TOTEM_VM_NEXT(&vm, state);
+
+#define TOTEM_VM_BEHAVIOUR_Return(op, type) \
+	vm.InsPtr++; \
+	TOTEM_VM_DISPATCH(&vm, state, op, type, None); \
+	return;
+
+#define TOTEM_VM_BEHAVIOUR_None(op, type) \
+	vm.InsPtr++; \
+	TOTEM_VM_DISPATCH(&vm, state, op, type, None); \
+	TOTEM_VM_NEXT(&vm, state);
+
+void totemVMState_PrintInstructionDetailed(totemLog *file, totemVMState *vm, totemExecState *state)
 {
     totemInstruction_Print(file, vm->Ins);
     totemInstructionType type = totemOperationType_GetInstructionType(vm->Op);
     switch (type)
     {
 		case totemInstructionType_A:
-		case totemInstructionType_Ab1c1:
-		{
-			totemDispatchArgument a = totemVMState_GetA(vm);
-			fprintf(file, "a:");
-			totemExecState_PrintRegister(state, file, a.Reg);
-			break;
-		}		
-
+        {
+            totemRegister* a = totemVMState_GetA(vm);
+            totemLog_Write(file, "a:");
+            totemRuntime_PrintRegister(state->Runtime, file, a, 0, totemBool_False);
+            break;
+        }
+            
 		case totemInstructionType_Ab:
 		{
-			totemDispatchArgument a = totemVMState_GetA(vm);
-			totemDispatchArgument b = totemVMState_GetB(vm);
-			fprintf(file, "a:");
-			totemExecState_PrintRegister(state, file, a.Reg);
-			fprintf(file, "b:");
-			totemExecState_PrintRegister(state, file, b.Reg);
+			totemRegister* a = totemVMState_GetA(vm);
+			totemRegister* b = totemVMState_GetB(vm);
+            totemLog_Write(file, "a:");
+			totemRuntime_PrintRegister(state->Runtime, file, a, 0, totemBool_False);
+            totemLog_Write(file, "b:");
+            totemRuntime_PrintRegister(state->Runtime, file, b, 0, totemBool_False);
 			break;
 		}
             
         case totemInstructionType_Abc:
         {
-			totemDispatchArgument a = totemVMState_GetA(vm);
-			totemDispatchArgument b = totemVMState_GetB(vm);
-			totemDispatchArgument c = totemVMState_GetC(vm);
-            fprintf(file, "a:");
-            totemExecState_PrintRegister(state, file, a.Reg);
-            fprintf(file, "b:");
-            totemExecState_PrintRegister(state, file, b.Reg);
-            fprintf(file, "c:");
-            totemExecState_PrintRegister(state, file, c.Reg);
+			totemRegister* a = totemVMState_GetA(vm);
+			totemRegister* b = totemVMState_GetB(vm);
+			totemRegister* c = totemVMState_GetC(vm);
+            totemLog_Write(file, "a:");
+            totemRuntime_PrintRegister(state->Runtime, file, a, 0, totemBool_False);
+            totemLog_Write(file, "b:");
+            totemRuntime_PrintRegister(state->Runtime, file, b, 0, totemBool_False);
+            totemLog_Write(file, "c:");
+            totemRuntime_PrintRegister(state->Runtime, file, c, 0, totemBool_False);
             break;
         }
 
         case totemInstructionType_Ab2:
 		case totemInstructionType_Ab2u:
         {
-			totemDispatchArgument a = totemVMState_GetA(vm);
-            fprintf(file, "a:");
-            totemExecState_PrintRegister(state, file, a.Reg);   
+			totemRegister* a = totemVMState_GetA(vm);
+            totemLog_Write(file, "a:");
+            totemRuntime_PrintRegister(state->Runtime, file, a, 0, totemBool_False);
             break;
         }
 
 		case totemInstructionType_Ab2ug:
 		{
-			totemDispatchArgument a = totemVMState_GetA(vm);
-			totemDispatchArgument g = totemVMState_GetGlobal(vm, totemVMState_GetB2u(vm).XUnsigned);
-			fprintf(file, "a:");
-			totemExecState_PrintRegister(state, file, a.Reg);
-			fprintf(file, "g:");
-			totemExecState_PrintRegister(state, file, g.Reg);
+			totemRegister* a = totemVMState_GetA(vm);
+			totemRegister* g = totemVMState_GetGlobal(vm, totemVMState_GetB2u(vm));
+            totemLog_Write(file, "a:");
+            totemRuntime_PrintRegister(state->Runtime, file, a, 0, totemBool_False);
+            totemLog_Write(file, "g:");
+            totemRuntime_PrintRegister(state->Runtime, file, g, 0, totemBool_False);
 			break;
 		}	
 
 		case totemInstructionType_Abc1:
 		case totemInstructionType_Abc1u:
 		{
-			totemDispatchArgument a = totemVMState_GetA(vm);
-			totemDispatchArgument b = totemVMState_GetB(vm);
-			fprintf(file, "a:");
-			totemExecState_PrintRegister(state, file, a.Reg);
-			fprintf(file, "b:");
-			totemExecState_PrintRegister(state, file, b.Reg);
+			totemRegister* a = totemVMState_GetA(vm);
+			totemRegister* b = totemVMState_GetB(vm);
+            totemLog_Write(file, "a:");
+            totemRuntime_PrintRegister(state->Runtime, file, a, 0, totemBool_False);
+            totemLog_Write(file, "b:");
+            totemRuntime_PrintRegister(state->Runtime, file, b, 0, totemBool_False);
 			break;
 		}
 
 		default:
 			break;
     }
-    
-    fprintf(file, "\n");
 }
 
 void totemExecState_ExecuteInstructions(totemExecState *state)
@@ -322,27 +274,10 @@ void totemExecState_ExecuteInstructions(totemExecState *state)
 	TOTEM_VM_LOOP(&vm, state)
 	{
 		// this should all be optimised away by the pre-processor & compiler to just the bare-minimum per-optype
-#define TOTEM_VM_EMIT_TARGET(op, type, flags) \
+#define TOTEM_VM_EMIT_TARGET(op, type, behaviour) \
 		TOTEM_VM_TARGET(op) \
-			{ \
-			const static totemOpcodeBehaviourFlag flag = totemOpcodeBehaviourFlag_ ## flags; \
-			if(TOTEM_HASBITS(flag, totemOpcodeBehaviourFlag_Control)) \
-			{ \
-				vm.InsPtr += TOTEM_VM_DISPATCH(&vm, state, op, type); \
-			} \
-			else \
-			{ \
-				vm.InsPtr++; \
-				TOTEM_VM_DISPATCH(&vm, state, op, type); \
-			} \
-			if(TOTEM_HASBITS(flag, totemOpcodeBehaviourFlag_Return)) \
-			{ \
-				return; \
-			} \
-			else \
-			{ \
-				TOTEM_VM_NEXT(&vm, state); \
-			} \
+		{ \
+			TOTEM_VM_BEHAVIOUR_ ## behaviour (op, type); \
 		}
 
 		TOTEM_EMIT_OPCODES(TOTEM_VM_EMIT_TARGET)
@@ -367,7 +302,7 @@ static TOTEM_DEBUG_INLINE totemExecStatus totemExecState_Start(totemExecState *s
 	state->JmpNode = &node;
 
 	totemRegister dummyReturn;
-	TOTEM_ZERO(&dummyReturn);
+	TOTEM_ZERO(dummyReturn);
 
 	TOTEM_JMP_TRY(&node.Buffer)
 	{
@@ -380,12 +315,11 @@ static TOTEM_DEBUG_INLINE totemExecStatus totemExecState_Start(totemExecState *s
 		// rollback calls
 		for (totemFunctionCall *call = state->CallStack; call != retain; call = state->CallStack)
 		{
-			totemExecState_FinalizeRoutine(state);
+			totemDispatch_FinalizeRoutine(state);
 		}
 	}
 
 	state->JmpNode = node.Prev;
-	totemExecState_AssignNull(state, &dummyReturn);
 
 	return node.Status;
 }
@@ -393,15 +327,15 @@ static TOTEM_DEBUG_INLINE totemExecStatus totemExecState_Start(totemExecState *s
 static void totemExecState_BootstrapNative(totemExecState *state, void *arg, totemRegister *dummyReturn)
 {
 	totemNativeFunction *function = (totemNativeFunction*)arg;
-	totemExecState_PreInvokeNative(state, function, 0);
-	totemExecState_Invoke(state, dummyReturn);
+	totemDispatch_PreInvokeNativeFunc(state, function, 0);
+	TOTEM_DISPATCH_NAME(Invoke_Subroutine)(state, dummyReturn);
 }
 
 static void totemExecState_BootstrapInstance(totemExecState *state, void *arg, totemRegister *dummyReturn)
 {
 	totemInstanceFunction *function = (totemInstanceFunction*)arg;
-	totemExecState_PreInvokeInstance(state, function, 0);
-	totemExecState_Invoke(state, dummyReturn);
+	totemDispatch_PreInvokeInstanceFunc(state, function, 0);
+	TOTEM_DISPATCH_NAME(Invoke_Subroutine)(state, dummyReturn);
 }
 
 totemExecStatus totemExecState_StartNative(totemExecState *state, totemNativeFunction *function)

@@ -1,7 +1,47 @@
-#include test_gc.totem;
-#include test_function.totem;
-#include test_function.totem;
-#include test_include.totem;
+// note: test_function.totem runs one initial test internally
+// so getNumTests will return 1 more than the number of tests called in this script
+let filename = "./tests/test_function.totem";
 
-assert(g(123, 456, 123) == (123 + 456 + 123));
-assert(num is int);
+let test = import(filename);
+
+assert(test.test(123, 456) == (123 + 456));
+
+let test2 = import_shared(filename);
+let test3 = import_shared(filename);
+
+assert(test2 == test3);
+assert(test != test2);
+assert(test != test3);
+assert(test2.test(456, 789) == (456 + 789));
+assert(test3.test(1456, 1789) == (1456 + 1789));
+
+let test4 = import(filename);
+
+assert(test4 != test);
+assert(test4 != test2);
+assert(test4 != test3);
+
+assert(test4.test(1, 2) == (1 + 2));
+
+assert(test.getNumTests() == 2);
+assert(test2.getNumTests() == 3);
+assert(test3.getNumTests() == 3);
+assert(test4.getNumTests() == 2);
+
+assert(test4.test(4, 4) == (4 + 4));
+assert(test4.getNumTests() == 3);
+
+assert(test.getNumTests() == 2);
+assert(test2.getNumTests() == 3);
+assert(test3.getNumTests() == 3);
+assert(test4.getNumTests() != test.getNumTests());
+assert(test4.getNumTests() == test2.getNumTests());
+assert(test4.getNumTests() == test3.getNumTests());
+
+assert(test2.test(5, 6) == (5 + 6));
+assert(test2.getNumTests() == 4);
+assert(test2.getNumTests() == test3.getNumTests());
+assert(test2.getNumTests() != test.getNumTests());
+assert(test2.getNumTests() != test4.getNumTests());
+assert(test.getNumTests() == 2);
+assert(test4.getNumTests() == 3);

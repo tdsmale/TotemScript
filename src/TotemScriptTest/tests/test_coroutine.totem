@@ -1,12 +1,10 @@
 function test(var start, var end)
 {
-	var start2 = start;
-	var end2 = end;
-	return start2 * end2;
+	yield start * end;
 
-    for(var i = start2; i < end2; i++)
+    for(var i = start; i < end; i++)
     {
-        return i;
+        yield i;
     }
 
     return 0;
