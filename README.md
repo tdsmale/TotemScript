@@ -32,23 +32,23 @@ a = "This is now a string.";
 
 function test()
 {
-    // this will reference the variable in global-scope
-    a = 456;
+	// this will reference the variable in global-scope
+	a = 456;
 
-    // variables can also be declared as read-only using the "let" keyword
-    let x = "This variable cannot be modified";
+	// variables can also be declared as read-only using the "let" keyword
+	let x = "This variable cannot be modified";
 
-    // values can be typecast
-    a = 123 as string;
+	// values can be typecast
+	a = 123 as string;
 
-    // can check type at runtime
-    if(a is string)
-    {
-        // a is a string!
-    }
+	// can check type at runtime
+	if(a is string)
+	{
+		// a is a string!
+	}
 
-    // can also retrieve type as value
-    var t = a as type;
+	// can also retrieve type as value
+	var t = a as type;
 }
 ```
 #### Variable Scope
@@ -58,22 +58,22 @@ var a = "This can be accessed by any function.";
 
 function test()
 {
-    return a + " See?";
+	return a + " See?";
 }
 
 // Variables declared inside of functions are in local scope, and can only be accessed by that function.
 function localTest()
 {
-    var c = 123;
+	var c = 123;
 
-    var b = function()
-    {
-        return c; // "variable undefined" error
-    };
+	var b = function()
+	{
+		return c; // "variable undefined" error
+	};
 
-    // variable names can be reused within a new scope by just redefining them
-    var a = 123;
-	
+	// variable names can be reused within a new scope by just redefining them
+	var a = 123;
+
 	// control loops also have their own scope
 	if(true)
 	{
@@ -112,7 +112,7 @@ c["what"] = 123; // runtime error
 // declaring a function
 function test(var a, var b)
 {
-    return a + b;
+	return a + b;
 }
 
 var a = test(123, 456);
@@ -176,7 +176,7 @@ obj["test"] = 456;
 // Objects can store any sort of value
 obj["test2"] = function(var x, var y)
 {
-    return x * y;
+	return x * y;
 };
 
 obj["test2"](123, 456);
@@ -187,7 +187,7 @@ obj[key] = [20];
 
 for(var i = 0; i < 20; i++)
 {
-    obj[key][i] = i;
+	obj[key][i] = i;
 }
 
 // Objects can be initialized with values just like arrays
@@ -203,15 +203,15 @@ assert(obj[key] == null);
 // Coroutines are functions that can be paused and resumed later
 var co = coroutine(var start, var end)
 {
-    for(var i = start; i < end; i++)
-    {
+	for(var i = start; i < end; i++)
+	{
 		// yield statements pause the coroutine
 		// when called again, the coroutine will resume from this position
-        yield i; 
-    }
+		yield i; 
+	}
 
 	// once a return statement is hit, the coroutine is reset
-    return -1; 
+	return -1; 
 };
 
 // Coroutines can also be created by casting a function to a coroutine
